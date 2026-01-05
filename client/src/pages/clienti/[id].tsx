@@ -205,7 +205,12 @@ function TabPanoramica({ cliente }: { cliente: Cliente }) {
 
 function TabRichieste({ clienteId, onAddRichiesta }: { clienteId: number; onAddRichiesta: () => void }) {
   const { data: richieste = [], isLoading } = useQuery<Richiesta[]>({
-    queryKey: ["/api/richieste", { clienteId }],
+    queryKey: ["/api/richieste", "cliente", clienteId],
+    queryFn: async () => {
+      const res = await fetch(`/api/richieste?clienteId=${clienteId}`);
+      if (!res.ok) throw new Error("Failed to fetch");
+      return res.json();
+    },
   });
 
   if (isLoading) {
@@ -281,7 +286,12 @@ function TabRichieste({ clienteId, onAddRichiesta }: { clienteId: number; onAddR
 
 function TabImmobili({ clienteId }: { clienteId: number }) {
   const { data: immobili = [], isLoading } = useQuery<Immobile[]>({
-    queryKey: ["/api/immobili", { proprietarioId: clienteId }],
+    queryKey: ["/api/immobili", "proprietario", clienteId],
+    queryFn: async () => {
+      const res = await fetch(`/api/immobili?proprietarioId=${clienteId}`);
+      if (!res.ok) throw new Error("Failed to fetch");
+      return res.json();
+    },
   });
 
   if (isLoading) {
@@ -348,7 +358,12 @@ function TabImmobili({ clienteId }: { clienteId: number }) {
 
 function TabComunicazioni({ clienteId }: { clienteId: number }) {
   const { data: comunicazioni = [], isLoading } = useQuery<Comunicazione[]>({
-    queryKey: ["/api/comunicazioni", { clienteId }],
+    queryKey: ["/api/comunicazioni", "cliente", clienteId],
+    queryFn: async () => {
+      const res = await fetch(`/api/comunicazioni?clienteId=${clienteId}`);
+      if (!res.ok) throw new Error("Failed to fetch");
+      return res.json();
+    },
   });
 
   if (isLoading) {
@@ -414,7 +429,12 @@ function TabComunicazioni({ clienteId }: { clienteId: number }) {
 
 function TabAppuntamenti({ clienteId }: { clienteId: number }) {
   const { data: appuntamenti = [], isLoading } = useQuery<Appuntamento[]>({
-    queryKey: ["/api/appuntamenti", { clienteId }],
+    queryKey: ["/api/appuntamenti", "cliente", clienteId],
+    queryFn: async () => {
+      const res = await fetch(`/api/appuntamenti?clienteId=${clienteId}`);
+      if (!res.ok) throw new Error("Failed to fetch");
+      return res.json();
+    },
   });
 
   if (isLoading) {

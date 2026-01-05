@@ -91,7 +91,11 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
   app.patch("/api/clienti/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const cliente = await storage.updateCliente(id, req.body);
+      const parsed = insertClienteSchema.partial().safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Dati non validi", details: parsed.error });
+      }
+      const cliente = await storage.updateCliente(id, parsed.data);
       if (!cliente) {
         return res.status(404).json({ error: "Cliente non trovato" });
       }
@@ -156,7 +160,11 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
   app.patch("/api/richieste/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const richiesta = await storage.updateRichiesta(id, req.body);
+      const parsed = insertRichiestaSchema.partial().safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Dati non validi", details: parsed.error });
+      }
+      const richiesta = await storage.updateRichiesta(id, parsed.data);
       if (!richiesta) {
         return res.status(404).json({ error: "Richiesta non trovata" });
       }
@@ -221,7 +229,11 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
   app.patch("/api/immobili/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const immobile = await storage.updateImmobile(id, req.body);
+      const parsed = insertImmobileSchema.partial().safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Dati non validi", details: parsed.error });
+      }
+      const immobile = await storage.updateImmobile(id, parsed.data);
       if (!immobile) {
         return res.status(404).json({ error: "Immobile non trovato" });
       }
@@ -312,7 +324,11 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
   app.patch("/api/appuntamenti/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const appuntamento = await storage.updateAppuntamento(id, req.body);
+      const parsed = insertAppuntamentoSchema.partial().safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Dati non validi", details: parsed.error });
+      }
+      const appuntamento = await storage.updateAppuntamento(id, parsed.data);
       if (!appuntamento) {
         return res.status(404).json({ error: "Appuntamento non trovato" });
       }
@@ -396,7 +412,11 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
   app.patch("/api/matching/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const match = await storage.updateMatching(id, req.body);
+      const parsed = insertMatchingSchema.partial().safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Dati non validi", details: parsed.error });
+      }
+      const match = await storage.updateMatching(id, parsed.data);
       if (!match) {
         return res.status(404).json({ error: "Match non trovato" });
       }

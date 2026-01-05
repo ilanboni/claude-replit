@@ -169,23 +169,60 @@ export const matchingRelations = relations(matching, ({ one }) => ({
   immobile: one(immobili, { fields: [matching.immobileId], references: [immobili.id] }),
 }));
 
-// Insert schemas
+// Helper to coerce numeric strings to numbers - handles empty strings, null, undefined, NaN
+const coerceOptionalNumber = z.preprocess(
+  (val) => {
+    if (val === "" || val === null || val === undefined) return undefined;
+    const num = Number(val);
+    return isNaN(num) ? undefined : num;
+  },
+  z.number().optional().nullable()
+);
+
+// Helper to coerce values to strings for decimal fields (database stores as string)
+const coerceOptionalDecimal = z.preprocess(
+  (val) => {
+    if (val === "" || val === null || val === undefined) return undefined;
+    const num = Number(val);
+    return isNaN(num) ? undefined : String(num);
+  },
+  z.string().optional().nullable()
+);
+
+// Insert schemas with coercion for numeric/string inputs
 export const insertClienteSchema = createInsertSchema(clienti).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+}).extend({
+  ratingCliente: coerceOptionalNumber,
 });
 
 export const insertRichiestaSchema = createInsertSchema(richieste).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+}).extend({
+  budgetMassimo: coerceOptionalDecimal,
+  mqMinimi: coerceOptionalNumber,
+  camereMinime: coerceOptionalNumber,
+  bagniMinimi: coerceOptionalNumber,
+  priorita: coerceOptionalNumber,
+  ratingRichiesta: coerceOptionalNumber,
 });
 
 export const insertImmobileSchema = createInsertSchema(immobili).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+}).extend({
+  prezzo: coerceOptionalDecimal,
+  mq: coerceOptionalNumber,
+  piano: coerceOptionalNumber,
+  camere: coerceOptionalNumber,
+  bagni: coerceOptionalNumber,
+  latitudine: coerceOptionalDecimal,
+  longitudine: coerceOptionalDecimal,
 });
 
 export const insertComunicazioneSchema = createInsertSchema(comunicazioni).omit({
@@ -201,6 +238,8 @@ export const insertAppuntamentoSchema = createInsertSchema(appuntamenti).omit({
 export const insertMatchingSchema = createInsertSchema(matching).omit({
   id: true,
   createdAt: true,
+}).extend({
+  punteggio: coerceOptionalNumber,
 });
 
 export const insertConversationSchema = createInsertSchema(conversations).omit({
