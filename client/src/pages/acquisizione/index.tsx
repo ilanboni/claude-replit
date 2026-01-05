@@ -15,7 +15,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { ImmobileEsterno } from "@shared/schema";
 import { 
   Search, Star, StarOff, Phone, Mail, ExternalLink, MapPin, Home, Euro, 
-  Trash2, MessageSquare, Copy, Check, Loader2, Sparkles, Building2, Plus
+  Trash2, MessageSquare, Copy, Check, Loader2, Sparkles, Building2, Plus, Link
 } from "lucide-react";
 
 interface ParsedListing {
@@ -42,6 +42,7 @@ function ParseAnnuncioForm({ onSuccess }: { onSuccess: () => void }) {
   const [annuncioUrl, setAnnuncioUrl] = useState("");
   const [parsedData, setParsedData] = useState<ParsedListing | null>(null);
   const [showPreview, setShowPreview] = useState(false);
+  const [scrapedText, setScrapedText] = useState("");
 
   const parseMutation = useMutation({
     mutationFn: async (data: { text: string; url?: string }) => {
@@ -65,11 +66,37 @@ function ParseAnnuncioForm({ onSuccess }: { onSuccess: () => void }) {
     },
   });
 
+  const scrapeMutation = useMutation({
+    mutationFn: async (url: string) => {
+      const res = await apiRequest("POST", "/api/acquisizione/scrape", { url });
+      return res.json();
+    },
+    onSuccess: (data: ParsedListing & { testoOriginale?: string }) => {
+      setParsedData(data);
+      if (data.testoOriginale) {
+        setScrapedText(data.testoOriginale);
+      }
+      setShowPreview(true);
+      toast({
+        title: "Annuncio estratto e analizzato",
+        description: "Verifica i dati estratti e salva l'immobile",
+      });
+    },
+    onError: (error: any) => {
+      const message = error?.message || "Impossibile estrarre l'annuncio";
+      toast({
+        title: "Errore",
+        description: message.includes("APIFY") ? "Configura la API key di Apify" : message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const saveMutation = useMutation({
     mutationFn: async (data: ParsedListing) => {
       const res = await apiRequest("POST", "/api/acquisizione", {
         ...data,
-        testoOriginale: annuncioText,
+        testoOriginale: scrapedText || annuncioText,
         urlAnnuncio: annuncioUrl || undefined,
       });
       return res.json();
@@ -81,6 +108,7 @@ function ParseAnnuncioForm({ onSuccess }: { onSuccess: () => void }) {
       });
       setAnnuncioText("");
       setAnnuncioUrl("");
+      setScrapedText("");
       setParsedData(null);
       setShowPreview(false);
       queryClient.invalidateQueries({ queryKey: ["/api/acquisizione"] });
@@ -107,17 +135,61 @@ function ParseAnnuncioForm({ onSuccess }: { onSuccess: () => void }) {
     parseMutation.mutate({ text: annuncioText, url: annuncioUrl || undefined });
   };
 
+  const handleScrape = () => {
+    if (!annuncioUrl.trim()) {
+      toast({
+        title: "URL richiesto",
+        description: "Inserisci l'URL dell'annuncio",
+        variant: "destructive",
+      });
+      return;
+    }
+    scrapeMutation.mutate(annuncioUrl);
+  };
+
+  const isLoading = parseMutation.isPending || scrapeMutation.isPending;
+
   return (
     <div className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="url">URL annuncio (opzionale)</Label>
-        <Input
-          id="url"
-          placeholder="https://www.immobiliare.it/annunci/..."
-          value={annuncioUrl}
-          onChange={(e) => setAnnuncioUrl(e.target.value)}
-          data-testid="input-annuncio-url"
-        />
+        <Label htmlFor="url">URL annuncio</Label>
+        <div className="flex gap-2">
+          <Input
+            id="url"
+            placeholder="https://www.immobiliare.it/annunci/..."
+            value={annuncioUrl}
+            onChange={(e) => setAnnuncioUrl(e.target.value)}
+            data-testid="input-annuncio-url"
+            className="flex-1"
+          />
+          <Button 
+            onClick={handleScrape}
+            disabled={isLoading || !annuncioUrl.trim()}
+            variant="default"
+            data-testid="button-scrape-url"
+          >
+            {scrapeMutation.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <>
+                <Link className="h-4 w-4 mr-2" />
+                Estrai
+              </>
+            )}
+          </Button>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Incolla il link e clicca Estrai per scaricare automaticamente l'annuncio (richiede API key Apify)
+        </p>
+      </div>
+
+      <div className="relative py-2">
+        <div className="absolute inset-0 flex items-center">
+          <span className="w-full border-t" />
+        </div>
+        <div className="relative flex justify-center text-xs uppercase">
+          <span className="bg-card px-2 text-muted-foreground">oppure</span>
+        </div>
       </div>
 
       <div className="space-y-2">
@@ -131,14 +203,15 @@ function ParseAnnuncioForm({ onSuccess }: { onSuccess: () => void }) {
           data-testid="textarea-annuncio-text"
         />
         <p className="text-sm text-muted-foreground">
-          Copia e incolla il testo dell'annuncio da Immobiliare.it, Idealista, Subito o altri portali. L'AI estrarrà automaticamente i dati.
+          Copia e incolla il testo dell'annuncio manualmente
         </p>
       </div>
 
       <Button 
         onClick={handleParse} 
-        disabled={parseMutation.isPending || !annuncioText.trim()}
+        disabled={isLoading || !annuncioText.trim()}
         className="w-full"
+        variant="outline"
         data-testid="button-parse-annuncio"
       >
         {parseMutation.isPending ? (

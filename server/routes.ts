@@ -7,6 +7,7 @@ import {
   insertImmobileEsternoSchema
 } from "@shared/schema";
 import { parseRequestWithAI, calculateMatchScore, generateAICoachMessage, parsePropertyListingWithAI, generateAcquisitionMessage } from "./ai-service";
+import { scrapeUrlWithApify } from "./apify-service";
 
 export async function registerRoutes(server: Server, app: Express): Promise<void> {
   // ==================== RICERCA GLOBALE ====================
@@ -676,6 +677,34 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
     } catch (error) {
       console.error("Parse listing error:", error);
       res.status(500).json({ error: "Errore nell'analisi dell'annuncio" });
+    }
+  });
+
+  // Scrape URL with Apify and parse with AI
+  app.post("/api/acquisizione/scrape", async (req, res) => {
+    try {
+      const { url } = req.body;
+      if (!url || typeof url !== "string") {
+        return res.status(400).json({ error: "URL dell'annuncio richiesto" });
+      }
+      
+      // Scrape the URL content
+      const scrapedText = await scrapeUrlWithApify(url);
+      
+      // Parse the scraped content with AI
+      const parsed = await parsePropertyListingWithAI(scrapedText, url);
+      
+      res.json({ 
+        ...parsed, 
+        testoOriginale: scrapedText,
+        urlAnnuncio: url 
+      });
+    } catch (error: any) {
+      console.error("Scrape listing error:", error);
+      if (error.message?.includes('APIFY_API_TOKEN')) {
+        return res.status(400).json({ error: "Configura la API key di Apify nelle impostazioni" });
+      }
+      res.status(500).json({ error: "Errore nell'estrazione dell'annuncio: " + (error.message || "errore sconosciuto") });
     }
   });
 
