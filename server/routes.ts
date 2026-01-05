@@ -3,9 +3,10 @@ import type { Server } from "http";
 import { storage } from "./storage";
 import { 
   insertClienteSchema, insertRichiestaSchema, insertImmobileSchema,
-  insertComunicazioneSchema, insertAppuntamentoSchema, insertMatchingSchema
+  insertComunicazioneSchema, insertAppuntamentoSchema, insertMatchingSchema,
+  insertImmobileEsternoSchema
 } from "@shared/schema";
-import { parseRequestWithAI, calculateMatchScore, generateAICoachMessage } from "./ai-service";
+import { parseRequestWithAI, calculateMatchScore, generateAICoachMessage, parsePropertyListingWithAI, generateAcquisitionMessage } from "./ai-service";
 
 export async function registerRoutes(server: Server, app: Express): Promise<void> {
   // ==================== RICERCA GLOBALE ====================
@@ -631,6 +632,132 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
     } catch (error) {
       console.error("AI coach error:", error);
       res.json({ message: "Buona giornata di lavoro! Concentrati sui tuoi obiettivi." });
+    }
+  });
+
+  // ==================== ACQUISIZIONE (Immobili Esterni) ====================
+  
+  // Get all external properties
+  app.get("/api/acquisizione", async (req, res) => {
+    try {
+      const preferiti = req.query.preferiti === 'true' ? true : req.query.preferiti === 'false' ? false : undefined;
+      const immobili = await storage.getImmobiliEsterni(preferiti);
+      res.json(immobili);
+    } catch (error) {
+      console.error("Get acquisizione error:", error);
+      res.status(500).json({ error: "Errore nel recupero degli immobili esterni" });
+    }
+  });
+
+  // Get single external property
+  app.get("/api/acquisizione/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const immobile = await storage.getImmobileEsterno(id);
+      if (!immobile) {
+        return res.status(404).json({ error: "Immobile non trovato" });
+      }
+      res.json(immobile);
+    } catch (error) {
+      console.error("Get acquisizione by id error:", error);
+      res.status(500).json({ error: "Errore nel recupero dell'immobile" });
+    }
+  });
+
+  // Parse property listing with AI
+  app.post("/api/acquisizione/parse", async (req, res) => {
+    try {
+      const { text, url } = req.body;
+      if (!text || typeof text !== "string") {
+        return res.status(400).json({ error: "Testo dell'annuncio richiesto" });
+      }
+      const parsed = await parsePropertyListingWithAI(text, url);
+      res.json(parsed);
+    } catch (error) {
+      console.error("Parse listing error:", error);
+      res.status(500).json({ error: "Errore nell'analisi dell'annuncio" });
+    }
+  });
+
+  // Create external property (from parsed data)
+  app.post("/api/acquisizione", async (req, res) => {
+    try {
+      const parsed = insertImmobileEsternoSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Dati non validi", details: parsed.error });
+      }
+      const immobile = await storage.createImmobileEsterno(parsed.data);
+      res.status(201).json(immobile);
+    } catch (error) {
+      console.error("Create acquisizione error:", error);
+      res.status(500).json({ error: "Errore nella creazione dell'immobile" });
+    }
+  });
+
+  // Update external property
+  app.patch("/api/acquisizione/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const parsed = insertImmobileEsternoSchema.partial().safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Dati non validi", details: parsed.error });
+      }
+      const immobile = await storage.updateImmobileEsterno(id, parsed.data);
+      if (!immobile) {
+        return res.status(404).json({ error: "Immobile non trovato" });
+      }
+      res.json(immobile);
+    } catch (error) {
+      console.error("Update acquisizione error:", error);
+      res.status(500).json({ error: "Errore nell'aggiornamento dell'immobile" });
+    }
+  });
+
+  // Delete external property
+  app.delete("/api/acquisizione/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteImmobileEsterno(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Delete acquisizione error:", error);
+      res.status(500).json({ error: "Errore nell'eliminazione dell'immobile" });
+    }
+  });
+
+  // Generate personalized acquisition message
+  app.post("/api/acquisizione/:id/generate-message", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { template } = req.body;
+      
+      const immobile = await storage.getImmobileEsterno(id);
+      if (!immobile) {
+        return res.status(404).json({ error: "Immobile non trovato" });
+      }
+
+      const message = await generateAcquisitionMessage(immobile, template);
+      res.json({ message });
+    } catch (error) {
+      console.error("Generate message error:", error);
+      res.status(500).json({ error: "Errore nella generazione del messaggio" });
+    }
+  });
+
+  // Toggle preferito status
+  app.post("/api/acquisizione/:id/toggle-preferito", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const immobile = await storage.getImmobileEsterno(id);
+      if (!immobile) {
+        return res.status(404).json({ error: "Immobile non trovato" });
+      }
+      
+      const updated = await storage.updateImmobileEsterno(id, { preferito: !immobile.preferito });
+      res.json(updated);
+    } catch (error) {
+      console.error("Toggle preferito error:", error);
+      res.status(500).json({ error: "Errore nell'aggiornamento dello stato preferito" });
     }
   });
 }

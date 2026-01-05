@@ -1,11 +1,12 @@
 import { 
-  clienti, richieste, immobili, comunicazioni, appuntamenti, matching,
+  clienti, richieste, immobili, comunicazioni, appuntamenti, matching, immobiliEsterni,
   type Cliente, type InsertCliente,
   type Richiesta, type InsertRichiesta,
   type Immobile, type InsertImmobile,
   type Comunicazione, type InsertComunicazione,
   type Appuntamento, type InsertAppuntamento,
   type Matching, type InsertMatching,
+  type ImmobileEsterno, type InsertImmobileEsterno,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql } from "drizzle-orm";
@@ -49,6 +50,13 @@ export interface IStorage {
   createMatching(data: InsertMatching): Promise<Matching>;
   updateMatching(id: number, data: Partial<InsertMatching>): Promise<Matching | undefined>;
   deleteMatchingByRichiesta(richiestaId: number): Promise<boolean>;
+
+  // Immobili Esterni (Acquisizione)
+  getImmobiliEsterni(preferiti?: boolean): Promise<ImmobileEsterno[]>;
+  getImmobileEsterno(id: number): Promise<ImmobileEsterno | undefined>;
+  createImmobileEsterno(data: InsertImmobileEsterno): Promise<ImmobileEsterno>;
+  updateImmobileEsterno(id: number, data: Partial<InsertImmobileEsterno>): Promise<ImmobileEsterno | undefined>;
+  deleteImmobileEsterno(id: number): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -219,6 +227,38 @@ export class DatabaseStorage implements IStorage {
 
   async deleteMatchingByRichiesta(richiestaId: number): Promise<boolean> {
     await db.delete(matching).where(eq(matching.richiestaId, richiestaId));
+    return true;
+  }
+
+  // Immobili Esterni (Acquisizione)
+  async getImmobiliEsterni(preferiti?: boolean): Promise<ImmobileEsterno[]> {
+    if (preferiti !== undefined) {
+      return db.select().from(immobiliEsterni).where(eq(immobiliEsterni.preferito, preferiti)).orderBy(desc(immobiliEsterni.createdAt));
+    }
+    return db.select().from(immobiliEsterni).orderBy(desc(immobiliEsterni.createdAt));
+  }
+
+  async getImmobileEsterno(id: number): Promise<ImmobileEsterno | undefined> {
+    const [immobile] = await db.select().from(immobiliEsterni).where(eq(immobiliEsterni.id, id));
+    return immobile;
+  }
+
+  async createImmobileEsterno(data: InsertImmobileEsterno): Promise<ImmobileEsterno> {
+    const [immobile] = await db.insert(immobiliEsterni).values(data).returning();
+    return immobile;
+  }
+
+  async updateImmobileEsterno(id: number, data: Partial<InsertImmobileEsterno>): Promise<ImmobileEsterno | undefined> {
+    const [immobile] = await db
+      .update(immobiliEsterni)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(immobiliEsterni.id, id))
+      .returning();
+    return immobile;
+  }
+
+  async deleteImmobileEsterno(id: number): Promise<boolean> {
+    await db.delete(immobiliEsterni).where(eq(immobiliEsterni.id, id));
     return true;
   }
 }

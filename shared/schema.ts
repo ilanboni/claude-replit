@@ -122,6 +122,37 @@ export const appuntamenti = pgTable("appuntamenti", {
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
+// IMMOBILI ESTERNI - External properties (scraped/manual from portals)
+export const immobiliEsterni = pgTable("immobili_esterni", {
+  id: serial("id").primaryKey(),
+  titolo: text("titolo").notNull(),
+  descrizione: text("descrizione"),
+  indirizzo: text("indirizzo"),
+  zona: text("zona"),
+  mq: integer("mq"),
+  prezzo: decimal("prezzo", { precision: 12, scale: 2 }),
+  piano: integer("piano"),
+  camere: integer("camere"),
+  bagni: integer("bagni"),
+  contattoNome: text("contatto_nome"),
+  contattoTelefono: text("contatto_telefono"),
+  contattoEmail: text("contatto_email"),
+  urlAnnuncio: text("url_annuncio"),
+  fonte: text("fonte").default("manuale"), // immobiliare, idealista, subito, manuale
+  testoOriginale: text("testo_originale"), // original pasted text for reference
+  caratteristiche: json("caratteristiche").$type<Record<string, any>>().default({}),
+  immagini: json("immagini").$type<string[]>().default([]),
+  dataPubblicazione: text("data_pubblicazione"),
+  preferito: boolean("preferito").default(false),
+  statoContatto: text("stato_contatto").default("nuovo"), // nuovo, contattato, interessato, scartato
+  messaggioInviato: text("messaggio_inviato"),
+  dataContatto: timestamp("data_contatto"),
+  note: text("note"),
+  attivo: boolean("attivo").default(true),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
 // MATCHING - Match results between requests and properties
 export const matching = pgTable("matching", {
   id: serial("id").primaryKey(),
@@ -242,6 +273,18 @@ export const insertMatchingSchema = createInsertSchema(matching).omit({
   punteggio: coerceOptionalNumber,
 });
 
+export const insertImmobileEsternoSchema = createInsertSchema(immobiliEsterni).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  prezzo: coerceOptionalDecimal,
+  mq: coerceOptionalNumber,
+  piano: coerceOptionalNumber,
+  camere: coerceOptionalNumber,
+  bagni: coerceOptionalNumber,
+});
+
 export const insertConversationSchema = createInsertSchema(conversations).omit({
   id: true,
   createdAt: true,
@@ -276,3 +319,6 @@ export type InsertConversation = z.infer<typeof insertConversationSchema>;
 
 export type Message = typeof messages.$inferSelect;
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
+
+export type ImmobileEsterno = typeof immobiliEsterni.$inferSelect;
+export type InsertImmobileEsterno = z.infer<typeof insertImmobileEsternoSchema>;

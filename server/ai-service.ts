@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import type { Richiesta, Immobile } from "@shared/schema";
+import type { Richiesta, Immobile, ImmobileEsterno } from "@shared/schema";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -206,5 +206,124 @@ Sii positivo, concreto e professionale. Usa il "tu" informale.`
   } catch (error) {
     console.error("AI coach error:", error);
     return "Buona giornata di lavoro! Concentrati sui tuoi obiettivi.";
+  }
+}
+
+// ========== ACQUISIZIONE - Property Listing Parser ==========
+
+export interface ParsedPropertyListing {
+  titolo?: string;
+  descrizione?: string;
+  indirizzo?: string;
+  zona?: string;
+  mq?: number;
+  prezzo?: number;
+  piano?: number;
+  camere?: number;
+  bagni?: number;
+  contattoNome?: string;
+  contattoTelefono?: string;
+  contattoEmail?: string;
+  fonte?: string;
+  dataPubblicazione?: string;
+  caratteristiche?: Record<string, any>;
+}
+
+export async function parsePropertyListingWithAI(text: string, url?: string): Promise<ParsedPropertyListing> {
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "system",
+          content: `Sei un assistente immobiliare italiano specializzato nell'estrazione dati da annunci immobiliari.
+Analizza il testo dell'annuncio ed estrai tutte le informazioni strutturate possibili.
+
+Rispondi SOLO con un oggetto JSON valido contenente i campi trovati:
+- titolo: titolo dell'annuncio
+- descrizione: descrizione completa
+- indirizzo: indirizzo specifico se presente
+- zona: zona/quartiere/città
+- mq: metri quadri (solo numero)
+- prezzo: prezzo richiesto (solo numero, senza simboli €)
+- piano: numero del piano (0 = terra, -1 = seminterrato)
+- camere: numero di camere/locali
+- bagni: numero di bagni
+- contattoNome: nome del venditore/inserzionista se presente
+- contattoTelefono: numero di telefono (formato italiano, includi prefisso +39 se mancante)
+- contattoEmail: email del contatto se presente
+- fonte: riconosci il portale dall'URL o dal testo (immobiliare.it, idealista, subito.it, casa.it, bakeca, ecc.)
+- dataPubblicazione: data di pubblicazione se presente (formato YYYY-MM-DD)
+- caratteristiche: oggetto con altre caratteristiche trovate (es. {riscaldamento: "autonomo", classe_energetica: "B", garage: true, cantina: true, giardino: false})
+
+IMPORTANTE:
+- Estrai SEMPRE il numero di telefono se presente, anche se parzialmente nascosto
+- Per i prezzi, converti "250k" in 250000, "300.000" in 300000
+- Se il piano è "terra" o "T", converti in 0
+- Ometti i campi non trovati. Non aggiungere spiegazioni.`
+        },
+        {
+          role: "user",
+          content: url ? `URL: ${url}\n\nTesto annuncio:\n${text}` : text
+        }
+      ],
+      max_completion_tokens: 1000,
+      response_format: { type: "json_object" }
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (content) {
+      return JSON.parse(content);
+    }
+    return {};
+  } catch (error) {
+    console.error("AI parse property listing error:", error);
+    return {};
+  }
+}
+
+export async function generateAcquisitionMessage(
+  immobile: ImmobileEsterno,
+  template?: string
+): Promise<string> {
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "system",
+          content: `Sei un agente immobiliare italiano esperto in acquisizioni. Genera un messaggio professionale e persuasivo per contattare un privato che ha messo in vendita un immobile.
+
+Il messaggio deve:
+1. Essere cordiale ma professionale
+2. Fare riferimento specifico all'immobile (indirizzo, prezzo, caratteristiche)
+3. Spiegare brevemente il vantaggio di collaborare con un'agenzia
+4. Proporre un incontro/chiamata senza essere troppo insistente
+5. Essere breve (max 150 parole)
+6. Usare il "Lei" formale
+
+${template ? `Segui questo template/stile:\n${template}` : ''}`
+        },
+        {
+          role: "user",
+          content: `Genera un messaggio per contattare il proprietario di questo immobile:
+
+Titolo: ${immobile.titolo || 'Non specificato'}
+Zona: ${immobile.zona || 'Non specificata'}
+Indirizzo: ${immobile.indirizzo || 'Non specificato'}
+Prezzo: ${immobile.prezzo ? `€${Number(immobile.prezzo).toLocaleString('it-IT')}` : 'Non specificato'}
+Metri quadri: ${immobile.mq || 'Non specificato'}
+Camere: ${immobile.camere || 'Non specificate'}
+Contatto: ${immobile.contattoNome || 'Proprietario'}
+Fonte annuncio: ${immobile.fonte || 'portale immobiliare'}`
+        }
+      ],
+      max_completion_tokens: 300,
+    });
+
+    return response.choices[0]?.message?.content || "Gentile proprietario, ho notato il Suo annuncio e sarei interessato a discutere di una possibile collaborazione per la vendita del Suo immobile.";
+  } catch (error) {
+    console.error("AI acquisition message error:", error);
+    return "Gentile proprietario, ho notato il Suo annuncio e sarei interessato a discutere di una possibile collaborazione per la vendita del Suo immobile.";
   }
 }
