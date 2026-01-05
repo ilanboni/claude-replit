@@ -13,7 +13,7 @@ export async function scrapeUrlWithApify(url: string): Promise<string> {
 
   // Use playwright crawler for better anti-bot bypass
   const run = await client.actor('apify/website-content-crawler').call({
-    startUrls: [url],
+    startUrls: [{ url: url }],
     maxCrawlPages: 1,
     crawlerType: 'playwright:firefox',
     maxCrawlDepth: 0,
