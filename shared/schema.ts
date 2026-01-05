@@ -73,9 +73,11 @@ export const immobili = pgTable("immobili", {
   descrizione: text("descrizione"),
   indirizzo: text("indirizzo"),
   zona: text("zona"),
+  citta: text("citta"),
   mq: integer("mq"),
   prezzo: decimal("prezzo", { precision: 12, scale: 2 }),
   piano: integer("piano"),
+  statoVendita: text("stato_vendita").default("disponibile"), // disponibile, in_trattativa, venduto, ritirato
   statoNuovo: boolean("stato_nuovo").default(false),
   statoRistrutturato: boolean("stato_ristrutturato").default(false),
   statoBuono: boolean("stato_buono").default(false),
@@ -86,6 +88,7 @@ export const immobili = pgTable("immobili", {
   box: boolean("box").default(false),
   camere: integer("camere"),
   bagni: integer("bagni"),
+  noteInterne: text("note_interne"),
   latitudine: decimal("latitudine", { precision: 10, scale: 7 }),
   longitudine: decimal("longitudine", { precision: 10, scale: 7 }),
   esclusiva: boolean("esclusiva").default(false),
@@ -117,9 +120,52 @@ export const appuntamenti = pgTable("appuntamenti", {
   dataOra: timestamp("data_ora").notNull(),
   luogo: text("luogo"),
   note: text("note"),
+  esito: text("esito"), // interessato, da_richiamare, non_interessato
   confermato: boolean("confermato").default(false),
   completato: boolean("completato").default(false),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// ATTIVITA IMMOBILE - Property tasks/todos
+export const attivitaImmobile = pgTable("attivita_immobile", {
+  id: serial("id").primaryKey(),
+  immobileId: integer("immobile_id").notNull().references(() => immobili.id, { onDelete: "cascade" }),
+  titolo: text("titolo").notNull(),
+  descrizione: text("descrizione"),
+  scadenza: timestamp("scadenza"),
+  stato: text("stato").default("da_fare"), // da_fare, in_corso, fatto
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// DOCUMENTI IMMOBILE - Property documents
+export const documentiImmobile = pgTable("documenti_immobile", {
+  id: serial("id").primaryKey(),
+  immobileId: integer("immobile_id").notNull().references(() => immobili.id, { onDelete: "cascade" }),
+  nome: text("nome").notNull(),
+  tipo: text("tipo"), // ape, planimetria, visura, contratto, foto, altro
+  url: text("url"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// PORTALI IMMOBILE - Marketing portals
+export const portaliImmobile = pgTable("portali_immobile", {
+  id: serial("id").primaryKey(),
+  immobileId: integer("immobile_id").notNull().references(() => immobili.id, { onDelete: "cascade" }),
+  nomePortale: text("nome_portale").notNull(), // immobiliare.it, idealista, casa.it, sito_agenzia
+  urlAnnuncio: text("url_annuncio"),
+  stato: text("stato").default("online"), // online, offline
+  dataPubblicazione: timestamp("data_pubblicazione"),
+  note: text("note"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// STORICO PREZZO - Price history
+export const storicoPrezzo = pgTable("storico_prezzo", {
+  id: serial("id").primaryKey(),
+  immobileId: integer("immobile_id").notNull().references(() => immobili.id, { onDelete: "cascade" }),
+  prezzo: decimal("prezzo", { precision: 12, scale: 2 }).notNull(),
+  dataModifica: timestamp("data_modifica").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  note: text("note"),
 });
 
 // IMMOBILI ESTERNI - External properties (scraped/manual from portals)
@@ -183,6 +229,26 @@ export const immobiliRelations = relations(immobili, ({ one, many }) => ({
   comunicazioni: many(comunicazioni),
   appuntamenti: many(appuntamenti),
   matching: many(matching),
+  attivita: many(attivitaImmobile),
+  documenti: many(documentiImmobile),
+  portali: many(portaliImmobile),
+  storicoPrezzo: many(storicoPrezzo),
+}));
+
+export const attivitaImmobileRelations = relations(attivitaImmobile, ({ one }) => ({
+  immobile: one(immobili, { fields: [attivitaImmobile.immobileId], references: [immobili.id] }),
+}));
+
+export const documentiImmobileRelations = relations(documentiImmobile, ({ one }) => ({
+  immobile: one(immobili, { fields: [documentiImmobile.immobileId], references: [immobili.id] }),
+}));
+
+export const portaliImmobileRelations = relations(portaliImmobile, ({ one }) => ({
+  immobile: one(immobili, { fields: [portaliImmobile.immobileId], references: [immobili.id] }),
+}));
+
+export const storicoPrezzoRelations = relations(storicoPrezzo, ({ one }) => ({
+  immobile: one(immobili, { fields: [storicoPrezzo.immobileId], references: [immobili.id] }),
 }));
 
 export const comunicazioniRelations = relations(comunicazioni, ({ one }) => ({
@@ -295,6 +361,34 @@ export const insertMessageSchema = createInsertSchema(messages).omit({
   createdAt: true,
 });
 
+export const insertAttivitaImmobileSchema = createInsertSchema(attivitaImmobile).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertDocumentoImmobileSchema = createInsertSchema(documentiImmobile).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertPortaleImmobileSchema = createInsertSchema(portaliImmobile).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertStoricoPrezzoSchema = createInsertSchema(storicoPrezzo).omit({
+  id: true,
+}).extend({
+  prezzo: z.preprocess(
+    (val) => {
+      if (val === "" || val === null || val === undefined) return undefined;
+      const num = Number(val);
+      return isNaN(num) ? undefined : String(num);
+    },
+    z.string()
+  ),
+});
+
 // Types
 export type Cliente = typeof clienti.$inferSelect;
 export type InsertCliente = z.infer<typeof insertClienteSchema>;
@@ -322,3 +416,15 @@ export type InsertMessage = z.infer<typeof insertMessageSchema>;
 
 export type ImmobileEsterno = typeof immobiliEsterni.$inferSelect;
 export type InsertImmobileEsterno = z.infer<typeof insertImmobileEsternoSchema>;
+
+export type AttivitaImmobile = typeof attivitaImmobile.$inferSelect;
+export type InsertAttivitaImmobile = z.infer<typeof insertAttivitaImmobileSchema>;
+
+export type DocumentoImmobile = typeof documentiImmobile.$inferSelect;
+export type InsertDocumentoImmobile = z.infer<typeof insertDocumentoImmobileSchema>;
+
+export type PortaleImmobile = typeof portaliImmobile.$inferSelect;
+export type InsertPortaleImmobile = z.infer<typeof insertPortaleImmobileSchema>;
+
+export type StoricoPrezzo = typeof storicoPrezzo.$inferSelect;
+export type InsertStoricoPrezzo = z.infer<typeof insertStoricoPrezzoSchema>;

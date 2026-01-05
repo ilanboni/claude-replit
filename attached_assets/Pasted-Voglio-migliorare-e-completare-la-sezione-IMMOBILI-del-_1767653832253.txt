@@ -1,0 +1,231 @@
+Voglio migliorare e completare la sezione IMMOBILI del mio CRM immobiliare.
+
+Non voglio una tabella semplice. Voglio una vera scheda immobile professionale, con dati, attività, IA futura e relazioni chiare con i clienti.
+
+⸻
+
+1️⃣ Scheda immobile — struttura generale
+
+Quando apro un immobile voglio:
+
+In alto:
+	•	Titolo immobile
+	•	Zona
+	•	Prezzo
+	•	MQ
+	•	Piano
+	•	Stato (Disponibile / In trattativa / Venduto / Ritirato)
+	•	Proprietario → collegato al cliente (cliccabile, apre scheda cliente)
+
+Sotto, queste tab:
+	1.	Dettagli
+	2.	Matching / Richieste compatibili
+	3.	Comunicazioni
+	4.	Attività / To-do
+	5.	Appuntamenti / Visite
+	6.	Documenti
+	7.	Marketing / Portali
+	8.	Statistiche / Storico prezzo
+
+⸻
+
+2️⃣ Tab “Dettagli”
+
+Qui mettiamo tutti i dati strutturati dell’immobile:
+	•	indirizzo completo
+	•	zona
+	•	mq
+	•	prezzo
+	•	piano
+	•	stato immobile:
+	•	nuovo
+	•	ristrutturato
+	•	buono
+	•	da ristrutturare
+	•	balcone
+	•	terrazzo
+	•	ascensore
+	•	box
+	•	note interne
+
+➤ MAPPA
+
+Nella scheda immobile deve esserci una mappa con pin preciso:
+	•	prende latitudine/longitudine se già salvate
+	•	altrimenti geocoding da indirizzo
+	•	pin visibile
+	•	mappa centrata sull’immobile
+
+⸻
+
+3️⃣ Tab “Matching / Richieste compatibili”
+
+Questa è fondamentale.
+
+Mostra tutte le richieste dei clienti compatibili con questo immobile:
+
+Per ogni richiesta mostra:
+	•	cliente
+	•	descrizione richiesta
+	•	punteggio compatibilità 0–100
+	•	motivazione compatibilità (es. zona ok, prezzo ok, mq ok, terrazzo richiesto presente)
+
+Azioni:
+	•	pulsante “Invia matching”
+	•	crea comunicazione automatica cliente + immobile
+	•	pulsante “Escludi”
+
+Matching deve tenere conto anche del testo note:
+se una richiesta dice “necessario terrazzo”
+→ non proporre immobili senza terrazzo.
+
+⸻
+
+4️⃣ Tab “Comunicazioni”
+
+Qui devono apparire tutte le comunicazioni legate a questo immobile, da qualunque canale:
+	•	WhatsApp (via webhook)
+	•	Email (Gmail API)
+	•	Telefonate registrate manualmente
+	•	Matching inviati
+	•	Note interne
+
+Ogni comunicazione deve avere:
+	•	data e ora
+	•	cliente collegato (se presente)
+	•	tipo (match, richiesta info, risposta, follow-up, nota interna, ecc.)
+	•	testo
+	•	canale (WhatsApp, Email, Telefono, Sistema)
+
+⸻
+
+5️⃣ Tab “Attività / To-do”
+
+Questo è il blocco operativo dell’immobile.
+
+Qui voglio:
+	•	task da fare
+	•	promemoria
+	•	attività in sospeso
+	•	attività completate
+
+Ogni attività con:
+	•	titolo
+	•	descrizione
+	•	scadenza
+	•	stato (da fare / in corso / fatto)
+
+Esempi di attività:
+	•	chiamare proprietario venerdì
+	•	rivedere prezzo tra 30 giorni
+	•	rifare foto
+	•	aggiornare annuncio
+	•	controllare documenti
+
+⸻
+
+6️⃣ Tab “Appuntamenti / Visite”
+
+Qui voglio vedere:
+	•	tutte le visite fatte o programmate su quell’immobile
+	•	ogni visita con:
+	•	cliente
+	•	data
+	•	ora
+	•	esito (interessato, da richiamare, non interessato)
+	•	note
+
+Azioni:
+	•	crea appuntamento
+	•	invia conferma via WhatsApp
+	•	registra esito visita
+
+⸻
+
+7️⃣ Tab “Documenti”
+
+Archivio documenti dell’immobile:
+	•	APE
+	•	planimetrie
+	•	visure
+	•	contratti
+	•	foto
+	•	qualsiasi file utile
+
+Ogni documento:
+	•	nome
+	•	tipo
+	•	caricamento file
+	•	download
+
+⸻
+
+8️⃣ Tab “Marketing / Portali”
+
+L’immobile deve poter essere pubblicato su più portali.
+
+Serve una tabella dinamica:
+
+Per ogni portale:
+	•	nome portale (Immobiliare.it, Idealista, Casa.it, sito agenzia ecc.)
+	•	link URL
+	•	stato (online / offline)
+	•	data pubblicazione
+	•	eventuali note
+
+Azioni:
+	•	aggiungi portale
+	•	modifica
+	•	disattiva
+	•	click per aprire link
+
+⸻
+
+9️⃣ Statistiche / Storico Prezzo
+
+Qui voglio vedere:
+	•	variazioni prezzo nel tempo
+	•	cambi stato
+	•	numero:
+	•	contatti ricevuti
+	•	matching inviati
+	•	visite totali
+	•	visite negli ultimi 30 giorni
+
+Serve anche grafico semplice.
+
+⸻
+
+🔗 RELAZIONE CLIENTE ↔ IMMOBILE (IMPORTANTISSIMO)
+
+QUALSIASI attività che riguarda un immobile e un cliente
+deve essere visibile sia:
+	•	nella scheda IMMOBILE
+	•	nella scheda CLIENTE
+
+Quindi:
+	•	se creo una comunicazione cliente su questo immobile → appare in entrambi
+	•	se creo un appuntamento cliente su immobile → appare in entrambi
+	•	se creo matching cliente su immobile → appare in entrambi
+	•	se il cliente è proprietario → relazione viva permanente
+
+Questo è essenziale.
+Il CRM deve essere bidirezionale.
+
+⸻
+
+✔️ Obiettivo
+
+Con questa struttura la scheda immobile diventa:
+	•	strumento di vendita reale
+	•	gestione proprietario
+	•	gestione clienti interessati
+	•	gestione attività
+	•	gestione comunicazioni
+	•	marketing centralizzato
+	•	memoria storica dell’operazione
+
+Voglio una UI pulita, professionale, chiara, tutta in italiano.
+
+Implementa tutto questo nella sezione immobili.
+Assicurati che i dati siano veramente collegati al database e alle tabelle clienti, richieste, comunicazioni, appuntamenti.

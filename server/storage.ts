@@ -1,5 +1,6 @@
 import { 
   clienti, richieste, immobili, comunicazioni, appuntamenti, matching, immobiliEsterni,
+  attivitaImmobile, documentiImmobile, portaliImmobile, storicoPrezzo,
   type Cliente, type InsertCliente,
   type Richiesta, type InsertRichiesta,
   type Immobile, type InsertImmobile,
@@ -7,6 +8,10 @@ import {
   type Appuntamento, type InsertAppuntamento,
   type Matching, type InsertMatching,
   type ImmobileEsterno, type InsertImmobileEsterno,
+  type AttivitaImmobile, type InsertAttivitaImmobile,
+  type DocumentoImmobile, type InsertDocumentoImmobile,
+  type PortaleImmobile, type InsertPortaleImmobile,
+  type StoricoPrezzo, type InsertStoricoPrezzo,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql } from "drizzle-orm";
@@ -57,6 +62,36 @@ export interface IStorage {
   createImmobileEsterno(data: InsertImmobileEsterno): Promise<ImmobileEsterno>;
   updateImmobileEsterno(id: number, data: Partial<InsertImmobileEsterno>): Promise<ImmobileEsterno | undefined>;
   deleteImmobileEsterno(id: number): Promise<boolean>;
+
+  // Attività Immobile
+  getAttivitaImmobile(immobileId: number): Promise<AttivitaImmobile[]>;
+  createAttivitaImmobile(data: InsertAttivitaImmobile): Promise<AttivitaImmobile>;
+  updateAttivitaImmobile(id: number, data: Partial<InsertAttivitaImmobile>): Promise<AttivitaImmobile | undefined>;
+  deleteAttivitaImmobile(id: number): Promise<boolean>;
+
+  // Documenti Immobile
+  getDocumentiImmobile(immobileId: number): Promise<DocumentoImmobile[]>;
+  createDocumentoImmobile(data: InsertDocumentoImmobile): Promise<DocumentoImmobile>;
+  deleteDocumentoImmobile(id: number): Promise<boolean>;
+
+  // Portali Immobile
+  getPortaliImmobile(immobileId: number): Promise<PortaleImmobile[]>;
+  createPortaleImmobile(data: InsertPortaleImmobile): Promise<PortaleImmobile>;
+  updatePortaleImmobile(id: number, data: Partial<InsertPortaleImmobile>): Promise<PortaleImmobile | undefined>;
+  deletePortaleImmobile(id: number): Promise<boolean>;
+
+  // Storico Prezzo
+  getStoricoPrezzo(immobileId: number): Promise<StoricoPrezzo[]>;
+  createStoricoPrezzo(data: InsertStoricoPrezzo): Promise<StoricoPrezzo>;
+
+  // Comunicazioni per Immobile
+  getComunicazioniByImmobile(immobileId: number): Promise<Comunicazione[]>;
+
+  // Appuntamenti per Immobile
+  getAppuntamentiByImmobile(immobileId: number): Promise<Appuntamento[]>;
+
+  // Matching per Immobile
+  getMatchingByImmobile(immobileId: number): Promise<Matching[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -212,14 +247,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createMatching(data: InsertMatching): Promise<Matching> {
-    const [match] = await db.insert(matching).values(data).returning();
+    const [match] = await db.insert(matching).values(data as any).returning();
     return match;
   }
 
   async updateMatching(id: number, data: Partial<InsertMatching>): Promise<Matching | undefined> {
     const [match] = await db
       .update(matching)
-      .set(data)
+      .set(data as any)
       .where(eq(matching.id, id))
       .returning();
     return match;
@@ -260,6 +295,86 @@ export class DatabaseStorage implements IStorage {
   async deleteImmobileEsterno(id: number): Promise<boolean> {
     await db.delete(immobiliEsterni).where(eq(immobiliEsterni.id, id));
     return true;
+  }
+
+  // Attività Immobile
+  async getAttivitaImmobile(immobileId: number): Promise<AttivitaImmobile[]> {
+    return db.select().from(attivitaImmobile).where(eq(attivitaImmobile.immobileId, immobileId)).orderBy(desc(attivitaImmobile.createdAt));
+  }
+
+  async createAttivitaImmobile(data: InsertAttivitaImmobile): Promise<AttivitaImmobile> {
+    const [attivita] = await db.insert(attivitaImmobile).values(data).returning();
+    return attivita;
+  }
+
+  async updateAttivitaImmobile(id: number, data: Partial<InsertAttivitaImmobile>): Promise<AttivitaImmobile | undefined> {
+    const [attivita] = await db.update(attivitaImmobile).set(data).where(eq(attivitaImmobile.id, id)).returning();
+    return attivita;
+  }
+
+  async deleteAttivitaImmobile(id: number): Promise<boolean> {
+    await db.delete(attivitaImmobile).where(eq(attivitaImmobile.id, id));
+    return true;
+  }
+
+  // Documenti Immobile
+  async getDocumentiImmobile(immobileId: number): Promise<DocumentoImmobile[]> {
+    return db.select().from(documentiImmobile).where(eq(documentiImmobile.immobileId, immobileId)).orderBy(desc(documentiImmobile.createdAt));
+  }
+
+  async createDocumentoImmobile(data: InsertDocumentoImmobile): Promise<DocumentoImmobile> {
+    const [documento] = await db.insert(documentiImmobile).values(data).returning();
+    return documento;
+  }
+
+  async deleteDocumentoImmobile(id: number): Promise<boolean> {
+    await db.delete(documentiImmobile).where(eq(documentiImmobile.id, id));
+    return true;
+  }
+
+  // Portali Immobile
+  async getPortaliImmobile(immobileId: number): Promise<PortaleImmobile[]> {
+    return db.select().from(portaliImmobile).where(eq(portaliImmobile.immobileId, immobileId)).orderBy(desc(portaliImmobile.createdAt));
+  }
+
+  async createPortaleImmobile(data: InsertPortaleImmobile): Promise<PortaleImmobile> {
+    const [portale] = await db.insert(portaliImmobile).values(data).returning();
+    return portale;
+  }
+
+  async updatePortaleImmobile(id: number, data: Partial<InsertPortaleImmobile>): Promise<PortaleImmobile | undefined> {
+    const [portale] = await db.update(portaliImmobile).set(data).where(eq(portaliImmobile.id, id)).returning();
+    return portale;
+  }
+
+  async deletePortaleImmobile(id: number): Promise<boolean> {
+    await db.delete(portaliImmobile).where(eq(portaliImmobile.id, id));
+    return true;
+  }
+
+  // Storico Prezzo
+  async getStoricoPrezzo(immobileId: number): Promise<StoricoPrezzo[]> {
+    return db.select().from(storicoPrezzo).where(eq(storicoPrezzo.immobileId, immobileId)).orderBy(desc(storicoPrezzo.dataModifica));
+  }
+
+  async createStoricoPrezzo(data: InsertStoricoPrezzo): Promise<StoricoPrezzo> {
+    const [storico] = await db.insert(storicoPrezzo).values(data).returning();
+    return storico;
+  }
+
+  // Comunicazioni per Immobile
+  async getComunicazioniByImmobile(immobileId: number): Promise<Comunicazione[]> {
+    return db.select().from(comunicazioni).where(eq(comunicazioni.immobileId, immobileId)).orderBy(desc(comunicazioni.dataOra));
+  }
+
+  // Appuntamenti per Immobile
+  async getAppuntamentiByImmobile(immobileId: number): Promise<Appuntamento[]> {
+    return db.select().from(appuntamenti).where(eq(appuntamenti.immobileId, immobileId)).orderBy(desc(appuntamenti.dataOra));
+  }
+
+  // Matching per Immobile
+  async getMatchingByImmobile(immobileId: number): Promise<Matching[]> {
+    return db.select().from(matching).where(eq(matching.immobileId, immobileId)).orderBy(desc(matching.punteggio));
   }
 }
 

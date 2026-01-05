@@ -420,6 +420,191 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
     }
   });
 
+  // ==================== IMMOBILE DETAIL ENDPOINTS ====================
+  
+  // Attività Immobile
+  app.get("/api/immobili/:id/attivita", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const attivita = await storage.getAttivitaImmobile(id);
+      res.json(attivita);
+    } catch (error) {
+      console.error("Get attivita immobile error:", error);
+      res.status(500).json({ error: "Errore nel recupero delle attività" });
+    }
+  });
+
+  app.post("/api/immobili/:id/attivita", async (req, res) => {
+    try {
+      const immobileId = parseInt(req.params.id);
+      const attivita = await storage.createAttivitaImmobile({ ...req.body, immobileId });
+      res.status(201).json(attivita);
+    } catch (error) {
+      console.error("Create attivita error:", error);
+      res.status(500).json({ error: "Errore nella creazione dell'attività" });
+    }
+  });
+
+  app.patch("/api/attivita/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const attivita = await storage.updateAttivitaImmobile(id, req.body);
+      res.json(attivita);
+    } catch (error) {
+      console.error("Update attivita error:", error);
+      res.status(500).json({ error: "Errore nell'aggiornamento dell'attività" });
+    }
+  });
+
+  app.delete("/api/attivita/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteAttivitaImmobile(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Delete attivita error:", error);
+      res.status(500).json({ error: "Errore nell'eliminazione dell'attività" });
+    }
+  });
+
+  // Documenti Immobile
+  app.get("/api/immobili/:id/documenti", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const documenti = await storage.getDocumentiImmobile(id);
+      res.json(documenti);
+    } catch (error) {
+      console.error("Get documenti immobile error:", error);
+      res.status(500).json({ error: "Errore nel recupero dei documenti" });
+    }
+  });
+
+  app.post("/api/immobili/:id/documenti", async (req, res) => {
+    try {
+      const immobileId = parseInt(req.params.id);
+      const documento = await storage.createDocumentoImmobile({ ...req.body, immobileId });
+      res.status(201).json(documento);
+    } catch (error) {
+      console.error("Create documento error:", error);
+      res.status(500).json({ error: "Errore nella creazione del documento" });
+    }
+  });
+
+  app.delete("/api/documenti/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteDocumentoImmobile(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Delete documento error:", error);
+      res.status(500).json({ error: "Errore nell'eliminazione del documento" });
+    }
+  });
+
+  // Portali Immobile
+  app.get("/api/immobili/:id/portali", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const portali = await storage.getPortaliImmobile(id);
+      res.json(portali);
+    } catch (error) {
+      console.error("Get portali immobile error:", error);
+      res.status(500).json({ error: "Errore nel recupero dei portali" });
+    }
+  });
+
+  app.post("/api/immobili/:id/portali", async (req, res) => {
+    try {
+      const immobileId = parseInt(req.params.id);
+      const portale = await storage.createPortaleImmobile({ ...req.body, immobileId });
+      res.status(201).json(portale);
+    } catch (error) {
+      console.error("Create portale error:", error);
+      res.status(500).json({ error: "Errore nella creazione del portale" });
+    }
+  });
+
+  app.patch("/api/portali/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const portale = await storage.updatePortaleImmobile(id, req.body);
+      res.json(portale);
+    } catch (error) {
+      console.error("Update portale error:", error);
+      res.status(500).json({ error: "Errore nell'aggiornamento del portale" });
+    }
+  });
+
+  app.delete("/api/portali/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deletePortaleImmobile(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Delete portale error:", error);
+      res.status(500).json({ error: "Errore nell'eliminazione del portale" });
+    }
+  });
+
+  // Storico Prezzo
+  app.get("/api/immobili/:id/storico-prezzo", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const storico = await storage.getStoricoPrezzo(id);
+      res.json(storico);
+    } catch (error) {
+      console.error("Get storico prezzo error:", error);
+      res.status(500).json({ error: "Errore nel recupero dello storico prezzi" });
+    }
+  });
+
+  app.post("/api/immobili/:id/storico-prezzo", async (req, res) => {
+    try {
+      const immobileId = parseInt(req.params.id);
+      const storico = await storage.createStoricoPrezzo({ ...req.body, immobileId });
+      res.status(201).json(storico);
+    } catch (error) {
+      console.error("Create storico prezzo error:", error);
+      res.status(500).json({ error: "Errore nella creazione dello storico prezzi" });
+    }
+  });
+
+  // Comunicazioni per Immobile
+  app.get("/api/immobili/:id/comunicazioni", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const comunicazioni = await storage.getComunicazioniByImmobile(id);
+      res.json(comunicazioni);
+    } catch (error) {
+      console.error("Get comunicazioni by immobile error:", error);
+      res.status(500).json({ error: "Errore nel recupero delle comunicazioni" });
+    }
+  });
+
+  // Appuntamenti per Immobile
+  app.get("/api/immobili/:id/appuntamenti", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const appuntamenti = await storage.getAppuntamentiByImmobile(id);
+      res.json(appuntamenti);
+    } catch (error) {
+      console.error("Get appuntamenti by immobile error:", error);
+      res.status(500).json({ error: "Errore nel recupero degli appuntamenti" });
+    }
+  });
+
+  // Matching per Immobile
+  app.get("/api/immobili/:id/matching", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const matchingList = await storage.getMatchingByImmobile(id);
+      res.json(matchingList);
+    } catch (error) {
+      console.error("Get matching by immobile error:", error);
+      res.status(500).json({ error: "Errore nel recupero dei matching" });
+    }
+  });
+
   // ==================== COMUNICAZIONI ====================
   app.get("/api/comunicazioni", async (req, res) => {
     try {
