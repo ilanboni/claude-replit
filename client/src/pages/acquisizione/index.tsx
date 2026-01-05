@@ -240,7 +240,7 @@ function ParseAnnuncioForm({ onSuccess }: { onSuccess: () => void }) {
           )}
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowPreview(false)}>
+            <Button variant="outline" onClick={() => setShowPreview(false)} data-testid="button-modify-preview">
               Modifica
             </Button>
             <Button 
@@ -442,9 +442,9 @@ export default function AcquisizionePage() {
     },
     onSuccess: (data: { message: string }) => {
       setGeneratedMessage(data.message);
-      setMessageDialogOpen(true);
     },
     onError: () => {
+      setMessageDialogOpen(false);
       toast({
         title: "Errore",
         description: "Impossibile generare il messaggio",
@@ -455,6 +455,8 @@ export default function AcquisizionePage() {
 
   const handleGenerateMessage = (id: number) => {
     setSelectedImmobileId(id);
+    setGeneratedMessage("");
+    setMessageDialogOpen(true);
     generateMessageMutation.mutate(id);
   };
 
@@ -508,7 +510,7 @@ export default function AcquisizionePage() {
                 <p className="text-muted-foreground text-center mt-1">
                   Inizia aggiungendo un annuncio da analizzare
                 </p>
-                <Button className="mt-4" onClick={() => setActiveTab("nuovo")}>
+                <Button className="mt-4" onClick={() => setActiveTab("nuovo")} data-testid="button-add-annuncio-empty">
                   <Plus className="h-4 w-4 mr-2" />
                   Aggiungi Annuncio
                 </Button>
@@ -598,7 +600,7 @@ export default function AcquisizionePage() {
           )}
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setMessageDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setMessageDialogOpen(false)} data-testid="button-close-message-dialog">
               Chiudi
             </Button>
             <Button onClick={copyMessage} disabled={!generatedMessage} data-testid="button-copy-message">
@@ -627,10 +629,11 @@ export default function AcquisizionePage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogCancel data-testid="button-cancel-delete">Annulla</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deletingId && deleteMutation.mutate(deletingId)}
               className="bg-destructive text-destructive-foreground"
+              data-testid="button-confirm-delete"
             >
               {deleteMutation.isPending ? "Eliminazione..." : "Elimina"}
             </AlertDialogAction>
