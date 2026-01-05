@@ -7,6 +7,7 @@ import {
   MessageSquare,
   Calendar,
   Sparkles,
+  Search,
   Settings,
 } from "lucide-react";
 import {
@@ -30,6 +31,7 @@ const menuItems = [
   { title: "Comunicazioni", url: "/comunicazioni", icon: MessageSquare },
   { title: "Appuntamenti", url: "/appuntamenti", icon: Calendar },
   { title: "Matching", url: "/matching", icon: Sparkles },
+  { title: "Acquisizione", url: "/acquisizione", icon: Search },
 ];
 
 export function AppSidebar() {
