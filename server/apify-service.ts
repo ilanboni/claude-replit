@@ -7,13 +7,26 @@ export async function scrapeUrlWithApify(url: string): Promise<string> {
     throw new Error('APIFY_API_TOKEN non configurato');
   }
 
+  // Sanitize and validate URL
+  let cleanUrl = url.trim();
+  
+  // Remove any query params that might cause issues
+  try {
+    const urlObj = new URL(cleanUrl);
+    cleanUrl = urlObj.origin + urlObj.pathname;
+  } catch (e) {
+    throw new Error('URL non valido: ' + url);
+  }
+
+  console.log('Scraping URL:', cleanUrl);
+
   const client = new ApifyClient({
     token: APIFY_API_TOKEN,
   });
 
   // Use playwright crawler for better anti-bot bypass
   const run = await client.actor('apify/website-content-crawler').call({
-    startUrls: [{ url: url }],
+    startUrls: [{ url: cleanUrl }],
     maxCrawlPages: 1,
     crawlerType: 'playwright:firefox',
     maxCrawlDepth: 0,
