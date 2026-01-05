@@ -8,6 +8,115 @@ import {
 import { parseRequestWithAI, calculateMatchScore, generateAICoachMessage } from "./ai-service";
 
 export async function registerRoutes(server: Server, app: Express): Promise<void> {
+  // ==================== RICERCA GLOBALE ====================
+  app.get("/api/search", async (req, res) => {
+    try {
+      const query = (req.query.q as string || "").toLowerCase().trim();
+      if (!query || query.length < 2) {
+        return res.json({ clienti: [], immobili: [], richieste: [] });
+      }
+
+      const [clienti, immobili, richieste] = await Promise.all([
+        storage.getClienti(),
+        storage.getImmobili(),
+        storage.getRichieste(),
+      ]);
+
+      const clientiResults = clienti
+        .filter(c => 
+          c.nome.toLowerCase().includes(query) ||
+          c.cognome.toLowerCase().includes(query) ||
+          (c.email && c.email.toLowerCase().includes(query)) ||
+          (c.telefono && c.telefono.includes(query))
+        )
+        .slice(0, 5)
+        .map(c => ({ id: c.id, type: 'cliente' as const, label: `${c.nome} ${c.cognome}`, sublabel: c.email || c.telefono }));
+
+      const immobiliResults = immobili
+        .filter(i => 
+          i.titolo.toLowerCase().includes(query) ||
+          (i.zona && i.zona.toLowerCase().includes(query)) ||
+          (i.indirizzo && i.indirizzo.toLowerCase().includes(query))
+        )
+        .slice(0, 5)
+        .map(i => ({ id: i.id, type: 'immobile' as const, label: i.titolo, sublabel: i.zona || i.indirizzo }));
+
+      const richiesteResults = richieste
+        .filter(r => 
+          (r.zona && r.zona.toLowerCase().includes(query)) ||
+          (r.descrizioneLibera && r.descrizioneLibera.toLowerCase().includes(query))
+        )
+        .slice(0, 5)
+        .map(r => ({ id: r.id, type: 'richiesta' as const, label: `Richiesta #${r.id}`, sublabel: r.zona || 'Zona non specificata' }));
+
+      res.json({ clienti: clientiResults, immobili: immobiliResults, richieste: richiesteResults });
+    } catch (error) {
+      console.error("Search error:", error);
+      res.status(500).json({ error: "Errore nella ricerca" });
+    }
+  });
+
+  // ==================== NOTIFICHE ====================
+  app.get("/api/notifiche", async (req, res) => {
+    try {
+      const [clienti, appuntamenti] = await Promise.all([
+        storage.getClienti(),
+        storage.getAppuntamenti(),
+      ]);
+
+      const oggi = new Date();
+      const domani = new Date(oggi);
+      domani.setDate(domani.getDate() + 1);
+      const traUnSettimana = new Date(oggi);
+      traUnSettimana.setDate(traUnSettimana.getDate() + 7);
+
+      // Appuntamenti prossimi 24 ore
+      const appuntamentiImminenti = appuntamenti
+        .filter(a => {
+          const d = new Date(a.dataOra);
+          return d >= oggi && d <= domani && !a.completato;
+        })
+        .map(a => ({
+          tipo: 'appuntamento' as const,
+          id: a.id,
+          messaggio: `Appuntamento ${a.confermato ? 'confermato' : 'da confermare'}`,
+          dettaglio: a.luogo || 'Luogo da definire',
+          data: a.dataOra,
+        }));
+
+      // Compleanni prossimi 7 giorni
+      const compleanni = clienti
+        .filter(c => c.compleanno && c.attivo)
+        .filter(c => {
+          const compleanno = new Date(c.compleanno!);
+          const questAnno = new Date(oggi.getFullYear(), compleanno.getMonth(), compleanno.getDate());
+          if (questAnno < oggi) {
+            questAnno.setFullYear(questAnno.getFullYear() + 1);
+          }
+          return questAnno >= oggi && questAnno <= traUnSettimana;
+        })
+        .map(c => {
+          const compleanno = new Date(c.compleanno!);
+          const questAnno = new Date(oggi.getFullYear(), compleanno.getMonth(), compleanno.getDate());
+          if (questAnno < oggi) questAnno.setFullYear(questAnno.getFullYear() + 1);
+          return {
+            tipo: 'compleanno' as const,
+            id: c.id,
+            messaggio: `Compleanno di ${c.nome} ${c.cognome}`,
+            dettaglio: questAnno.toDateString() === oggi.toDateString() ? 'Oggi!' : questAnno.toLocaleDateString('it-IT'),
+            data: questAnno.toISOString(),
+          };
+        });
+
+      res.json([...appuntamentiImminenti, ...compleanni].sort((a, b) => 
+        new Date(a.data).getTime() - new Date(b.data).getTime()
+      ));
+    } catch (error) {
+      console.error("Notifiche error:", error);
+      res.status(500).json({ error: "Errore nel recupero delle notifiche" });
+    }
+  });
+
   // ==================== DASHBOARD ====================
   app.get("/api/dashboard/stats", async (req, res) => {
     try {
@@ -46,6 +155,61 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
     } catch (error) {
       console.error("Dashboard stats error:", error);
       res.status(500).json({ error: "Errore nel recupero delle statistiche" });
+    }
+  });
+
+  app.get("/api/dashboard/trends", async (req, res) => {
+    try {
+      const [clienti, richieste, immobili, appuntamenti] = await Promise.all([
+        storage.getClienti(),
+        storage.getRichieste(),
+        storage.getImmobili(),
+        storage.getAppuntamenti(),
+      ]);
+
+      const oggi = new Date();
+      oggi.setHours(23, 59, 59, 999);
+      const giorni = [];
+      const giorniNomi = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'];
+
+      for (let i = 6; i >= 0; i--) {
+        const giorno = new Date(oggi);
+        giorno.setDate(giorno.getDate() - i);
+        const inizioGiorno = new Date(giorno);
+        inizioGiorno.setHours(0, 0, 0, 0);
+        const fineGiorno = new Date(giorno);
+        fineGiorno.setHours(23, 59, 59, 999);
+
+        giorni.push({
+          nome: giorniNomi[giorno.getDay()],
+          data: giorno.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' }),
+          clienti: clienti.filter(c => {
+            if (!c.createdAt) return false;
+            const d = new Date(c.createdAt);
+            return !isNaN(d.getTime()) && d >= inizioGiorno && d <= fineGiorno;
+          }).length,
+          richieste: richieste.filter(r => {
+            if (!r.createdAt) return false;
+            const d = new Date(r.createdAt);
+            return !isNaN(d.getTime()) && d >= inizioGiorno && d <= fineGiorno;
+          }).length,
+          immobili: immobili.filter(i => {
+            if (!i.createdAt) return false;
+            const d = new Date(i.createdAt);
+            return !isNaN(d.getTime()) && d >= inizioGiorno && d <= fineGiorno;
+          }).length,
+          appuntamenti: appuntamenti.filter(a => {
+            if (!a.dataOra) return false;
+            const d = new Date(a.dataOra);
+            return !isNaN(d.getTime()) && d >= inizioGiorno && d <= fineGiorno;
+          }).length,
+        });
+      }
+
+      res.json(giorni);
+    } catch (error) {
+      console.error("Dashboard trends error:", error);
+      res.status(500).json({ error: "Errore nel recupero dei trends" });
     }
   });
 

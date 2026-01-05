@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
@@ -13,6 +13,10 @@ import {
   MoreHorizontal,
   Trash2,
   Edit,
+  ChevronLeft,
+  ChevronRight,
+  CalendarDays,
+  List,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +48,163 @@ import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { AppuntamentoForm } from "./appuntamento-form";
 import type { Appuntamento, Cliente, Immobile } from "@shared/schema";
+
+type ViewMode = 'list' | 'week' | 'month';
+
+function CalendarView({
+  appuntamenti,
+  clientiMap,
+  immobiliMap,
+  viewMode,
+  currentDate,
+  onDateChange,
+  onAppuntamentoClick,
+}: {
+  appuntamenti: Appuntamento[];
+  clientiMap: Map<number, Cliente>;
+  immobiliMap: Map<number, Immobile>;
+  viewMode: 'week' | 'month';
+  currentDate: Date;
+  onDateChange: (date: Date) => void;
+  onAppuntamentoClick: (app: Appuntamento) => void;
+}) {
+  const oggi = new Date();
+  oggi.setHours(0, 0, 0, 0);
+
+  const giorni = useMemo(() => {
+    const result: Date[] = [];
+    if (viewMode === 'week') {
+      const inizioSettimana = new Date(currentDate);
+      const giorno = inizioSettimana.getDay();
+      const diff = giorno === 0 ? -6 : 1 - giorno;
+      inizioSettimana.setDate(inizioSettimana.getDate() + diff);
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(inizioSettimana);
+        d.setDate(inizioSettimana.getDate() + i);
+        result.push(d);
+      }
+    } else {
+      const inizioMese = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+      const fineMese = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+      const inizioCalendario = new Date(inizioMese);
+      inizioCalendario.setDate(inizioCalendario.getDate() - (inizioCalendario.getDay() === 0 ? 6 : inizioCalendario.getDay() - 1));
+      for (let i = 0; i < 42; i++) {
+        const d = new Date(inizioCalendario);
+        d.setDate(inizioCalendario.getDate() + i);
+        if (d <= fineMese || result.length < 35) {
+          result.push(d);
+        }
+      }
+    }
+    return result;
+  }, [viewMode, currentDate]);
+
+  const appuntamentiPerGiorno = useMemo(() => {
+    const map = new Map<string, Appuntamento[]>();
+    appuntamenti.forEach(app => {
+      const d = new Date(app.dataOra);
+      const key = d.toDateString();
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(app);
+    });
+    return map;
+  }, [appuntamenti]);
+
+  const navigaPeriodo = (direzione: number) => {
+    const nuovaData = new Date(currentDate);
+    if (viewMode === 'week') {
+      nuovaData.setDate(nuovaData.getDate() + (direzione * 7));
+    } else {
+      nuovaData.setMonth(nuovaData.getMonth() + direzione);
+    }
+    onDateChange(nuovaData);
+  };
+
+  const vaAdOggi = () => onDateChange(new Date());
+
+  const formatHeader = () => {
+    if (viewMode === 'week') {
+      const inizio = giorni[0];
+      const fine = giorni[6];
+      if (inizio.getMonth() === fine.getMonth()) {
+        return `${inizio.getDate()} - ${fine.getDate()} ${inizio.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })}`;
+      }
+      return `${inizio.getDate()} ${inizio.toLocaleDateString('it-IT', { month: 'short' })} - ${fine.getDate()} ${fine.toLocaleDateString('it-IT', { month: 'short', year: 'numeric' })}`;
+    }
+    return currentDate.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' });
+  };
+
+  const giorniSettimana = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-4 pb-4">
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="icon" onClick={() => navigaPeriodo(-1)} data-testid="button-prev-period">
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button variant="outline" size="icon" onClick={() => navigaPeriodo(1)} data-testid="button-next-period">
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={vaAdOggi} data-testid="button-today">
+            Oggi
+          </Button>
+        </div>
+        <CardTitle className="text-lg capitalize">{formatHeader()}</CardTitle>
+        <div className="w-24" />
+      </CardHeader>
+      <CardContent className="p-0">
+        <div className={`grid ${viewMode === 'week' ? 'grid-cols-7' : 'grid-cols-7'} border-t`}>
+          {giorniSettimana.map((g, i) => (
+            <div key={g} className={`p-2 text-center text-xs font-medium text-muted-foreground border-b ${i < 6 ? 'border-r' : ''}`}>
+              {g}
+            </div>
+          ))}
+          {giorni.map((giorno, i) => {
+            const apps = appuntamentiPerGiorno.get(giorno.toDateString()) || [];
+            const isOggi = giorno.toDateString() === oggi.toDateString();
+            const isAltroMese = viewMode === 'month' && giorno.getMonth() !== currentDate.getMonth();
+            
+            return (
+              <div
+                key={giorno.toISOString()}
+                className={`min-h-24 p-1 border-b ${i % 7 < 6 ? 'border-r' : ''} ${isAltroMese ? 'bg-muted/30' : ''}`}
+              >
+                <div className={`text-xs font-medium mb-1 p-1 rounded-full w-6 h-6 flex items-center justify-center
+                  ${isOggi ? 'bg-primary text-primary-foreground' : isAltroMese ? 'text-muted-foreground/50' : 'text-muted-foreground'}`}
+                >
+                  {giorno.getDate()}
+                </div>
+                <div className="space-y-1">
+                  {apps.slice(0, 3).map(app => {
+                    const cliente = clientiMap.get(app.clienteId);
+                    return (
+                      <button
+                        key={app.id}
+                        onClick={() => onAppuntamentoClick(app)}
+                        className={`w-full text-left text-xs p-1 rounded truncate hover-elevate
+                          ${app.completato ? 'bg-muted text-muted-foreground line-through' :
+                            app.confermato ? 'bg-blue-500/10 text-blue-700 dark:text-blue-400' :
+                            'bg-amber-500/10 text-amber-700 dark:text-amber-400'}`}
+                        data-testid={`calendar-app-${app.id}`}
+                      >
+                        {new Date(app.dataOra).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
+                        {cliente && ` ${cliente.nome[0]}${cliente.cognome[0]}`}
+                      </button>
+                    );
+                  })}
+                  {apps.length > 3 && (
+                    <p className="text-xs text-muted-foreground text-center">+{apps.length - 3}</p>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 function AppuntamentoCard({ 
   appuntamento, 
@@ -180,6 +341,8 @@ export default function AppuntamentiPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingAppuntamento, setEditingAppuntamento] = useState<Appuntamento | null>(null);
   const [deletingAppuntamento, setDeletingAppuntamento] = useState<Appuntamento | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [currentDate, setCurrentDate] = useState(new Date());
 
   const { data: appuntamenti = [], isLoading } = useQuery<Appuntamento[]>({
     queryKey: ["/api/appuntamenti"],
@@ -279,10 +442,44 @@ export default function AppuntamentiPage() {
           <h1 className="text-2xl font-semibold" data-testid="text-appuntamenti-title">Appuntamenti</h1>
           <p className="text-muted-foreground">Gestisci i tuoi appuntamenti con i clienti</p>
         </div>
-        <Button onClick={() => setShowForm(true)} data-testid="button-new-appointment">
-          <Plus className="h-4 w-4 mr-2" />
-          Nuovo Appuntamento
-        </Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center border rounded-md">
+            <Button 
+              variant={viewMode === 'list' ? 'secondary' : 'ghost'} 
+              size="sm"
+              className="rounded-r-none"
+              onClick={() => setViewMode('list')}
+              data-testid="button-view-list"
+            >
+              <List className="h-4 w-4 mr-1" />
+              Lista
+            </Button>
+            <Button 
+              variant={viewMode === 'week' ? 'secondary' : 'ghost'} 
+              size="sm"
+              className="rounded-none border-x"
+              onClick={() => setViewMode('week')}
+              data-testid="button-view-week"
+            >
+              <CalendarDays className="h-4 w-4 mr-1" />
+              Settimana
+            </Button>
+            <Button 
+              variant={viewMode === 'month' ? 'secondary' : 'ghost'} 
+              size="sm"
+              className="rounded-l-none"
+              onClick={() => setViewMode('month')}
+              data-testid="button-view-month"
+            >
+              <Calendar className="h-4 w-4 mr-1" />
+              Mese
+            </Button>
+          </div>
+          <Button onClick={() => setShowForm(true)} data-testid="button-new-appointment">
+            <Plus className="h-4 w-4 mr-2" />
+            Nuovo
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -291,6 +488,19 @@ export default function AppuntamentiPage() {
             <Skeleton key={i} className="h-32 w-full" />
           ))}
         </div>
+      ) : viewMode !== 'list' ? (
+        <CalendarView
+          appuntamenti={appuntamenti}
+          clientiMap={clientiMap}
+          immobiliMap={immobiliMap}
+          viewMode={viewMode}
+          currentDate={currentDate}
+          onDateChange={setCurrentDate}
+          onAppuntamentoClick={(app) => {
+            setEditingAppuntamento(app);
+            setShowForm(true);
+          }}
+        />
       ) : appuntamenti.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">

@@ -7,6 +7,8 @@ import { ThemeProvider } from "@/lib/theme";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
+import { GlobalSearch } from "@/components/global-search";
+import { NotificationsBell } from "@/components/notifications-bell";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import ClientiPage from "@/pages/clienti";
@@ -47,9 +49,13 @@ function App() {
             <div className="flex h-screen w-full">
               <AppSidebar />
               <div className="flex flex-col flex-1 overflow-hidden">
-                <header className="flex items-center justify-between gap-4 h-14 border-b px-4 shrink-0">
+                <header className="flex items-center gap-4 h-14 border-b px-4 shrink-0">
                   <SidebarTrigger data-testid="button-sidebar-toggle" />
-                  <ThemeToggle />
+                  <GlobalSearch />
+                  <div className="flex items-center gap-1">
+                    <NotificationsBell />
+                    <ThemeToggle />
+                  </div>
                 </header>
                 <main className="flex-1 overflow-auto">
                   <Router />

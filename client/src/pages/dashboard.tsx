@@ -15,7 +15,28 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
+import { 
+  AreaChart, 
+  Area, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  Legend
+} from "recharts";
 import type { Cliente, Immobile, Richiesta, Appuntamento, Matching } from "@shared/schema";
+
+interface TrendData {
+  nome: string;
+  data: string;
+  clienti: number;
+  richieste: number;
+  immobili: number;
+  appuntamenti: number;
+}
 
 interface DashboardStats {
   clientiTotali: number;
@@ -334,6 +355,96 @@ function UpcomingAppointmentsCard({
   );
 }
 
+function TrendChartCard({ loading }: { loading?: boolean }) {
+  const { data: trends = [] } = useQuery<TrendData[]>({
+    queryKey: ["/api/dashboard/trends"],
+  });
+
+  if (loading || trends.length === 0) {
+    return (
+      <Card className="col-span-full">
+        <CardHeader>
+          <Skeleton className="h-6 w-40" />
+        </CardHeader>
+        <CardContent>
+          <Skeleton className="h-64 w-full" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="col-span-full">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <TrendingUp className="h-5 w-5 text-primary" />
+          Trend Settimanale
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="h-72">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={trends} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+              <XAxis 
+                dataKey="nome" 
+                tick={{ fontSize: 12 }} 
+                className="text-muted-foreground"
+                tickLine={false}
+                axisLine={false}
+              />
+              <YAxis 
+                tick={{ fontSize: 12 }} 
+                className="text-muted-foreground"
+                tickLine={false}
+                axisLine={false}
+                allowDecimals={false}
+              />
+              <Tooltip 
+                contentStyle={{ 
+                  backgroundColor: 'hsl(var(--popover))', 
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: '6px',
+                  fontSize: '12px'
+                }}
+                labelStyle={{ fontWeight: 600, marginBottom: '4px' }}
+              />
+              <Legend 
+                iconType="circle" 
+                wrapperStyle={{ fontSize: '12px', paddingTop: '12px' }}
+              />
+              <Bar 
+                dataKey="clienti" 
+                name="Clienti" 
+                fill="hsl(var(--primary))" 
+                radius={[4, 4, 0, 0]}
+              />
+              <Bar 
+                dataKey="richieste" 
+                name="Richieste" 
+                fill="hsl(var(--chart-2))" 
+                radius={[4, 4, 0, 0]}
+              />
+              <Bar 
+                dataKey="immobili" 
+                name="Immobili" 
+                fill="hsl(var(--chart-3))" 
+                radius={[4, 4, 0, 0]}
+              />
+              <Bar 
+                dataKey="appuntamenti" 
+                name="Appuntamenti" 
+                fill="hsl(var(--chart-4))" 
+                radius={[4, 4, 0, 0]}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function MatchingSuggestionsCard({ 
   matching, 
   loading 
@@ -494,6 +605,8 @@ export default function Dashboard() {
           loading={matchingLoading} 
         />
       </div>
+
+      <TrendChartCard loading={loading} />
     </div>
   );
 }
