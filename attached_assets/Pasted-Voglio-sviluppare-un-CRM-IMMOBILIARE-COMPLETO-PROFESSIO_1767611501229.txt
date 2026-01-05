@@ -1,0 +1,488 @@
+Voglio sviluppare un CRM IMMOBILIARE COMPLETO, PROFESSIONALE, MODERNO, FUNZIONANTE AL 100%, con LOGICA OPERATIVA REALE, INTEGRAZIONI, IA e automazioni. Non voglio demo. Non voglio “placeholder”. Non voglio “future hook”. Voglio una piattaforma vera pronta per l’uso.
+
+0️⃣ STRUTTURA TECNICA
+
+Costruisci una vera web-app full stack:
+
+Frontend:
+
+React o Next.js
+
+TypeScript
+
+UI moderna, pulita, in italiano
+
+sidebar a sinistra, contenuto a destra
+
+Backend:
+
+Node + Express o Next.js API routes
+
+architettura pulita
+
+servizi ben separati
+
+Database:
+
+PostgreSQL
+
+migrazioni strutturate
+
+relazioni vere
+
+IA:
+
+OpenAI o Claude integrata via API
+
+Deve lavorare davvero, non in mock
+
+Comunicazioni:
+
+integrazione WhatsApp via webhook (es Twilio / Meta API, prepara endpoint e struttura reale)
+
+Gmail API funzionante con OAuth
+
+possibilità futura di Telegram ma per ora non obbligatoria
+
+1️⃣ DATABASE — TABELLE COMPLETE
+CLIENTI
+
+TABELLA: clienti
+
+id
+
+appellativo
+
+nome
+
+cognome
+
+telefono
+
+email
+
+compleanno
+
+religione
+
+note
+
+tipo_cliente: Compratore / Venditore / Entrambi
+
+rating_cliente (1–5)
+
+data_creazione
+
+data_aggiornamento
+
+attivo (bool)
+
+Relazioni:
+
+richieste
+
+immobili
+
+comunicazioni
+
+appuntamenti
+
+RICHIESTE COMPRATORI
+
+TABELLA: richieste
+
+id
+
+cliente_id
+
+descrizione_libera
+
+budget_massimo
+
+mq_minimi
+
+zona
+
+poligono_geografico (geojson)
+
+piano_tutti
+
+piano_intermedi
+
+piano_ultimo
+
+stato_nuovo
+
+stato_ristrutturato
+
+stato_buono
+
+stato_da_ristrutturare
+
+balcone
+
+terrazzo
+
+ascensore
+
+box
+
+camere_minime
+
+bagni_minimi
+
+priorita
+
+rating_richiesta
+
+attiva
+
+data_creazione
+
+data_aggiornamento
+
+IA deve:
+
+interpretare testo libero
+
+generare parametri
+
+disegnare poligono automatico basato su zona citata
+
+normalizzare linguaggio naturale in dati strutturati
+
+Esempio testo:
+“Cerco casa a Brera, minimo 100mq, almeno due bagni, ultimo piano o penultimo, terrazzo obbligatorio”
+→ Deve compilare i campi tecnici.
+
+IMMOBILI
+
+TABELLA: immobili
+
+id
+
+proprietario_id
+
+titolo
+
+descrizione
+
+indirizzo
+
+zona
+
+mq
+
+prezzo
+
+piano
+
+stato flags come richieste
+
+balcone
+
+terrazzo
+
+ascensore
+
+box
+
+latitudine
+
+longitudine
+
+esclusiva (bool)
+
+multiagenzia (bool)
+
+fonte (privato / agenzia / scraping)
+
+attivo
+
+data_creazione
+
+data_aggiornamento
+
+COMUNICAZIONI
+
+TABELLA: comunicazioni
+
+id
+
+cliente_id
+
+immobile_id
+
+tipo (matching, richiesta, risposta, followup, auguri, nota interna)
+
+testo
+
+canale (whatsapp, email, telefono, sistema)
+
+data_ora
+
+creato_da
+
+Webhook WhatsApp:
+
+qualsiasi messaggio ricevuto arriva in questa tabella
+
+se telefono esiste → collega al cliente
+
+se non esiste → crea nuovo cliente
+
+IA classifica:
+
+richiesta info
+
+obiezione
+
+followup
+
+spam
+
+IA risponde automaticamente secondo regole fornite in precedenza:
+
+tono empatico
+
+non aggressivo
+
+consulenziale
+
+Gmail API:
+
+legge richieste da portali
+
+crea cliente
+
+collega immobile
+
+crea comunicazione
+
+Auguri:
+
+sistema automatico genera comunicazioni:
+
+compleanni
+
+festività ebraiche
+
+festività nazionali
+
+APPUNTAMENTI
+
+cliente
+
+immobile
+
+data
+
+luogo
+
+conferma via WhatsApp
+
+invio automatico reminder
+
+MATCHING
+
+Funziona DAVVERO.
+
+Algoritmo:
+
+se zona compatibile
+
+se prezzo compatibile
+
+se mq compatibile
+
+se caratteristiche richieste presenti
+
+Valuta punteggio 0–100.
+Non proporre immobili incompatibili.
+Se IA rileva nella nota “necessario terrazzo”
+→ NON deve proporre immobili senza terrazzo.
+
+Matching crea comunicazione.
+Matching visibile in:
+
+scheda cliente
+
+scheda immobile
+
+ACQUISIZIONI + SCRAPING
+
+Sistema deve fare scraping giornaliero:
+
+portali annunci immobiliari
+
+filtrare privati
+
+estrarre numeri
+
+estrarre zona
+
+salvare immobile
+
+creare pipeline contatto
+
+inviare messaggio automatico A/B test reale
+
+creare cliente
+
+creare comunicazione
+
+Per annunci agenzia:
+
+capire se multiagenzia
+
+se esclusiva → ignora
+
+se multiagenzia → inserisci pipeline tentativo acquisizione
+
+Pipeline:
+
+to do oggi
+
+followup
+
+IA mental coach che mi guida
+
+divisione giornata in slot produttivi
+
+DASHBOARD OPERATIVA
+
+In home dashboard:
+
+clienti nuovi
+
+richieste nuove
+
+immobili nuovi
+
+matching suggeriti
+
+followup da fare
+
+appuntamenti oggi
+
+KPI produttività
+
+azioni consigliate da IA
+
+IA Coach:
+
+ogni mattina:
+
+analizza database
+
+crea piano di lavoro
+
+motiva
+
+suggerisce priorità
+
+divide giornata in slot
+
+SIGNAGE + MAGAZINE
+
+Serve funzionante.
+
+Signage:
+
+controllo schermo esterno
+
+scelta immobili da mettere in evidenza
+
+QR code generati
+
+news ticker
+
+video promozionale
+
+Magazine:
+
+articoli
+
+guide
+
+ottimizzazione SEO
+
+QR integration
+
+UX CHIAVE
+
+LA COSA PIÙ IMPORTANTE.
+Il sistema deve funzionare come CRM serio.
+
+Scheda Cliente →
+Tab:
+
+Panoramica
+
+Richieste
+
+Immobili
+
+Comunicazioni
+
+Appuntamenti
+
+Quando creo:
+
+nuova richiesta → cliente già collegato
+
+nuovo immobile → proprietario già collegato
+
+nuova comunicazione → cliente già collegato
+
+Non voglio selezionare ogni volta.
+
+OBIETTIVO
+
+Voglio:
+
+lavorare meglio
+
+guadagnare di più
+
+sembrare sempre presente
+
+far sentire ogni cliente unico
+
+zero perdite di tempo
+
+automazione totale con IA reale
+
+Questo CRM deve essere:
+
+robusto
+
+affidabile
+
+professionale
+
+in italiano
+
+pronto all’uso ora
+
+estendibile
+
+Costruiscilo COMPLETO.
+Non tralasciare nulla.
+Implementa ogni funzione.
+Nessun “future implementation”.
+Niente “placeholder”.
+
+Quando hai finito dammi:
+
+app funzionante
+
+accesso
+
+setup istruzioni
+
+spiegazione uso
+
+struttura codice chiara
+
+Fai tutto in modo serio e professionale.
