@@ -1,0 +1,686 @@
+import { useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useParams, Link, useLocation } from "wouter";
+import {
+  ArrowLeft,
+  Edit,
+  Trash2,
+  Phone,
+  Mail,
+  Calendar,
+  Star,
+  Plus,
+  Building2,
+  FileText,
+  MessageSquare,
+  CalendarDays,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { ClienteForm } from "./cliente-form";
+import { RichiestaForm } from "../richieste/richiesta-form";
+import type { Cliente, Richiesta, Immobile, Comunicazione, Appuntamento } from "@shared/schema";
+
+function ClienteHeader({ cliente, onEdit, onDelete }: { 
+  cliente: Cliente; 
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const tipoLabel = cliente.tipoCliente === "compratore" ? "Compratore" : 
+    cliente.tipoCliente === "venditore" ? "Venditore" : "Compratore/Venditore";
+
+  return (
+    <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+      <div className="flex items-start gap-4">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-primary text-xl font-semibold">
+          {cliente.nome[0]}{cliente.cognome[0]}
+        </div>
+        <div>
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-2xl font-semibold" data-testid="text-client-fullname">
+              {cliente.appellativo && `${cliente.appellativo} `}
+              {cliente.nome} {cliente.cognome}
+            </h1>
+            <Badge variant={cliente.attivo ? "default" : "secondary"}>
+              {cliente.attivo ? "Attivo" : "Inattivo"}
+            </Badge>
+          </div>
+          <div className="flex items-center gap-4 mt-2 flex-wrap">
+            <Badge variant="outline">{tipoLabel}</Badge>
+            <div className="flex items-center gap-0.5">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <Star
+                  key={star}
+                  className={`h-4 w-4 ${star <= (cliente.ratingCliente ?? 3) ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/30'}`}
+                />
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center gap-4 mt-3 text-sm text-muted-foreground flex-wrap">
+            {cliente.telefono && (
+              <a href={`tel:${cliente.telefono}`} className="flex items-center gap-1.5 hover:text-foreground">
+                <Phone className="h-4 w-4" />
+                {cliente.telefono}
+              </a>
+            )}
+            {cliente.email && (
+              <a href={`mailto:${cliente.email}`} className="flex items-center gap-1.5 hover:text-foreground">
+                <Mail className="h-4 w-4" />
+                {cliente.email}
+              </a>
+            )}
+            {cliente.compleanno && (
+              <span className="flex items-center gap-1.5">
+                <Calendar className="h-4 w-4" />
+                {new Date(cliente.compleanno).toLocaleDateString('it-IT')}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex gap-2">
+        <Button variant="outline" onClick={onEdit} data-testid="button-edit-client">
+          <Edit className="h-4 w-4 mr-2" />
+          Modifica
+        </Button>
+        <Button variant="destructive" onClick={onDelete} data-testid="button-delete-client">
+          <Trash2 className="h-4 w-4 mr-2" />
+          Elimina
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function TabPanoramica({ cliente }: { cliente: Cliente }) {
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Informazioni Personali</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <dl className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <dt className="text-sm font-medium text-muted-foreground">Nome Completo</dt>
+              <dd className="mt-1">{cliente.appellativo} {cliente.nome} {cliente.cognome}</dd>
+            </div>
+            <div>
+              <dt className="text-sm font-medium text-muted-foreground">Tipo Cliente</dt>
+              <dd className="mt-1 capitalize">{cliente.tipoCliente}</dd>
+            </div>
+            <div>
+              <dt className="text-sm font-medium text-muted-foreground">Telefono</dt>
+              <dd className="mt-1">{cliente.telefono || "Non specificato"}</dd>
+            </div>
+            <div>
+              <dt className="text-sm font-medium text-muted-foreground">Email</dt>
+              <dd className="mt-1">{cliente.email || "Non specificata"}</dd>
+            </div>
+            <div>
+              <dt className="text-sm font-medium text-muted-foreground">Data di Nascita</dt>
+              <dd className="mt-1">
+                {cliente.compleanno 
+                  ? new Date(cliente.compleanno).toLocaleDateString('it-IT') 
+                  : "Non specificata"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-sm font-medium text-muted-foreground">Religione</dt>
+              <dd className="mt-1 capitalize">{cliente.religione || "Non specificata"}</dd>
+            </div>
+          </dl>
+        </CardContent>
+      </Card>
+
+      {cliente.note && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Note</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="whitespace-pre-wrap" data-testid="text-client-notes">{cliente.note}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Informazioni Sistema</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <dl className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <dt className="text-sm font-medium text-muted-foreground">Data Creazione</dt>
+              <dd className="mt-1">
+                {new Date(cliente.createdAt).toLocaleDateString('it-IT', {
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-sm font-medium text-muted-foreground">Ultimo Aggiornamento</dt>
+              <dd className="mt-1">
+                {new Date(cliente.updatedAt).toLocaleDateString('it-IT', {
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}
+              </dd>
+            </div>
+          </dl>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function TabRichieste({ clienteId, onAddRichiesta }: { clienteId: number; onAddRichiesta: () => void }) {
+  const { data: richieste = [], isLoading } = useQuery<Richiesta[]>({
+    queryKey: ["/api/richieste", { clienteId }],
+  });
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        {[1, 2].map((i) => (
+          <Skeleton key={i} className="h-32 w-full" />
+        ))}
+      </div>
+    );
+  }
+
+  if (richieste.length === 0) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center py-12">
+          <FileText className="h-12 w-12 text-muted-foreground/50 mb-3" />
+          <h3 className="text-lg font-medium">Nessuna richiesta</h3>
+          <p className="text-muted-foreground text-center mt-1">
+            Questo cliente non ha ancora richieste attive
+          </p>
+          <Button className="mt-4" onClick={onAddRichiesta} data-testid="button-add-request">
+            <Plus className="h-4 w-4 mr-2" />
+            Nuova Richiesta
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <Button onClick={onAddRichiesta} data-testid="button-add-request">
+          <Plus className="h-4 w-4 mr-2" />
+          Nuova Richiesta
+        </Button>
+      </div>
+      {richieste.map((richiesta) => (
+        <Card key={richiesta.id} className="hover-elevate">
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-medium">Richiesta #{richiesta.id}</h3>
+                  <Badge variant={richiesta.attiva ? "default" : "secondary"}>
+                    {richiesta.attiva ? "Attiva" : "Inattiva"}
+                  </Badge>
+                </div>
+                <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                  {richiesta.descrizioneLibera || "Nessuna descrizione"}
+                </p>
+                <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
+                  {richiesta.zona && <span>Zona: {richiesta.zona}</span>}
+                  {richiesta.budgetMassimo && (
+                    <span>Budget: €{Number(richiesta.budgetMassimo).toLocaleString('it-IT')}</span>
+                  )}
+                  {richiesta.mqMinimi && <span>Min. {richiesta.mqMinimi} mq</span>}
+                </div>
+              </div>
+              <Link href={`/richieste/${richiesta.id}`}>
+                <Button variant="outline" size="sm" data-testid={`button-view-request-${richiesta.id}`}>
+                  Dettagli
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function TabImmobili({ clienteId }: { clienteId: number }) {
+  const { data: immobili = [], isLoading } = useQuery<Immobile[]>({
+    queryKey: ["/api/immobili", { proprietarioId: clienteId }],
+  });
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        {[1, 2].map((i) => (
+          <Skeleton key={i} className="h-32 w-full" />
+        ))}
+      </div>
+    );
+  }
+
+  if (immobili.length === 0) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center py-12">
+          <Building2 className="h-12 w-12 text-muted-foreground/50 mb-3" />
+          <h3 className="text-lg font-medium">Nessun immobile</h3>
+          <p className="text-muted-foreground text-center mt-1">
+            Questo cliente non ha immobili in vendita
+          </p>
+          <Link href={`/immobili/nuovo?proprietarioId=${clienteId}`}>
+            <Button className="mt-4" data-testid="button-add-property">
+              <Plus className="h-4 w-4 mr-2" />
+              Aggiungi Immobile
+            </Button>
+          </Link>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      {immobili.map((immobile) => (
+        <Card key={immobile.id} className="hover-elevate">
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <Link href={`/immobili/${immobile.id}`}>
+                  <h3 className="font-medium hover:underline cursor-pointer" data-testid={`text-property-${immobile.id}`}>
+                    {immobile.titolo}
+                  </h3>
+                </Link>
+                <p className="text-sm text-muted-foreground">{immobile.zona || immobile.indirizzo}</p>
+              </div>
+              <Badge variant={immobile.attivo ? "default" : "secondary"}>
+                {immobile.attivo ? "Attivo" : "Inattivo"}
+              </Badge>
+            </div>
+            <div className="flex items-center gap-4 mt-3 text-sm">
+              {immobile.prezzo && (
+                <span className="font-medium">€{Number(immobile.prezzo).toLocaleString('it-IT')}</span>
+              )}
+              {immobile.mq && <span>{immobile.mq} mq</span>}
+              {immobile.camere && <span>{immobile.camere} camere</span>}
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function TabComunicazioni({ clienteId }: { clienteId: number }) {
+  const { data: comunicazioni = [], isLoading } = useQuery<Comunicazione[]>({
+    queryKey: ["/api/comunicazioni", { clienteId }],
+  });
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        {[1, 2, 3].map((i) => (
+          <Skeleton key={i} className="h-20 w-full" />
+        ))}
+      </div>
+    );
+  }
+
+  if (comunicazioni.length === 0) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center py-12">
+          <MessageSquare className="h-12 w-12 text-muted-foreground/50 mb-3" />
+          <h3 className="text-lg font-medium">Nessuna comunicazione</h3>
+          <p className="text-muted-foreground text-center mt-1">
+            Non ci sono ancora comunicazioni con questo cliente
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {comunicazioni.map((com) => (
+        <Card key={com.id}>
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <div className={`flex h-8 w-8 items-center justify-center rounded-full 
+                ${com.canale === 'whatsapp' ? 'bg-green-500/10 text-green-600' :
+                  com.canale === 'email' ? 'bg-blue-500/10 text-blue-600' :
+                  com.canale === 'telefono' ? 'bg-amber-500/10 text-amber-600' :
+                  'bg-muted text-muted-foreground'}`}
+              >
+                <MessageSquare className="h-4 w-4" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge variant="secondary" className="text-xs capitalize">{com.tipo}</Badge>
+                  <Badge variant="outline" className="text-xs capitalize">{com.canale}</Badge>
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(com.dataOra).toLocaleDateString('it-IT', {
+                      day: 'numeric',
+                      month: 'short',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </span>
+                </div>
+                <p className="text-sm mt-2">{com.testo}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function TabAppuntamenti({ clienteId }: { clienteId: number }) {
+  const { data: appuntamenti = [], isLoading } = useQuery<Appuntamento[]>({
+    queryKey: ["/api/appuntamenti", { clienteId }],
+  });
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        {[1, 2].map((i) => (
+          <Skeleton key={i} className="h-24 w-full" />
+        ))}
+      </div>
+    );
+  }
+
+  if (appuntamenti.length === 0) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center py-12">
+          <CalendarDays className="h-12 w-12 text-muted-foreground/50 mb-3" />
+          <h3 className="text-lg font-medium">Nessun appuntamento</h3>
+          <p className="text-muted-foreground text-center mt-1">
+            Non ci sono appuntamenti programmati con questo cliente
+          </p>
+          <Link href={`/appuntamenti/nuovo?clienteId=${clienteId}`}>
+            <Button className="mt-4" data-testid="button-new-appointment">
+              <Plus className="h-4 w-4 mr-2" />
+              Nuovo Appuntamento
+            </Button>
+          </Link>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {appuntamenti.map((app) => {
+        const data = new Date(app.dataOra);
+        const isPast = data < new Date();
+        return (
+          <Card key={app.id} className={isPast ? 'opacity-60' : ''}>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-4">
+                <div className="text-center min-w-16">
+                  <p className="text-2xl font-bold">{data.getDate()}</p>
+                  <p className="text-xs text-muted-foreground uppercase">
+                    {data.toLocaleDateString('it-IT', { month: 'short' })}
+                  </p>
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium">{app.luogo || "Luogo da definire"}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {data.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                  {app.note && (
+                    <p className="text-sm text-muted-foreground mt-1">{app.note}</p>
+                  )}
+                </div>
+                <div className="flex flex-col gap-1 items-end">
+                  {app.completato ? (
+                    <Badge variant="secondary">Completato</Badge>
+                  ) : app.confermato ? (
+                    <Badge className="bg-green-500/10 text-green-600">Confermato</Badge>
+                  ) : (
+                    <Badge variant="outline">In attesa</Badge>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
+export default function ClienteDetailPage() {
+  const params = useParams<{ id: string }>();
+  const [, navigate] = useLocation();
+  const { toast } = useToast();
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showRichiestaForm, setShowRichiestaForm] = useState(false);
+
+  const clienteId = parseInt(params.id || "0");
+
+  const { data: cliente, isLoading } = useQuery<Cliente>({
+    queryKey: ["/api/clienti", clienteId],
+    enabled: clienteId > 0,
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("DELETE", `/api/clienti/${clienteId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clienti"] });
+      toast({ title: "Cliente eliminato con successo" });
+      navigate("/clienti");
+    },
+    onError: () => {
+      toast({ 
+        title: "Errore", 
+        description: "Impossibile eliminare il cliente", 
+        variant: "destructive" 
+      });
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <div className="p-6 space-y-6">
+        <div className="flex items-center gap-4">
+          <Skeleton className="h-16 w-16 rounded-full" />
+          <div>
+            <Skeleton className="h-8 w-64 mb-2" />
+            <Skeleton className="h-4 w-48" />
+          </div>
+        </div>
+        <Skeleton className="h-12 w-full" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
+
+  if (!cliente) {
+    return (
+      <div className="p-6">
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <h3 className="text-lg font-medium">Cliente non trovato</h3>
+            <p className="text-muted-foreground mt-1">
+              Il cliente richiesto non esiste o è stato eliminato
+            </p>
+            <Link href="/clienti">
+              <Button className="mt-4">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Torna ai Clienti
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6 space-y-6">
+      <div className="flex items-center gap-2">
+        <Link href="/clienti">
+          <Button variant="ghost" size="icon" data-testid="button-back">
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+        </Link>
+        <span className="text-muted-foreground">Clienti</span>
+        <span className="text-muted-foreground">/</span>
+        <span>{cliente.nome} {cliente.cognome}</span>
+      </div>
+
+      <ClienteHeader 
+        cliente={cliente} 
+        onEdit={() => setShowEditForm(true)}
+        onDelete={() => setShowDeleteDialog(true)}
+      />
+
+      <Tabs defaultValue="panoramica" className="w-full">
+        <TabsList className="w-full justify-start border-b rounded-none bg-transparent p-0 h-auto">
+          <TabsTrigger 
+            value="panoramica" 
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+            data-testid="tab-panoramica"
+          >
+            Panoramica
+          </TabsTrigger>
+          <TabsTrigger 
+            value="richieste"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+            data-testid="tab-richieste"
+          >
+            Richieste
+          </TabsTrigger>
+          <TabsTrigger 
+            value="immobili"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+            data-testid="tab-immobili"
+          >
+            Immobili
+          </TabsTrigger>
+          <TabsTrigger 
+            value="comunicazioni"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+            data-testid="tab-comunicazioni"
+          >
+            Comunicazioni
+          </TabsTrigger>
+          <TabsTrigger 
+            value="appuntamenti"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+            data-testid="tab-appuntamenti"
+          >
+            Appuntamenti
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="panoramica" className="mt-6">
+          <TabPanoramica cliente={cliente} />
+        </TabsContent>
+        <TabsContent value="richieste" className="mt-6">
+          <TabRichieste clienteId={clienteId} onAddRichiesta={() => setShowRichiestaForm(true)} />
+        </TabsContent>
+        <TabsContent value="immobili" className="mt-6">
+          <TabImmobili clienteId={clienteId} />
+        </TabsContent>
+        <TabsContent value="comunicazioni" className="mt-6">
+          <TabComunicazioni clienteId={clienteId} />
+        </TabsContent>
+        <TabsContent value="appuntamenti" className="mt-6">
+          <TabAppuntamenti clienteId={clienteId} />
+        </TabsContent>
+      </Tabs>
+
+      <Dialog open={showEditForm} onOpenChange={setShowEditForm}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Modifica Cliente</DialogTitle>
+          </DialogHeader>
+          <ClienteForm
+            cliente={cliente}
+            onSuccess={() => setShowEditForm(false)}
+            onCancel={() => setShowEditForm(false)}
+          />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showRichiestaForm} onOpenChange={setShowRichiestaForm}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Nuova Richiesta per {cliente.nome} {cliente.cognome}</DialogTitle>
+          </DialogHeader>
+          <RichiestaForm
+            clienteId={clienteId}
+            onSuccess={() => setShowRichiestaForm(false)}
+            onCancel={() => setShowRichiestaForm(false)}
+          />
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sei sicuro?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Questa azione eliminerà permanentemente il cliente 
+              <strong> {cliente.nome} {cliente.cognome}</strong> e tutti i dati associati.
+              Questa azione non può essere annullata.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteMutation.mutate()}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteMutation.isPending ? "Eliminazione..." : "Elimina"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
