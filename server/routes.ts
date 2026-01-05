@@ -7,7 +7,6 @@ import {
   insertImmobileEsternoSchema
 } from "@shared/schema";
 import { parseRequestWithAI, calculateMatchScore, generateAICoachMessage, parsePropertyListingWithAI, generateAcquisitionMessage } from "./ai-service";
-import { scrapeUrlWithApify } from "./apify-service";
 
 export async function registerRoutes(server: Server, app: Express): Promise<void> {
   // ==================== RICERCA GLOBALE ====================
@@ -680,32 +679,66 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
     }
   });
 
-  // Scrape URL with Apify and parse with AI
-  app.post("/api/acquisizione/scrape", async (req, res) => {
+  // Receive data from browser extension and save
+  app.post("/api/acquisizione/from-extension", async (req, res) => {
     try {
-      const { url } = req.body;
-      if (!url || typeof url !== "string") {
-        return res.status(400).json({ error: "URL dell'annuncio richiesto" });
+      res.header("Access-Control-Allow-Origin", "*");
+      res.header("Access-Control-Allow-Methods", "POST, OPTIONS");
+      res.header("Access-Control-Allow-Headers", "Content-Type");
+      
+      const data = req.body;
+      if (!data || !data.titolo) {
+        return res.status(400).json({ error: "Dati annuncio non validi" });
       }
       
-      // Scrape the URL content
-      const scrapedText = await scrapeUrlWithApify(url);
-      
-      // Parse the scraped content with AI
-      const parsed = await parsePropertyListingWithAI(scrapedText, url);
-      
-      res.json({ 
-        ...parsed, 
-        testoOriginale: scrapedText,
-        urlAnnuncio: url 
-      });
-    } catch (error: any) {
-      console.error("Scrape listing error:", error);
-      if (error.message?.includes('APIFY_API_TOKEN')) {
-        return res.status(400).json({ error: "Configura la API key di Apify nelle impostazioni" });
+      // If we have full text, enhance with AI parsing
+      let parsedData = data;
+      if (data.testoCompleto && data.testoCompleto.length > 100) {
+        try {
+          const aiParsed = await parsePropertyListingWithAI(data.testoCompleto, data.url);
+          parsedData = { ...data, ...aiParsed };
+        } catch (e) {
+          console.log("AI parsing failed, using raw data:", e);
+        }
       }
-      res.status(500).json({ error: "Errore nell'estrazione dell'annuncio: " + (error.message || "errore sconosciuto") });
+      
+      // Create the external property
+      const immobileData = {
+        titolo: parsedData.titolo || "Annuncio importato",
+        descrizione: parsedData.descrizione,
+        prezzo: parsedData.prezzo,
+        zona: parsedData.zona,
+        citta: parsedData.citta,
+        superficie: parsedData.superficie,
+        locali: parsedData.locali,
+        bagni: parsedData.bagni,
+        piano: parsedData.piano,
+        tipologia: parsedData.tipologia,
+        classeEnergetica: parsedData.classeEnergetica,
+        riscaldamento: parsedData.riscaldamento,
+        stato: parsedData.stato,
+        annoCostruzione: parsedData.annoCostruzione,
+        spese: parsedData.spese,
+        urlAnnuncio: parsedData.url,
+        testoOriginale: parsedData.testoCompleto?.substring(0, 5000),
+        fonte: new URL(parsedData.url || "https://unknown.com").hostname.replace("www.", ""),
+        caratteristiche: parsedData.caratteristiche,
+      };
+      
+      const immobile = await storage.createImmobileEsterno(immobileData);
+      res.status(201).json({ success: true, id: immobile.id, message: "Annuncio importato con successo" });
+    } catch (error) {
+      console.error("Extension import error:", error);
+      res.status(500).json({ error: "Errore nell'importazione dell'annuncio" });
     }
+  });
+
+  // Handle CORS preflight for extension
+  app.options("/api/acquisizione/from-extension", (req, res) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.header("Access-Control-Allow-Headers", "Content-Type");
+    res.sendStatus(200);
   });
 
   // Create external property (from parsed data)

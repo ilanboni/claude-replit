@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "ImmoGest - Acquisizione Immobili",
+  "version": "1.0.0",
+  "description": "Importa annunci immobiliari direttamente in ImmoGest CRM",
+  "permissions": ["activeTab", "scripting"],
+  "host_permissions": [
+    "https://www.immobiliare.it/*",
+    "https://immobiliare.it/*",
+    "https://www.idealista.it/*",
+    "https://idealista.it/*",
+    "https://www.subito.it/*",
+    "https://subito.it/*",
+    "https://www.casa.it/*",
+    "https://casa.it/*"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.immobiliare.it/annunci/*",
+        "https://immobiliare.it/annunci/*",
+        "https://www.idealista.it/immobile/*",
+        "https://idealista.it/immobile/*",
+        "https://www.subito.it/annunci/*",
+        "https://subito.it/annunci/*",
+        "https://www.casa.it/vendita/*",
+        "https://www.casa.it/affitto/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

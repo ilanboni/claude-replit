@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ImmoGest Acquisizione</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      width: 360px;
+      padding: 16px;
+      background: #fafafa;
+      color: #1a1a1a;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #e5e5e5;
+    }
+    .header h1 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #1e40af;
+    }
+    .logo {
+      width: 32px;
+      height: 32px;
+      background: #1e40af;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: bold;
+      font-size: 14px;
+    }
+    .status {
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      font-size: 14px;
+    }
+    .status.success {
+      background: #dcfce7;
+      color: #166534;
+    }
+    .status.error {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+    .status.info {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+    .status.warning {
+      background: #fef3c7;
+      color: #92400e;
+    }
+    .preview {
+      background: white;
+      border: 1px solid #e5e5e5;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 16px;
+    }
+    .preview h3 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #374151;
+    }
+    .preview-item {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      padding: 4px 0;
+      border-bottom: 1px solid #f3f4f6;
+    }
+    .preview-item:last-child {
+      border-bottom: none;
+    }
+    .preview-label {
+      color: #6b7280;
+    }
+    .preview-value {
+      font-weight: 500;
+      color: #1f2937;
+      text-align: right;
+      max-width: 180px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .config {
+      background: white;
+      border: 1px solid #e5e5e5;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 16px;
+    }
+    .config label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: #6b7280;
+      margin-bottom: 4px;
+    }
+    .config input {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+    .config input:focus {
+      outline: none;
+      border-color: #1e40af;
+      box-shadow: 0 0 0 2px rgba(30, 64, 175, 0.1);
+    }
+    .buttons {
+      display: flex;
+      gap: 8px;
+    }
+    button {
+      flex: 1;
+      padding: 10px 16px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .btn-primary {
+      background: #1e40af;
+      color: white;
+      border: none;
+    }
+    .btn-primary:hover:not(:disabled) {
+      background: #1e3a8a;
+    }
+    .btn-secondary {
+      background: white;
+      color: #374151;
+      border: 1px solid #d1d5db;
+    }
+    .btn-secondary:hover:not(:disabled) {
+      background: #f9fafb;
+    }
+    .loading {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid transparent;
+      border-top-color: currentColor;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">IG</div>
+    <h1>ImmoGest Acquisizione</h1>
+  </div>
+
+  <div id="status" class="status info">
+    Verifica della pagina in corso...
+  </div>
+
+  <div id="preview" class="preview hidden">
+    <h3>Anteprima annuncio</h3>
+    <div id="preview-content"></div>
+  </div>
+
+  <div class="config">
+    <label for="server-url">URL ImmoGest</label>
+    <input type="text" id="server-url" placeholder="https://tuo-progetto.replit.app">
+  </div>
+
+  <div class="buttons">
+    <button id="btn-extract" class="btn-secondary" disabled>
+      Estrai dati
+    </button>
+    <button id="btn-send" class="btn-primary" disabled>
+      Invia a ImmoGest
+    </button>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
