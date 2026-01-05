@@ -14,6 +14,7 @@ import Dashboard from "@/pages/dashboard";
 import ClientiPage from "@/pages/clienti";
 import ClienteDetailPage from "@/pages/clienti/[id]";
 import ImmobiliPage from "@/pages/immobili";
+import ImmobileDetailPage from "@/pages/immobili/detail";
 import RichiestePage from "@/pages/richieste";
 import ComunicazioniPage from "@/pages/comunicazioni";
 import AppuntamentiPage from "@/pages/appuntamenti";
@@ -27,6 +28,7 @@ function Router() {
       <Route path="/clienti" component={ClientiPage} />
       <Route path="/clienti/:id" component={ClienteDetailPage} />
       <Route path="/immobili" component={ImmobiliPage} />
+      <Route path="/immobili/:id" component={ImmobileDetailPage} />
       <Route path="/richieste" component={RichiestePage} />
       <Route path="/comunicazioni" component={ComunicazioniPage} />
       <Route path="/appuntamenti" component={AppuntamentiPage} />
