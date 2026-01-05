@@ -687,13 +687,13 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
       res.header("Access-Control-Allow-Headers", "Content-Type");
       
       const data = req.body;
-      if (!data || !data.titolo) {
+      if (!data || typeof data !== "object") {
         return res.status(400).json({ error: "Dati annuncio non validi" });
       }
       
       // If we have full text, enhance with AI parsing
       let parsedData = data;
-      if (data.testoCompleto && data.testoCompleto.length > 100) {
+      if (data.testoCompleto && typeof data.testoCompleto === "string" && data.testoCompleto.length > 100) {
         try {
           const aiParsed = await parsePropertyListingWithAI(data.testoCompleto, data.url);
           parsedData = { ...data, ...aiParsed };
@@ -702,30 +702,37 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         }
       }
       
-      // Create the external property
+      // Build and validate immobile data
       const immobileData = {
-        titolo: parsedData.titolo || "Annuncio importato",
-        descrizione: parsedData.descrizione,
-        prezzo: parsedData.prezzo,
-        zona: parsedData.zona,
-        citta: parsedData.citta,
-        superficie: parsedData.superficie,
-        locali: parsedData.locali,
-        bagni: parsedData.bagni,
-        piano: parsedData.piano,
-        tipologia: parsedData.tipologia,
-        classeEnergetica: parsedData.classeEnergetica,
-        riscaldamento: parsedData.riscaldamento,
-        stato: parsedData.stato,
-        annoCostruzione: parsedData.annoCostruzione,
-        spese: parsedData.spese,
-        urlAnnuncio: parsedData.url,
-        testoOriginale: parsedData.testoCompleto?.substring(0, 5000),
-        fonte: new URL(parsedData.url || "https://unknown.com").hostname.replace("www.", ""),
-        caratteristiche: parsedData.caratteristiche,
+        titolo: String(parsedData.titolo || "Annuncio importato").substring(0, 500),
+        descrizione: parsedData.descrizione ? String(parsedData.descrizione).substring(0, 10000) : undefined,
+        prezzo: typeof parsedData.prezzo === "number" ? parsedData.prezzo : undefined,
+        zona: parsedData.zona ? String(parsedData.zona).substring(0, 200) : undefined,
+        citta: parsedData.citta ? String(parsedData.citta).substring(0, 100) : undefined,
+        superficie: typeof parsedData.superficie === "number" ? parsedData.superficie : undefined,
+        locali: typeof parsedData.locali === "number" ? parsedData.locali : undefined,
+        bagni: typeof parsedData.bagni === "number" ? parsedData.bagni : undefined,
+        piano: parsedData.piano ? String(parsedData.piano).substring(0, 50) : undefined,
+        tipologia: parsedData.tipologia ? String(parsedData.tipologia).substring(0, 100) : undefined,
+        classeEnergetica: parsedData.classeEnergetica ? String(parsedData.classeEnergetica).substring(0, 10) : undefined,
+        riscaldamento: parsedData.riscaldamento ? String(parsedData.riscaldamento).substring(0, 100) : undefined,
+        stato: parsedData.stato ? String(parsedData.stato).substring(0, 100) : undefined,
+        annoCostruzione: typeof parsedData.annoCostruzione === "number" ? parsedData.annoCostruzione : undefined,
+        spese: typeof parsedData.spese === "number" ? parsedData.spese : undefined,
+        urlAnnuncio: parsedData.url ? String(parsedData.url).substring(0, 1000) : undefined,
+        testoOriginale: parsedData.testoCompleto ? String(parsedData.testoCompleto).substring(0, 5000) : undefined,
+        fonte: parsedData.url ? new URL(String(parsedData.url)).hostname.replace("www.", "") : "estensione",
+        caratteristiche: typeof parsedData.caratteristiche === "object" ? parsedData.caratteristiche : undefined,
       };
       
-      const immobile = await storage.createImmobileEsterno(immobileData);
+      // Validate with schema
+      const validated = insertImmobileEsternoSchema.safeParse(immobileData);
+      if (!validated.success) {
+        console.error("Extension data validation failed:", validated.error);
+        return res.status(400).json({ error: "Dati non validi", details: validated.error.flatten() });
+      }
+      
+      const immobile = await storage.createImmobileEsterno(validated.data);
       res.status(201).json({ success: true, id: immobile.id, message: "Annuncio importato con successo" });
     } catch (error) {
       console.error("Extension import error:", error);
