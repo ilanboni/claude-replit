@@ -11,10 +11,11 @@ export async function scrapeUrlWithApify(url: string): Promise<string> {
     token: APIFY_API_TOKEN,
   });
 
+  // Use playwright crawler for better anti-bot bypass
   const run = await client.actor('apify/website-content-crawler').call({
-    startUrls: [{ url }],
+    startUrls: [url],
     maxCrawlPages: 1,
-    crawlerType: 'cheerio',
+    crawlerType: 'playwright:firefox',
     maxCrawlDepth: 0,
     includeUrlGlobs: [],
     excludeUrlGlobs: [],
@@ -24,14 +25,16 @@ export async function scrapeUrlWithApify(url: string): Promise<string> {
     saveFiles: false,
     saveScreenshots: false,
     maxResults: 1,
+    dynamicContentWaitSecs: 5,
+    waitForSelector: 'body',
   }, {
-    waitSecs: 60,
+    waitSecs: 120,
   });
 
   const { items } = await client.dataset(run.defaultDatasetId).listItems();
   
   if (!items || items.length === 0) {
-    throw new Error('Nessun contenuto estratto dalla pagina');
+    throw new Error('Nessun contenuto estratto dalla pagina. Il sito potrebbe bloccare lo scraping automatico.');
   }
 
   const content = items[0] as { markdown?: string; text?: string };
