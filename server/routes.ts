@@ -7,6 +7,9 @@ import {
   insertImmobileEsternoSchema
 } from "@shared/schema";
 import { parseRequestWithAI, calculateMatchScore, generateAICoachMessage, parsePropertyListingWithAI, parsePropertyImageWithAI, generateAcquisitionMessage } from "./ai-service";
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+const pdfParse = require("pdf-parse");
 
 export async function registerRoutes(server: Server, app: Express): Promise<void> {
   // ==================== RICERCA GLOBALE ====================
@@ -905,8 +908,6 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         return res.status(400).json({ error: "PDF richiesto" });
       }
       
-      const pdfParseModule = await import("pdf-parse");
-      const pdfParse = pdfParseModule.default || pdfParseModule;
       const buffer = Buffer.from(pdfBase64, "base64");
       const pdfData = await pdfParse(buffer);
       
