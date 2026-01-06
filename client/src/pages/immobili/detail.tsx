@@ -294,7 +294,8 @@ function TabDettagli({ immobile }: { immobile: Immobile }) {
   );
 }
 
-function TabMatching({ immobileId }: { immobileId: number }) {
+function TabMatching({ immobileId, immobile }: { immobileId: number; immobile: Immobile }) {
+  const { toast } = useToast();
   const { data: matchingList = [], isLoading } = useQuery<Matching[]>({
     queryKey: ["/api/immobili", immobileId, "matching"],
     queryFn: async () => {
@@ -312,8 +313,71 @@ function TabMatching({ immobileId }: { immobileId: number }) {
     queryKey: ["/api/clienti"],
   });
 
+  const createComunicazioneMutation = useMutation({
+    mutationFn: async (data: { clienteId: number; immobileId: number; testo: string }) => {
+      const res = await apiRequest("POST", "/api/comunicazioni", {
+        clienteId: data.clienteId,
+        immobileId: data.immobileId,
+        tipo: "proposta",
+        testo: data.testo,
+        canale: "whatsapp",
+        creatoDA: "agente",
+        esito: "in_attesa",
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/immobili", immobileId, "comunicazioni"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/comunicazioni"] });
+      toast({ title: "Proposta inviata", description: "Comunicazione registrata nel sistema" });
+    },
+    onError: () => {
+      toast({ title: "Errore", description: "Impossibile registrare la comunicazione", variant: "destructive" });
+    },
+  });
+
   const getRichiesta = (richiestaId: number) => richieste.find((r) => r.id === richiestaId);
   const getCliente = (clienteId: number) => clienti.find((c) => c.id === clienteId);
+
+  const handleProponiImmobile = (cliente: Cliente) => {
+    let telefono = (cliente.telefono || "").trim();
+    if (!telefono) {
+      toast({ title: "Errore", description: "Il cliente non ha un numero di telefono", variant: "destructive" });
+      return;
+    }
+    
+    telefono = telefono.replace(/\D/g, "");
+    if (!telefono.startsWith("39") && telefono.length === 10) {
+      telefono = "39" + telefono;
+    }
+    
+    if (telefono.length < 10) {
+      toast({ title: "Errore", description: "Numero di telefono non valido", variant: "destructive" });
+      return;
+    }
+
+    const indirizzo = `${immobile.indirizzo || immobile.zona || ""}, ${immobile.citta || ""}`.trim();
+    const prezzo = immobile.prezzo ? `€${Number(immobile.prezzo).toLocaleString("it-IT")}` : "";
+    const mq = immobile.mq ? `${immobile.mq} mq` : "";
+    const camere = immobile.camere ? `${immobile.camere} camere` : "";
+    
+    const messaggio = `Buongiorno ${cliente.nome}, le propongo un immobile che potrebbe interessarle:\n\n${indirizzo}\n${prezzo}\n${mq}\n${camere}\n\nLe interessa organizzare una visita?`;
+    
+    const testo = `Proposto immobile in ${indirizzo} - ${prezzo}`;
+    
+    const whatsappUrl = `https://wa.me/${telefono}?text=${encodeURIComponent(messaggio)}`;
+    const opened = window.open(whatsappUrl, "_blank");
+    
+    if (opened) {
+      createComunicazioneMutation.mutate({
+        clienteId: cliente.id,
+        immobileId: immobile.id,
+        testo,
+      });
+    } else {
+      toast({ title: "Attenzione", description: "Popup bloccato. Abilita i popup per WhatsApp.", variant: "destructive" });
+    }
+  };
 
   if (isLoading) {
     return (
@@ -375,8 +439,15 @@ function TabMatching({ immobileId }: { immobileId: number }) {
                     <Progress value={punteggio} className="w-20 h-2" />
                   </div>
                   <div className="flex gap-2">
-                    <Button size="sm" variant="outline" data-testid={`button-contact-match-${match.id}`}>
-                      <Phone className="h-4 w-4" />
+                    <Button 
+                      size="sm" 
+                      variant="default"
+                      onClick={() => cliente && handleProponiImmobile(cliente)}
+                      disabled={!cliente || createComunicazioneMutation.isPending}
+                      data-testid={`button-proponi-${match.id}`}
+                    >
+                      <MessageSquare className="h-4 w-4 mr-1" />
+                      Proponi
                     </Button>
                     <Button size="sm" variant="outline" data-testid={`button-schedule-match-${match.id}`}>
                       <Calendar className="h-4 w-4" />
@@ -393,6 +464,7 @@ function TabMatching({ immobileId }: { immobileId: number }) {
 }
 
 function TabComunicazioni({ immobileId }: { immobileId: number }) {
+  const { toast } = useToast();
   const { data: comunicazioni = [], isLoading } = useQuery<Comunicazione[]>({
     queryKey: ["/api/immobili", immobileId, "comunicazioni"],
     queryFn: async () => {
@@ -404,6 +476,18 @@ function TabComunicazioni({ immobileId }: { immobileId: number }) {
 
   const { data: clienti = [] } = useQuery<Cliente[]>({
     queryKey: ["/api/clienti"],
+  });
+
+  const updateEsitoMutation = useMutation({
+    mutationFn: async ({ id, esito }: { id: number; esito: string }) => {
+      const res = await apiRequest("PATCH", `/api/comunicazioni/${id}`, { esito });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/immobili", immobileId, "comunicazioni"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/comunicazioni"] });
+      toast({ title: "Esito aggiornato" });
+    },
   });
 
   const getCliente = (clienteId: number | null) => clienteId ? clienti.find((c) => c.id === clienteId) : null;
@@ -418,6 +502,21 @@ function TabComunicazioni({ immobileId }: { immobileId: number }) {
         return <MessageSquare className="h-4 w-4" />;
       default:
         return <MessageSquare className="h-4 w-4" />;
+    }
+  };
+
+  const getEsitoBadge = (esito: string | null) => {
+    switch (esito) {
+      case "interessato":
+        return <Badge className="bg-green-500/10 text-green-600">Interessato</Badge>;
+      case "non_interessato":
+        return <Badge className="bg-red-500/10 text-red-600">Non interessato</Badge>;
+      case "da_richiamare":
+        return <Badge className="bg-yellow-500/10 text-yellow-700">Da richiamare</Badge>;
+      case "in_attesa":
+        return <Badge variant="outline">In attesa</Badge>;
+      default:
+        return null;
     }
   };
 
@@ -455,15 +554,34 @@ function TabComunicazioni({ immobileId }: { immobileId: number }) {
               <div className="flex items-start gap-4">
                 <div className="p-2 bg-muted rounded-full">{getCanaleIcon(com.canale)}</div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <h4 className="font-medium">{cliente?.nome || "Cliente"}</h4>
                     <Badge variant="outline">{com.canale || "sistema"}</Badge>
                     <Badge variant="secondary">{com.tipo}</Badge>
+                    {getEsitoBadge(com.esito)}
                   </div>
                   <p className="text-sm mt-1">{com.testo}</p>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    {format(new Date(com.dataOra), "dd MMM yyyy HH:mm", { locale: it })}
-                  </p>
+                  <div className="flex items-center justify-between mt-2">
+                    <p className="text-xs text-muted-foreground">
+                      {format(new Date(com.dataOra), "dd MMM yyyy HH:mm", { locale: it })}
+                    </p>
+                    {com.tipo === "proposta" && (
+                      <Select
+                        value={com.esito || "in_attesa"}
+                        onValueChange={(value) => updateEsitoMutation.mutate({ id: com.id, esito: value })}
+                      >
+                        <SelectTrigger className="w-40" data-testid={`select-esito-${com.id}`}>
+                          <SelectValue placeholder="Esito" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="in_attesa">In attesa</SelectItem>
+                          <SelectItem value="interessato">Interessato</SelectItem>
+                          <SelectItem value="non_interessato">Non interessato</SelectItem>
+                          <SelectItem value="da_richiamare">Da richiamare</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -1281,7 +1399,7 @@ export default function ImmobileDetailPage() {
             <TabDettagli immobile={immobile} />
           </TabsContent>
           <TabsContent value="matching">
-            <TabMatching immobileId={immobile.id} />
+            <TabMatching immobileId={immobile.id} immobile={immobile} />
           </TabsContent>
           <TabsContent value="comunicazioni">
             <TabComunicazioni immobileId={immobile.id} />

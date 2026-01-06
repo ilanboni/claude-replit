@@ -21,6 +21,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -357,6 +364,7 @@ function TabImmobili({ clienteId }: { clienteId: number }) {
 }
 
 function TabComunicazioni({ clienteId }: { clienteId: number }) {
+  const { toast } = useToast();
   const { data: comunicazioni = [], isLoading } = useQuery<Comunicazione[]>({
     queryKey: ["/api/comunicazioni", "cliente", clienteId],
     queryFn: async () => {
@@ -365,6 +373,38 @@ function TabComunicazioni({ clienteId }: { clienteId: number }) {
       return res.json();
     },
   });
+
+  const { data: immobili = [] } = useQuery<Immobile[]>({
+    queryKey: ["/api/immobili"],
+  });
+
+  const updateEsitoMutation = useMutation({
+    mutationFn: async ({ id, esito }: { id: number; esito: string }) => {
+      const res = await apiRequest("PATCH", `/api/comunicazioni/${id}`, { esito });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/comunicazioni", "cliente", clienteId] });
+      toast({ title: "Esito aggiornato" });
+    },
+  });
+
+  const getImmobile = (immobileId: number | null) => immobileId ? immobili.find((i) => i.id === immobileId) : null;
+
+  const getEsitoBadge = (esito: string | null) => {
+    switch (esito) {
+      case "interessato":
+        return <Badge className="bg-green-500/10 text-green-600">Interessato</Badge>;
+      case "non_interessato":
+        return <Badge className="bg-red-500/10 text-red-600">Non interessato</Badge>;
+      case "da_richiamare":
+        return <Badge className="bg-yellow-500/10 text-yellow-700">Da richiamare</Badge>;
+      case "in_attesa":
+        return <Badge variant="outline">In attesa</Badge>;
+      default:
+        return null;
+    }
+  };
 
   if (isLoading) {
     return (
@@ -392,37 +432,66 @@ function TabComunicazioni({ clienteId }: { clienteId: number }) {
 
   return (
     <div className="space-y-3">
-      {comunicazioni.map((com) => (
-        <Card key={com.id}>
-          <CardContent className="p-4">
-            <div className="flex items-start gap-3">
-              <div className={`flex h-8 w-8 items-center justify-center rounded-full 
-                ${com.canale === 'whatsapp' ? 'bg-green-500/10 text-green-600' :
-                  com.canale === 'email' ? 'bg-blue-500/10 text-blue-600' :
-                  com.canale === 'telefono' ? 'bg-amber-500/10 text-amber-600' :
-                  'bg-muted text-muted-foreground'}`}
-              >
-                <MessageSquare className="h-4 w-4" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Badge variant="secondary" className="text-xs capitalize">{com.tipo}</Badge>
-                  <Badge variant="outline" className="text-xs capitalize">{com.canale}</Badge>
-                  <span className="text-xs text-muted-foreground">
-                    {new Date(com.dataOra).toLocaleDateString('it-IT', {
-                      day: 'numeric',
-                      month: 'short',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
-                  </span>
+      {comunicazioni.map((com) => {
+        const immobile = getImmobile(com.immobileId);
+        const indirizzo = immobile ? `${immobile.indirizzo || immobile.zona || ""}, ${immobile.citta || ""}`.trim() : null;
+        
+        return (
+          <Card key={com.id}>
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <div className={`flex h-8 w-8 items-center justify-center rounded-full 
+                  ${com.canale === 'whatsapp' ? 'bg-green-500/10 text-green-600' :
+                    com.canale === 'email' ? 'bg-blue-500/10 text-blue-600' :
+                    com.canale === 'telefono' ? 'bg-amber-500/10 text-amber-600' :
+                    'bg-muted text-muted-foreground'}`}
+                >
+                  <MessageSquare className="h-4 w-4" />
                 </div>
-                <p className="text-sm mt-2">{com.testo}</p>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge variant="secondary" className="text-xs capitalize">{com.tipo}</Badge>
+                    <Badge variant="outline" className="text-xs capitalize">{com.canale}</Badge>
+                    {getEsitoBadge(com.esito)}
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(com.dataOra).toLocaleDateString('it-IT', {
+                        day: 'numeric',
+                        month: 'short',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </span>
+                  </div>
+                  <p className="text-sm mt-2">{com.testo}</p>
+                  {indirizzo && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Immobile: {indirizzo}
+                    </p>
+                  )}
+                  {com.tipo === "proposta" && (
+                    <div className="mt-2">
+                      <Select
+                        value={com.esito || "in_attesa"}
+                        onValueChange={(value) => updateEsitoMutation.mutate({ id: com.id, esito: value })}
+                      >
+                        <SelectTrigger className="w-40" data-testid={`select-esito-cliente-${com.id}`}>
+                          <SelectValue placeholder="Esito" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="in_attesa">In attesa</SelectItem>
+                          <SelectItem value="interessato">Interessato</SelectItem>
+                          <SelectItem value="non_interessato">Non interessato</SelectItem>
+                          <SelectItem value="da_richiamare">Da richiamare</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 }
