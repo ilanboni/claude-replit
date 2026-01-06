@@ -216,6 +216,7 @@ export interface ParsedPropertyListing {
   descrizione?: string;
   indirizzo?: string;
   zona?: string;
+  citta?: string;
   mq?: number;
   prezzo?: number;
   piano?: number;
@@ -236,31 +237,34 @@ export async function parsePropertyListingWithAI(text: string, url?: string): Pr
       messages: [
         {
           role: "system",
-          content: `Sei un assistente immobiliare italiano specializzato nell'estrazione dati da annunci immobiliari.
-Analizza il testo dell'annuncio ed estrai tutte le informazioni strutturate possibili.
+          content: `Sei un assistente immobiliare italiano ESPERTO nell'estrazione dati da annunci immobiliari.
+Analizza ATTENTAMENTE il testo dell'annuncio ed estrai TUTTE le informazioni, anche quelle implicite.
 
-Rispondi SOLO con un oggetto JSON valido contenente i campi trovati:
-- titolo: titolo dell'annuncio
-- descrizione: descrizione completa
-- indirizzo: indirizzo specifico se presente
-- zona: zona/quartiere/città
-- mq: metri quadri (solo numero)
-- prezzo: prezzo richiesto (solo numero, senza simboli €)
-- piano: numero del piano (0 = terra, -1 = seminterrato)
-- camere: numero di camere/locali
+Rispondi SOLO con un oggetto JSON valido contenente:
+- titolo: titolo dell'annuncio (crea uno se manca, es. "Trilocale in Via Roma 15")
+- descrizione: descrizione completa dell'immobile
+- indirizzo: via e numero civico (es. "Via Roma 15" - cerca parole come "via", "viale", "piazza", "corso" seguite da nome e numero)
+- zona: quartiere o zona della città (es. "Porta Romana", "Centro", "Navigli")
+- citta: nome della città (es. "Milano", "Roma")
+- mq: metri quadri (solo numero intero, cerca "mq", "m²", "metri quadri", "superficie")
+- prezzo: prezzo richiesto (solo numero intero, senza € o punti)
+- piano: numero del piano (0=terra, 1=primo, ecc. - cerca "piano terra", "1° piano", "secondo piano")
+- camere: numero di camere/locali (cerca "trilocale"=3, "bilocale"=2, "quadrilocale"=4, o "N locali/camere")
 - bagni: numero di bagni
-- contattoNome: nome del venditore/inserzionista se presente
-- contattoTelefono: numero di telefono (formato italiano, includi prefisso +39 se mancante)
-- contattoEmail: email del contatto se presente
-- fonte: riconosci il portale dall'URL o dal testo (immobiliare.it, idealista, subito.it, casa.it, bakeca, ecc.)
-- dataPubblicazione: data di pubblicazione se presente (formato YYYY-MM-DD)
-- caratteristiche: oggetto con altre caratteristiche trovate (es. {riscaldamento: "autonomo", classe_energetica: "B", garage: true, cantina: true, giardino: false})
+- contattoNome: nome del venditore/agenzia/inserzionista
+- contattoTelefono: numero di telefono COMPLETO (cerca numeri con 10+ cifre, prefissi 02, 06, 3xx, +39)
+- contattoEmail: email del contatto
+- fonte: portale (immobiliare.it, idealista, subito.it, casa.it, bakeca, privato)
+- dataPubblicazione: data di pubblicazione (formato YYYY-MM-DD)
+- caratteristiche: {riscaldamento, classe_energetica, garage, cantina, giardino, ascensore, balcone, terrazzo, arredato, ecc.}
 
-IMPORTANTE:
-- Estrai SEMPRE il numero di telefono se presente, anche se parzialmente nascosto
-- Per i prezzi, converti "250k" in 250000, "300.000" in 300000
-- Se il piano è "terra" o "T", converti in 0
-- Ometti i campi non trovati. Non aggiungere spiegazioni.`
+REGOLE CRITICHE:
+1. TELEFONO: Cerca SEMPRE numeri con pattern 3xx-xxx-xxxx, 02-xxxx-xxxx, +39-xxx. Rimuovi spazi/trattini. Se trovi "cell." o "tel." estrai il numero che segue.
+2. INDIRIZZO: Cerca "Via/Viale/Piazza/Corso + Nome + Numero". Se l'annuncio dice "zona Citylife" senza via specifica, metti zona="Citylife".
+3. MQ: Estrai il numero prima di "mq", "m²" o "metri". Se dice "100 mq" → mq: 100
+4. PIANO: "piano terra"=0, "primo piano"=1, "rialzato"=1, "ultimo piano" cerca il numero totale piani.
+5. PREZZO: Converti "250k"=250000, "300.000"=300000, "1.200.000"=1200000
+6. Non inventare dati che non esistono nel testo.`
         },
         {
           role: "user",

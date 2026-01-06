@@ -901,26 +901,26 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         }
       }
       
-      // Build and validate immobile data
+      // Build and validate immobile data - map AI fields to storage fields
+      const mq = parsedData.mq ?? parsedData.superficie;
+      const camere = parsedData.camere ?? parsedData.locali;
+      
       const immobileData = {
         titolo: String(parsedData.titolo || "Annuncio importato").substring(0, 500),
         descrizione: parsedData.descrizione ? String(parsedData.descrizione).substring(0, 10000) : undefined,
+        indirizzo: parsedData.indirizzo ? String(parsedData.indirizzo).substring(0, 300) : undefined,
         prezzo: typeof parsedData.prezzo === "number" ? parsedData.prezzo : undefined,
         zona: parsedData.zona ? String(parsedData.zona).substring(0, 200) : undefined,
-        citta: parsedData.citta ? String(parsedData.citta).substring(0, 100) : undefined,
-        superficie: typeof parsedData.superficie === "number" ? parsedData.superficie : undefined,
-        locali: typeof parsedData.locali === "number" ? parsedData.locali : undefined,
+        mq: typeof mq === "number" ? mq : undefined,
+        piano: parsedData.piano != null ? String(parsedData.piano).substring(0, 50) : undefined,
+        camere: typeof camere === "number" ? camere : undefined,
         bagni: typeof parsedData.bagni === "number" ? parsedData.bagni : undefined,
-        piano: parsedData.piano ? String(parsedData.piano).substring(0, 50) : undefined,
-        tipologia: parsedData.tipologia ? String(parsedData.tipologia).substring(0, 100) : undefined,
-        classeEnergetica: parsedData.classeEnergetica ? String(parsedData.classeEnergetica).substring(0, 10) : undefined,
-        riscaldamento: parsedData.riscaldamento ? String(parsedData.riscaldamento).substring(0, 100) : undefined,
-        stato: parsedData.stato ? String(parsedData.stato).substring(0, 100) : undefined,
-        annoCostruzione: typeof parsedData.annoCostruzione === "number" ? parsedData.annoCostruzione : undefined,
-        spese: typeof parsedData.spese === "number" ? parsedData.spese : undefined,
+        contattoNome: parsedData.contattoNome ? String(parsedData.contattoNome).substring(0, 200) : undefined,
+        contattoTelefono: parsedData.contattoTelefono ? String(parsedData.contattoTelefono).substring(0, 50) : undefined,
+        contattoEmail: parsedData.contattoEmail ? String(parsedData.contattoEmail).substring(0, 200) : undefined,
         urlAnnuncio: parsedData.url ? String(parsedData.url).substring(0, 1000) : undefined,
         testoOriginale: parsedData.testoCompleto ? String(parsedData.testoCompleto).substring(0, 5000) : undefined,
-        fonte: parsedData.url ? new URL(String(parsedData.url)).hostname.replace("www.", "") : "estensione",
+        fonte: parsedData.fonte || (parsedData.url ? new URL(String(parsedData.url)).hostname.replace("www.", "") : "estensione"),
         caratteristiche: typeof parsedData.caratteristiche === "object" ? parsedData.caratteristiche : undefined,
       };
       
