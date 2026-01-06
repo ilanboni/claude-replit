@@ -113,6 +113,8 @@ function ParseAnnuncioForm({ onSuccess }: { onSuccess: () => void }) {
           const textParts: string[] = [];
           
           // Process each page: extract text AND render to image
+          const MAX_CANVAS_DIM = 7000; // Browser limit ~8192, use 7000 for safety
+          
           for (let i = 1; i <= Math.min(pdf.numPages, 5); i++) { // Max 5 pages
             const page = await pdf.getPage(i);
             
@@ -125,11 +127,20 @@ function ParseAnnuncioForm({ onSuccess }: { onSuccess: () => void }) {
               textParts.push(pageText);
             } catch {}
             
-            // Render page to high-res image (scale 2.0 for better quality)
+            // Render page to image with dynamic scale to fit browser canvas limits
             try {
-              const viewport = page.getViewport({ scale: 2.0 });
+              // Get natural dimensions at scale 1.0
+              const baseViewport = page.getViewport({ scale: 1.0 });
+              
+              // Calculate max scale that keeps both dimensions under limit
+              const maxScaleWidth = MAX_CANVAS_DIM / baseViewport.width;
+              const maxScaleHeight = MAX_CANVAS_DIM / baseViewport.height;
+              const safeScale = Math.min(2.0, maxScaleWidth, maxScaleHeight);
+              
+              const viewport = page.getViewport({ scale: safeScale });
               const canvas = document.createElement("canvas");
               const context = canvas.getContext("2d");
+              
               if (context) {
                 canvas.height = viewport.height;
                 canvas.width = viewport.width;
@@ -140,7 +151,9 @@ function ParseAnnuncioForm({ onSuccess }: { onSuccess: () => void }) {
                 };
                 await page.render(renderContext as any).promise;
                 const imageData = canvas.toDataURL("image/jpeg", 0.9);
-                pdfImages.push(imageData.split(",")[1]); // Remove data:image/jpeg;base64, prefix
+                pdfImages.push(imageData.split(",")[1]);
+                
+                console.log(`PDF page ${i}: ${Math.round(viewport.width)}x${Math.round(viewport.height)} @ scale ${safeScale.toFixed(2)}`);
               }
             } catch (renderErr) {
               console.log("Page render failed:", renderErr);
