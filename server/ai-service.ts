@@ -319,12 +319,26 @@ REGOLA CRITICA: Il campo "testoCompleto" deve contenere OGNI parola e numero che
     if (content) {
       const parsed = JSON.parse(content);
       
-      // Post-processing: extract phone/email from testoCompleto if not found
-      if (!parsed.contattoTelefono && parsed.testoCompleto) {
-        const extractedPhone = extractPhoneFromText(parsed.testoCompleto);
-        if (extractedPhone) {
-          console.log(`[AI] Phone extracted via regex fallback: ${extractedPhone}`);
-          parsed.contattoTelefono = extractedPhone;
+      // Filter invalid phone values
+      const invalidPhoneValues = ['non disponibile', 'nascosto', 'privato', 'n/a', 'nd', '-', ''];
+      const isValidPhone = (phone: string | undefined): boolean => {
+        if (!phone) return false;
+        const normalized = phone.toLowerCase().replace(/\s+/g, '');
+        if (invalidPhoneValues.some(v => normalized === v.replace(/\s+/g, ''))) return false;
+        // Must contain at least 8 digits
+        const digits = phone.replace(/\D/g, '');
+        return digits.length >= 8;
+      };
+      
+      // Post-processing: validate phone or extract from testoCompleto
+      if (!isValidPhone(parsed.contattoTelefono)) {
+        parsed.contattoTelefono = undefined; // Clear invalid value
+        if (parsed.testoCompleto) {
+          const extractedPhone = extractPhoneFromText(parsed.testoCompleto);
+          if (extractedPhone) {
+            console.log(`[AI] Phone extracted via regex fallback: ${extractedPhone}`);
+            parsed.contattoTelefono = extractedPhone;
+          }
         }
       }
       
@@ -338,7 +352,7 @@ REGOLA CRITICA: Il campo "testoCompleto" deve contenere OGNI parola e numero che
       
       // Log when phone is missing for monitoring
       if (!parsed.contattoTelefono) {
-        console.log(`[AI] WARNING: No phone extracted from image. testoCompleto: ${parsed.testoCompleto?.substring(0, 200)}`);
+        console.log(`[AI] WARNING: No valid phone extracted from image. testoCompleto: ${parsed.testoCompleto?.substring(0, 300)}`);
       }
       
       // Clean up internal field
@@ -479,8 +493,19 @@ REGOLE CRITICHE:
     if (content) {
       const parsed = JSON.parse(content);
       
-      // Post-processing: extract phone/email from original text if AI missed them
-      if (!parsed.contattoTelefono) {
+      // Filter invalid phone values
+      const invalidPhoneValues = ['non disponibile', 'nascosto', 'privato', 'n/a', 'nd', '-', ''];
+      const isValidPhone = (phone: string | undefined): boolean => {
+        if (!phone) return false;
+        const normalized = phone.toLowerCase().replace(/\s+/g, '');
+        if (invalidPhoneValues.some(v => normalized === v.replace(/\s+/g, ''))) return false;
+        const digits = phone.replace(/\D/g, '');
+        return digits.length >= 8;
+      };
+      
+      // Post-processing: validate phone or extract from text
+      if (!isValidPhone(parsed.contattoTelefono)) {
+        parsed.contattoTelefono = undefined;
         const extractedPhone = extractPhoneFromText(text);
         if (extractedPhone) {
           console.log(`[AI] Phone extracted via regex fallback from text: ${extractedPhone}`);

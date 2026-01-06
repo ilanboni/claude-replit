@@ -1180,7 +1180,18 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
       // Auto-create prospect client if we have contact info (phone or email required)
       let clienteProspect = null;
       const { contattoTelefono, contattoEmail } = parsed.data;
-      const normalizedPhone = contattoTelefono?.replace(/\s+/g, '').trim();
+      
+      // Filter invalid phone values
+      const invalidPhoneValues = ['non disponibile', 'nascosto', 'privato', 'n/a', 'nd', '-', ''];
+      const isValidPhone = (phone: string | null | undefined): boolean => {
+        if (!phone) return false;
+        const normalized = phone.toLowerCase().replace(/\s+/g, '');
+        if (invalidPhoneValues.some(v => normalized === v.replace(/\s+/g, ''))) return false;
+        const digits = phone.replace(/\D/g, '');
+        return digits.length >= 8;
+      };
+      
+      const normalizedPhone = isValidPhone(contattoTelefono) ? contattoTelefono?.replace(/\s+/g, '').trim() : undefined;
       const normalizedEmail = contattoEmail?.toLowerCase().trim();
       
       // Extract short street name from address (e.g. "Via Antonio Panizzi 15" → "Via Panizzi")
