@@ -1183,9 +1183,30 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
       const normalizedPhone = contattoTelefono?.replace(/\s+/g, '').trim();
       const normalizedEmail = contattoEmail?.toLowerCase().trim();
       
-      // Generate contact name: use provided name or "Proprietario di [indirizzo]"
-      const generatedContactName = parsed.data.contattoNome 
-        || (parsed.data.indirizzo ? `Proprietario di ${parsed.data.indirizzo}` : "Proprietario");
+      // Extract short street name from address (e.g. "Via Antonio Panizzi 15" → "Via Panizzi")
+      const extractStreetName = (address: string): string => {
+        // Remove civic number at end
+        const withoutNumber = address.replace(/\s*,?\s*\d+[a-zA-Z]?\s*$/, '').trim();
+        // Match Via/Viale/Piazza/Corso/Largo + name
+        const match = withoutNumber.match(/^(Via|Viale|Piazza|Corso|Largo|Vicolo|Piazzale)\s+(.+)$/i);
+        if (match) {
+          const prefix = match[1];
+          const nameParts = match[2].split(/\s+/);
+          // Take last word as the main street name (skip middle names like "Antonio")
+          const mainName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : nameParts[0];
+          return `${prefix} ${mainName}`;
+        }
+        return withoutNumber || address;
+      };
+      
+      // Generate contact name: use provided name or "Proprietario di [via]"
+      let generatedContactName = "Proprietario";
+      if (parsed.data.contattoNome && parsed.data.contattoNome.toLowerCase() !== "privato") {
+        generatedContactName = parsed.data.contattoNome;
+      } else if (parsed.data.indirizzo) {
+        const streetName = extractStreetName(parsed.data.indirizzo);
+        generatedContactName = `Proprietario di ${streetName}`;
+      }
       
       if (normalizedPhone || normalizedEmail) {
         // Parse name into nome/cognome
