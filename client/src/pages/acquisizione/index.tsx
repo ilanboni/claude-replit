@@ -16,7 +16,7 @@ import type { ImmobileEsterno } from "@shared/schema";
 import { 
   Search, Star, StarOff, Phone, Mail, ExternalLink, MapPin, Home, Euro, 
   Trash2, MessageSquare, Copy, Check, Loader2, Sparkles, Building2, Plus,
-  Image, FileText, Upload, X
+  Image, FileText, Upload, X, Ruler, Bath
 } from "lucide-react";
 
 interface ParsedListing {
@@ -679,6 +679,7 @@ function ImmobileEsternoCard({
 }) {
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   const togglePreferitoMutation = useMutation({
     mutationFn: async () => {
@@ -706,16 +707,43 @@ function ImmobileEsternoCard({
     scartato: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200",
   };
 
+  const getStatoLabel = () => {
+    if (immobile.statoNuovo) return "Nuovo";
+    if (immobile.statoRistrutturato) return "Ristrutturato";
+    if (immobile.statoBuono) return "Buono Stato";
+    if (immobile.statoDaRistrutturare) return "Da Ristrutturare";
+    return null;
+  };
+
+  const features = [];
+  if (immobile.ascensore) features.push("Ascensore");
+  if (immobile.balcone) features.push("Balcone");
+  if (immobile.terrazzo) features.push("Terrazzo");
+  if (immobile.box) features.push("Box");
+  if (immobile.cantina) features.push("Cantina");
+  if (immobile.giardino) features.push("Giardino");
+  if (immobile.arredato) features.push("Arredato");
+
   return (
-    <Card className="relative" data-testid={`card-immobile-esterno-${immobile.id}`}>
-      <CardHeader className="pb-2">
+    <Card className="relative hover-elevate" data-testid={`card-immobile-esterno-${immobile.id}`}>
+      <div className="aspect-video bg-muted flex items-center justify-center">
+        <Building2 className="h-12 w-12 text-muted-foreground/30" />
+      </div>
+      
+      <CardContent className="p-4">
         <div className="flex items-start justify-between gap-2">
-          <div className="flex-1 min-w-0">
-            <CardTitle className="text-base line-clamp-1">{immobile.titolo}</CardTitle>
-            <CardDescription className="flex items-center gap-1 mt-1">
-              <MapPin className="h-3 w-3 flex-shrink-0" />
-              <span className="truncate">{immobile.zona || immobile.indirizzo || "Zona non specificata"}</span>
-            </CardDescription>
+          <div className="min-w-0 flex-1">
+            <h3 className="font-medium line-clamp-2" data-testid={`text-property-title-${immobile.id}`}>
+              {immobile.titolo}
+            </h3>
+            {(immobile.zona || immobile.citta || immobile.indirizzo) && (
+              <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
+                <MapPin className="h-3 w-3 flex-shrink-0" />
+                <span className="truncate">
+                  {[immobile.zona, immobile.citta].filter(Boolean).join(", ") || immobile.indirizzo}
+                </span>
+              </p>
+            )}
           </div>
           <Button
             size="icon"
@@ -731,65 +759,161 @@ function ImmobileEsternoCard({
             )}
           </Button>
         </div>
-      </CardHeader>
 
-      <CardContent className="space-y-3">
-        <div className="flex items-center gap-2 flex-wrap">
-          {immobile.prezzo && (
-            <Badge variant="default" className="text-sm">
-              <Euro className="h-3 w-3 mr-1" />
-              {Number(immobile.prezzo).toLocaleString('it-IT')}
-            </Badge>
-          )}
+        <div className="mt-3">
+          <p className="text-2xl font-bold" data-testid={`text-property-price-${immobile.id}`}>
+            {immobile.prezzo 
+              ? `€${Number(immobile.prezzo).toLocaleString('it-IT')}` 
+              : "Prezzo N/D"}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-4 mt-3 text-sm text-muted-foreground">
           {immobile.mq && (
-            <Badge variant="secondary">
-              <Home className="h-3 w-3 mr-1" />
+            <span className="flex items-center gap-1">
+              <Ruler className="h-4 w-4" />
               {immobile.mq} mq
-            </Badge>
+            </span>
           )}
           {immobile.camere && (
-            <Badge variant="secondary">
-              {immobile.camere} cam
-            </Badge>
+            <span className="flex items-center gap-1">
+              <Home className="h-4 w-4" />
+              {immobile.camere} cam.
+            </span>
           )}
+          {immobile.bagni && (
+            <span className="flex items-center gap-1">
+              <Bath className="h-4 w-4" />
+              {immobile.bagni} bagni
+            </span>
+          )}
+          {immobile.piano !== null && immobile.piano !== undefined && (
+            <span className="flex items-center gap-1">
+              Piano {immobile.piano}{immobile.pianiEdificio ? `/${immobile.pianiEdificio}` : ""}
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 mt-3 flex-wrap">
           <Badge className={statoColors[immobile.statoContatto || 'nuovo']}>
             {immobile.statoContatto || 'nuovo'}
           </Badge>
+          {getStatoLabel() && (
+            <Badge variant="secondary">{getStatoLabel()}</Badge>
+          )}
+          {immobile.classeEnergetica && (
+            <Badge variant="outline">Classe {immobile.classeEnergetica}</Badge>
+          )}
         </div>
 
-        {immobile.contattoTelefono && (
-          <div className="flex items-center gap-2 p-2 bg-muted rounded-md">
-            <Phone className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-            <span className="font-mono text-sm flex-1">{immobile.contattoTelefono}</span>
-            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={copyPhone}>
-              {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-            </Button>
+        {features.length > 0 && (
+          <div className="flex items-center gap-1 mt-2 flex-wrap">
+            {features.map((f) => (
+              <Badge key={f} variant="outline" className="text-xs">
+                {f}
+              </Badge>
+            ))}
           </div>
         )}
 
-        {immobile.fonte && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Building2 className="h-3 w-3" />
-            <span>{immobile.fonte}</span>
-            {immobile.urlAnnuncio && (
-              <a 
-                href={immobile.urlAnnuncio} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="ml-auto"
-              >
-                <ExternalLink className="h-3 w-3" />
-              </a>
+        {expanded && (
+          <div className="mt-4 space-y-3 border-t pt-3">
+            {immobile.descrizione && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Descrizione</p>
+                <p className="text-sm">{immobile.descrizione}</p>
+              </div>
+            )}
+            
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              {immobile.speseCondominiali && (
+                <div>
+                  <span className="text-muted-foreground">Spese cond.: </span>
+                  <span className="font-medium">€{immobile.speseCondominiali}/mese</span>
+                </div>
+              )}
+              {immobile.riscaldamento && (
+                <div>
+                  <span className="text-muted-foreground">Riscaldamento: </span>
+                  <span className="font-medium">{immobile.riscaldamento}</span>
+                </div>
+              )}
+              {immobile.esposizione && (
+                <div>
+                  <span className="text-muted-foreground">Esposizione: </span>
+                  <span className="font-medium">{immobile.esposizione}</span>
+                </div>
+              )}
+              {immobile.annoCostruzione && (
+                <div>
+                  <span className="text-muted-foreground">Anno: </span>
+                  <span className="font-medium">{immobile.annoCostruzione}</span>
+                </div>
+              )}
+              {immobile.riferimentoAnnuncio && (
+                <div>
+                  <span className="text-muted-foreground">Rif: </span>
+                  <span className="font-medium font-mono text-xs">{immobile.riferimentoAnnuncio}</span>
+                </div>
+              )}
+            </div>
+
+            {(immobile.contattoNome || immobile.contattoTelefono || immobile.contattoEmail) && (
+              <div className="p-3 bg-muted rounded-md space-y-1">
+                <p className="text-xs font-medium text-muted-foreground">Contatto</p>
+                {immobile.contattoNome && (
+                  <p className="font-medium">{immobile.contattoNome}</p>
+                )}
+                {immobile.contattoTelefono && (
+                  <div className="flex items-center gap-2">
+                    <Phone className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-mono">{immobile.contattoTelefono}</span>
+                    <Button size="icon" variant="ghost" className="h-6 w-6" onClick={copyPhone}>
+                      {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                    </Button>
+                  </div>
+                )}
+                {immobile.contattoEmail && (
+                  <div className="flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-muted-foreground" />
+                    <span>{immobile.contattoEmail}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {immobile.fonte && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Building2 className="h-3 w-3" />
+                <span>{immobile.fonte}</span>
+                {immobile.urlAnnuncio && (
+                  <a 
+                    href={immobile.urlAnnuncio} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="ml-auto text-primary hover:underline flex items-center gap-1"
+                  >
+                    Vedi annuncio <ExternalLink className="h-3 w-3" />
+                  </a>
+                )}
+              </div>
             )}
           </div>
         )}
       </CardContent>
 
-      <CardFooter className="gap-2 pt-2">
+      <CardFooter className="gap-2 pt-0 pb-4 px-4">
         <Button 
           variant="outline" 
-          size="sm" 
-          className="flex-1"
+          size="sm"
+          onClick={() => setExpanded(!expanded)}
+          data-testid={`button-expand-${immobile.id}`}
+        >
+          {expanded ? "Meno dettagli" : "Dettagli"}
+        </Button>
+        <Button 
+          variant="outline" 
+          size="sm"
           onClick={() => onGenerateMessage(immobile.id)}
           data-testid={`button-generate-message-${immobile.id}`}
         >
