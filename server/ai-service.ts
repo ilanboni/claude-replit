@@ -211,6 +211,72 @@ Sii positivo, concreto e professionale. Usa il "tu" informale.`
 
 // ========== ACQUISIZIONE - Property Listing Parser ==========
 
+export async function parsePropertyImageWithAI(imageBase64: string, mimeType: string): Promise<ParsedPropertyListing> {
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "system",
+          content: `Sei un assistente immobiliare italiano ESPERTO nell'estrazione dati da screenshot e immagini di annunci immobiliari.
+Analizza ATTENTAMENTE l'immagine ed estrai TUTTE le informazioni visibili.
+
+Rispondi SOLO con un oggetto JSON valido contenente:
+- titolo: titolo dell'annuncio (crea uno se manca, es. "Trilocale in Via Roma 15")
+- descrizione: descrizione completa dell'immobile
+- indirizzo: via e numero civico (es. "Via Roma 15")
+- zona: quartiere o zona della città (es. "Porta Romana", "Centro")
+- citta: nome della città
+- mq: metri quadri (solo numero intero)
+- prezzo: prezzo richiesto (solo numero intero, senza € o punti)
+- piano: numero del piano (0=terra, 1=primo, ecc.)
+- camere: numero di camere/locali
+- bagni: numero di bagni
+- contattoNome: nome del venditore/agenzia
+- contattoTelefono: numero di telefono COMPLETO
+- contattoEmail: email del contatto
+- fonte: portale (immobiliare.it, idealista, subito.it, ecc.)
+- caratteristiche: {riscaldamento, classe_energetica, garage, cantina, giardino, ascensore, balcone, terrazzo, arredato}
+
+REGOLE:
+1. LEGGI tutti i testi visibili nell'immagine
+2. Cerca numeri di telefono in formato italiano (3xx, 02, +39)
+3. Estrai prezzo, mq, camere dai badge/etichette
+4. Se vedi un logo del portale, identifica la fonte
+5. Non inventare dati non visibili nell'immagine`
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "image_url",
+              image_url: {
+                url: `data:${mimeType};base64,${imageBase64}`,
+                detail: "high"
+              }
+            },
+            {
+              type: "text",
+              text: "Analizza questo screenshot di un annuncio immobiliare ed estrai tutti i dati in formato JSON."
+            }
+          ]
+        }
+      ],
+      max_completion_tokens: 1500,
+      response_format: { type: "json_object" }
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (content) {
+      return JSON.parse(content);
+    }
+    return {};
+  } catch (error) {
+    console.error("AI parse image error:", error);
+    return {};
+  }
+}
+
 export interface ParsedPropertyListing {
   titolo?: string;
   descrizione?: string;

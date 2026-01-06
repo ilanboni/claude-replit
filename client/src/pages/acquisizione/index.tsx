@@ -15,7 +15,8 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { ImmobileEsterno } from "@shared/schema";
 import { 
   Search, Star, StarOff, Phone, Mail, ExternalLink, MapPin, Home, Euro, 
-  Trash2, MessageSquare, Copy, Check, Loader2, Sparkles, Building2, Plus
+  Trash2, MessageSquare, Copy, Check, Loader2, Sparkles, Building2, Plus,
+  Image, FileText, Upload, X
 } from "lucide-react";
 
 interface ParsedListing {
@@ -38,8 +39,11 @@ interface ParsedListing {
 
 function ParseAnnuncioForm({ onSuccess }: { onSuccess: () => void }) {
   const { toast } = useToast();
+  const [inputMode, setInputMode] = useState<"text" | "image">("text");
   const [annuncioText, setAnnuncioText] = useState("");
   const [annuncioUrl, setAnnuncioUrl] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [filePreview, setFilePreview] = useState<string | null>(null);
   const [parsedData, setParsedData] = useState<ParsedListing | null>(null);
   const [showPreview, setShowPreview] = useState(false);
 
@@ -65,11 +69,37 @@ function ParseAnnuncioForm({ onSuccess }: { onSuccess: () => void }) {
     },
   });
 
+  const parseImageMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const base64 = await fileToBase64(file);
+      const res = await apiRequest("POST", "/api/acquisizione/parse-image", {
+        imageBase64: base64,
+        mimeType: file.type,
+      });
+      return res.json();
+    },
+    onSuccess: (data: ParsedListing) => {
+      setParsedData(data);
+      setShowPreview(true);
+      toast({
+        title: "Screenshot analizzato",
+        description: "Verifica i dati estratti e salva l'immobile",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Errore",
+        description: "Impossibile analizzare lo screenshot",
+        variant: "destructive",
+      });
+    },
+  });
+
   const saveMutation = useMutation({
     mutationFn: async (data: ParsedListing) => {
       const res = await apiRequest("POST", "/api/acquisizione", {
         ...data,
-        testoOriginale: annuncioText,
+        testoOriginale: annuncioText || undefined,
         urlAnnuncio: annuncioUrl || undefined,
       });
       return res.json();
@@ -79,10 +109,7 @@ function ParseAnnuncioForm({ onSuccess }: { onSuccess: () => void }) {
         title: "Immobile salvato",
         description: "L'immobile è stato aggiunto alla lista",
       });
-      setAnnuncioText("");
-      setAnnuncioUrl("");
-      setParsedData(null);
-      setShowPreview(false);
+      resetForm();
       queryClient.invalidateQueries({ queryKey: ["/api/acquisizione"] });
       onSuccess();
     },
@@ -95,7 +122,58 @@ function ParseAnnuncioForm({ onSuccess }: { onSuccess: () => void }) {
     },
   });
 
-  const handleParse = () => {
+  const resetForm = () => {
+    setAnnuncioText("");
+    setAnnuncioUrl("");
+    setSelectedFile(null);
+    setFilePreview(null);
+    setParsedData(null);
+    setShowPreview(false);
+  };
+
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        const base64 = result.split(",")[1];
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const validTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+    if (!validTypes.includes(file.type)) {
+      toast({
+        title: "Formato non supportato",
+        description: "Usa immagini JPEG, PNG, GIF o WebP",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast({
+        title: "File troppo grande",
+        description: "L'immagine deve essere inferiore a 10MB",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSelectedFile(file);
+    const reader = new FileReader();
+    reader.onload = () => setFilePreview(reader.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const handleParseText = () => {
     if (!annuncioText.trim()) {
       toast({
         title: "Testo richiesto",
@@ -107,52 +185,158 @@ function ParseAnnuncioForm({ onSuccess }: { onSuccess: () => void }) {
     parseMutation.mutate({ text: annuncioText, url: annuncioUrl || undefined });
   };
 
+  const handleParseImage = () => {
+    if (!selectedFile) {
+      toast({
+        title: "Immagine richiesta",
+        description: "Carica uno screenshot dell'annuncio",
+        variant: "destructive",
+      });
+      return;
+    }
+    parseImageMutation.mutate(selectedFile);
+  };
+
+  const isParsing = parseMutation.isPending || parseImageMutation.isPending;
+
   return (
     <div className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="text">Testo dell'annuncio</Label>
-        <Textarea
-          id="text"
-          placeholder="Incolla qui il testo completo dell'annuncio immobiliare..."
-          value={annuncioText}
-          onChange={(e) => setAnnuncioText(e.target.value)}
-          className="min-h-[200px]"
-          data-testid="textarea-annuncio-text"
-        />
-        <p className="text-sm text-muted-foreground">
-          Copia e incolla il testo dell'annuncio da Immobiliare.it, Idealista, Subito o altri portali
-        </p>
+      <div className="flex gap-2">
+        <Button
+          variant={inputMode === "text" ? "default" : "outline"}
+          onClick={() => setInputMode("text")}
+          className="flex-1"
+          data-testid="button-mode-text"
+        >
+          <FileText className="h-4 w-4 mr-2" />
+          Testo
+        </Button>
+        <Button
+          variant={inputMode === "image" ? "default" : "outline"}
+          onClick={() => setInputMode("image")}
+          className="flex-1"
+          data-testid="button-mode-image"
+        >
+          <Image className="h-4 w-4 mr-2" />
+          Screenshot
+        </Button>
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="url">URL annuncio (opzionale)</Label>
-        <Input
-          id="url"
-          placeholder="https://www.immobiliare.it/annunci/..."
-          value={annuncioUrl}
-          onChange={(e) => setAnnuncioUrl(e.target.value)}
-          data-testid="input-annuncio-url"
-        />
-      </div>
+      {inputMode === "text" ? (
+        <>
+          <div className="space-y-2">
+            <Label htmlFor="text">Testo dell'annuncio</Label>
+            <Textarea
+              id="text"
+              placeholder="Incolla qui il testo completo dell'annuncio immobiliare..."
+              value={annuncioText}
+              onChange={(e) => setAnnuncioText(e.target.value)}
+              className="min-h-[200px]"
+              data-testid="textarea-annuncio-text"
+            />
+            <p className="text-sm text-muted-foreground">
+              Copia e incolla il testo dell'annuncio da Immobiliare.it, Idealista, Subito o altri portali
+            </p>
+          </div>
 
-      <Button 
-        onClick={handleParse} 
-        disabled={parseMutation.isPending || !annuncioText.trim()}
-        className="w-full"
-        data-testid="button-parse-annuncio"
-      >
-        {parseMutation.isPending ? (
-          <>
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            Analisi in corso...
-          </>
-        ) : (
-          <>
-            <Sparkles className="h-4 w-4 mr-2" />
-            Analizza con AI
-          </>
-        )}
-      </Button>
+          <div className="space-y-2">
+            <Label htmlFor="url">URL annuncio (opzionale)</Label>
+            <Input
+              id="url"
+              placeholder="https://www.immobiliare.it/annunci/..."
+              value={annuncioUrl}
+              onChange={(e) => setAnnuncioUrl(e.target.value)}
+              data-testid="input-annuncio-url"
+            />
+          </div>
+
+          <Button 
+            onClick={handleParseText} 
+            disabled={isParsing || !annuncioText.trim()}
+            className="w-full"
+            data-testid="button-parse-annuncio"
+          >
+            {parseMutation.isPending ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Analisi in corso...
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-4 w-4 mr-2" />
+                Analizza con AI
+              </>
+            )}
+          </Button>
+        </>
+      ) : (
+        <>
+          <div className="space-y-2">
+            <Label>Screenshot dell'annuncio</Label>
+            {!filePreview ? (
+              <label 
+                className="flex flex-col items-center justify-center border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 cursor-pointer hover-elevate transition-colors"
+                data-testid="label-file-upload"
+              >
+                <Upload className="h-10 w-10 text-muted-foreground mb-4" />
+                <p className="text-sm font-medium">Clicca per caricare uno screenshot</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  JPEG, PNG, GIF o WebP (max 10MB)
+                </p>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/gif,image/webp"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                  data-testid="input-file-upload"
+                />
+              </label>
+            ) : (
+              <div className="relative">
+                <img
+                  src={filePreview}
+                  alt="Preview"
+                  className="w-full max-h-[300px] object-contain rounded-lg border"
+                />
+                <Button
+                  size="icon"
+                  variant="secondary"
+                  className="absolute top-2 right-2"
+                  onClick={() => {
+                    setSelectedFile(null);
+                    setFilePreview(null);
+                  }}
+                  data-testid="button-remove-file"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+            <p className="text-sm text-muted-foreground">
+              Fai uno screenshot della pagina dell'annuncio e caricalo qui. L'AI estrarrà automaticamente tutti i dati visibili.
+            </p>
+          </div>
+
+          <Button 
+            onClick={handleParseImage} 
+            disabled={isParsing || !selectedFile}
+            className="w-full"
+            data-testid="button-parse-screenshot"
+          >
+            {parseImageMutation.isPending ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Analisi screenshot...
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-4 w-4 mr-2" />
+                Analizza Screenshot con AI
+              </>
+            )}
+          </Button>
+        </>
+      )}
 
       <Dialog open={showPreview} onOpenChange={setShowPreview}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-auto">
@@ -212,7 +396,7 @@ function ParseAnnuncioForm({ onSuccess }: { onSuccess: () => void }) {
 
                 <div className="col-span-2 border-t pt-4">
                   <Label className="text-muted-foreground text-xs">Contatto</Label>
-                  <div className="flex gap-4 mt-1">
+                  <div className="flex gap-4 mt-1 flex-wrap">
                     {parsedData.contattoNome && <p>{parsedData.contattoNome}</p>}
                     {parsedData.contattoTelefono && (
                       <Badge variant="secondary">

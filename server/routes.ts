@@ -6,7 +6,7 @@ import {
   insertComunicazioneSchema, insertAppuntamentoSchema, insertMatchingSchema,
   insertImmobileEsternoSchema
 } from "@shared/schema";
-import { parseRequestWithAI, calculateMatchScore, generateAICoachMessage, parsePropertyListingWithAI, generateAcquisitionMessage } from "./ai-service";
+import { parseRequestWithAI, calculateMatchScore, generateAICoachMessage, parsePropertyListingWithAI, parsePropertyImageWithAI, generateAcquisitionMessage } from "./ai-service";
 
 export async function registerRoutes(server: Server, app: Express): Promise<void> {
   // ==================== RICERCA GLOBALE ====================
@@ -875,6 +875,25 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
     } catch (error) {
       console.error("Parse listing error:", error);
       res.status(500).json({ error: "Errore nell'analisi dell'annuncio" });
+    }
+  });
+
+  // Parse property image/PDF with AI Vision
+  app.post("/api/acquisizione/parse-image", async (req, res) => {
+    try {
+      const { imageBase64, mimeType } = req.body;
+      if (!imageBase64 || typeof imageBase64 !== "string") {
+        return res.status(400).json({ error: "Immagine richiesta" });
+      }
+      const validMimeTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+      if (!validMimeTypes.includes(mimeType)) {
+        return res.status(400).json({ error: "Formato immagine non supportato. Usa JPEG, PNG, GIF o WebP." });
+      }
+      const parsed = await parsePropertyImageWithAI(imageBase64, mimeType);
+      res.json(parsed);
+    } catch (error) {
+      console.error("Parse image error:", error);
+      res.status(500).json({ error: "Errore nell'analisi dell'immagine" });
     }
   });
 
