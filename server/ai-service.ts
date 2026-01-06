@@ -211,27 +211,44 @@ Sii positivo, concreto e professionale. Usa il "tu" informale.`
 
 // ========== ACQUISIZIONE - Property Listing Parser ==========
 
-// Regex patterns for Italian phone numbers
-const ITALIAN_PHONE_PATTERNS = [
-  /(?:\+39[\s.-]?)?3[0-9]{2}[\s.-]?[0-9]{3}[\s.-]?[0-9]{4}/g, // Mobile: 3xx xxx xxxx
-  /(?:\+39[\s.-]?)?3[0-9]{8,9}/g, // Mobile without spaces
-  /(?:\+39[\s.-]?)?0[0-9]{1,3}[\s.-]?[0-9]{5,8}/g, // Landline: 0xx xxxxx
-  /(?:\+39[\s.-]?)?[0-9]{2,4}[\s.-]?[0-9]{5,7}/g, // Generic Italian
-];
+// Regex patterns for Italian phone numbers - MOBILE FIRST (3xx is priority)
+const ITALIAN_MOBILE_PATTERN = /(?:\+39[\s.-]?)?3[0-9]{2}[\s.-]?[0-9]{3}[\s.-]?[0-9]{4}/g;
+const ITALIAN_MOBILE_COMPACT = /(?:\+39[\s.-]?)?3[0-9]{8,9}/g;
 
 const EMAIL_PATTERN = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
 
+// Known advertising/service numbers to exclude
+const EXCLUDED_PHONE_PREFIXES = ['800', '840', '841', '842', '843', '844', '845', '846', '847', '848', '199', '899'];
+
 function extractPhoneFromText(text: string): string | undefined {
-  for (const pattern of ITALIAN_PHONE_PATTERNS) {
+  // Priority 1: Mobile numbers (3xx) - most likely to be the owner
+  for (const pattern of [ITALIAN_MOBILE_PATTERN, ITALIAN_MOBILE_COMPACT]) {
     const matches = text.match(pattern);
     if (matches && matches.length > 0) {
-      // Return the first valid phone, cleaned up
-      const phone = matches[0].replace(/[\s.-]/g, '');
-      if (phone.length >= 9 && phone.length <= 13) {
+      for (const match of matches) {
+        const phone = match.replace(/[\s.-]/g, '').replace(/^\+39/, '');
+        if (phone.length >= 9 && phone.length <= 11 && phone.startsWith('3')) {
+          console.log(`[AI] Found mobile phone: ${phone}`);
+          return phone;
+        }
+      }
+    }
+  }
+  
+  // Priority 2: Landline numbers (02, 06, etc) but NOT service numbers (800, 84x, etc)
+  const landlinePattern = /(?:\+39[\s.-]?)?0[0-9]{1,3}[\s.-]?[0-9]{5,8}/g;
+  const landlineMatches = text.match(landlinePattern);
+  if (landlineMatches) {
+    for (const match of landlineMatches) {
+      const phone = match.replace(/[\s.-]/g, '').replace(/^\+39/, '');
+      const prefix = phone.substring(0, 3);
+      if (!EXCLUDED_PHONE_PREFIXES.includes(prefix) && phone.length >= 9 && phone.length <= 12) {
+        console.log(`[AI] Found landline phone: ${phone}`);
         return phone;
       }
     }
   }
+  
   return undefined;
 }
 
