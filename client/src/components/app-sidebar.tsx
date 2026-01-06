@@ -9,6 +9,7 @@ import {
   Sparkles,
   Search,
   Settings,
+  Bot,
 } from "lucide-react";
 import {
   Sidebar,
@@ -32,6 +33,7 @@ const menuItems = [
   { title: "Appuntamenti", url: "/appuntamenti", icon: Calendar },
   { title: "Matching", url: "/matching", icon: Sparkles },
   { title: "Acquisizione", url: "/acquisizione", icon: Search },
+  { title: "Bot WhatsApp", url: "/bot", icon: Bot },
 ];
 
 export function AppSidebar() {

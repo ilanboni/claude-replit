@@ -265,6 +265,65 @@ export const matching = pgTable("matching", {
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
+// WHATSAPP CAMPAIGNS - Campagne di messaggistica per acquisizione
+export const whatsappCampaigns = pgTable("whatsapp_campaigns", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  template: text("template").notNull(),
+  instructions: text("instructions"),
+  objectionHandling: json("objection_handling").$type<Record<string, any>>(),
+  followUpTemplate: text("followup_template"),
+  followUpDelayDays: integer("followup_delay_days").default(3),
+  useAiPersonalization: boolean("use_ai_personalization").default(false),
+  status: text("status").default("draft").notNull(), // draft, active, paused, completed
+  totalTargets: integer("total_targets").default(0),
+  sentCount: integer("sent_count").default(0),
+  respondedCount: integer("responded_count").default(0),
+  convertedCount: integer("converted_count").default(0),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  metadata: json("metadata").$type<Record<string, any>>(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// CAMPAIGN MESSAGES - Messaggi individuali delle campagne
+export const campaignMessages = pgTable("campaign_messages", {
+  id: serial("id").primaryKey(),
+  campaignId: integer("campaign_id").notNull().references(() => whatsappCampaigns.id, { onDelete: "cascade" }),
+  immobileEsternoId: integer("immobile_esterno_id").references(() => immobiliEsterni.id, { onDelete: "set null" }),
+  phoneNumber: text("phone_number").notNull(),
+  ownerName: text("owner_name"),
+  messageContent: text("message_content").notNull(),
+  status: text("status").default("pending").notNull(), // pending, sent, delivered, read, responded, failed
+  sentAt: timestamp("sent_at"),
+  deliveredAt: timestamp("delivered_at"),
+  readAt: timestamp("read_at"),
+  respondedAt: timestamp("responded_at"),
+  response: text("response"),
+  followUpSent: boolean("followup_sent").default(false),
+  followUpSentAt: timestamp("followup_sent_at"),
+  followUpResponse: text("followup_response"),
+  conversationActive: boolean("conversation_active").default(false),
+  lastBotMessage: text("last_bot_message"),
+  lastBotMessageAt: timestamp("last_bot_message_at"),
+  errorMessage: text("error_message"),
+  metadata: json("metadata").$type<Record<string, any>>(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// BOT CONVERSATION LOGS - Log delle conversazioni bot
+export const botConversationLogs = pgTable("bot_conversation_logs", {
+  id: serial("id").primaryKey(),
+  campaignMessageId: integer("campaign_message_id").notNull().references(() => campaignMessages.id, { onDelete: "cascade" }),
+  phoneNumber: text("phone_number").notNull(),
+  userMessage: text("user_message").notNull(),
+  botResponse: text("bot_response").notNull(),
+  intent: text("intent"), // schedule_visit, ask_price, not_interested, etc.
+  confidence: integer("confidence"), // 0-100
+  metadata: json("metadata").$type<Record<string, any>>(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
 // Relations
 export const clientiRelations = relations(clienti, ({ many }) => ({
   richieste: many(richieste),
@@ -488,3 +547,16 @@ export type InsertPortaleImmobile = z.infer<typeof insertPortaleImmobileSchema>;
 
 export type StoricoPrezzo = typeof storicoPrezzo.$inferSelect;
 export type InsertStoricoPrezzo = z.infer<typeof insertStoricoPrezzoSchema>;
+
+// WhatsApp Campaign types
+export const insertWhatsappCampaignSchema = createInsertSchema(whatsappCampaigns).omit({ id: true, createdAt: true });
+export type WhatsappCampaign = typeof whatsappCampaigns.$inferSelect;
+export type InsertWhatsappCampaign = z.infer<typeof insertWhatsappCampaignSchema>;
+
+export const insertCampaignMessageSchema = createInsertSchema(campaignMessages).omit({ id: true, createdAt: true });
+export type CampaignMessage = typeof campaignMessages.$inferSelect;
+export type InsertCampaignMessage = z.infer<typeof insertCampaignMessageSchema>;
+
+export const insertBotConversationLogSchema = createInsertSchema(botConversationLogs).omit({ id: true, createdAt: true });
+export type BotConversationLog = typeof botConversationLogs.$inferSelect;
+export type InsertBotConversationLog = z.infer<typeof insertBotConversationLogSchema>;
