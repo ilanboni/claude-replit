@@ -72,24 +72,32 @@ function ParseAnnuncioForm({ onSuccess }: { onSuccess: () => void }) {
   const parseImageMutation = useMutation({
     mutationFn: async (file: File) => {
       const base64 = await fileToBase64(file);
-      const res = await apiRequest("POST", "/api/acquisizione/parse-image", {
-        imageBase64: base64,
-        mimeType: file.type,
-      });
-      return res.json();
+      
+      if (file.type === "application/pdf") {
+        const res = await apiRequest("POST", "/api/acquisizione/parse-pdf", {
+          pdfBase64: base64,
+        });
+        return res.json();
+      } else {
+        const res = await apiRequest("POST", "/api/acquisizione/parse-image", {
+          imageBase64: base64,
+          mimeType: file.type,
+        });
+        return res.json();
+      }
     },
     onSuccess: (data: ParsedListing) => {
       setParsedData(data);
       setShowPreview(true);
       toast({
-        title: "Screenshot analizzato",
+        title: "File analizzato",
         description: "Verifica i dati estratti e salva l'immobile",
       });
     },
     onError: () => {
       toast({
         title: "Errore",
-        description: "Impossibile analizzare lo screenshot",
+        description: "Impossibile analizzare il file",
         variant: "destructive",
       });
     },
@@ -148,11 +156,11 @@ function ParseAnnuncioForm({ onSuccess }: { onSuccess: () => void }) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const validTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+    const validTypes = ["image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf"];
     if (!validTypes.includes(file.type)) {
       toast({
         title: "Formato non supportato",
-        description: "Usa immagini JPEG, PNG, GIF o WebP",
+        description: "Usa immagini JPEG, PNG, GIF, WebP o PDF",
         variant: "destructive",
       });
       return;
@@ -161,16 +169,20 @@ function ParseAnnuncioForm({ onSuccess }: { onSuccess: () => void }) {
     if (file.size > 10 * 1024 * 1024) {
       toast({
         title: "File troppo grande",
-        description: "L'immagine deve essere inferiore a 10MB",
+        description: "Il file deve essere inferiore a 10MB",
         variant: "destructive",
       });
       return;
     }
 
     setSelectedFile(file);
-    const reader = new FileReader();
-    reader.onload = () => setFilePreview(reader.result as string);
-    reader.readAsDataURL(file);
+    if (file.type === "application/pdf") {
+      setFilePreview("pdf");
+    } else {
+      const reader = new FileReader();
+      reader.onload = () => setFilePreview(reader.result as string);
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleParseText = () => {
@@ -272,25 +284,46 @@ function ParseAnnuncioForm({ onSuccess }: { onSuccess: () => void }) {
       ) : (
         <>
           <div className="space-y-2">
-            <Label>Screenshot dell'annuncio</Label>
+            <Label>Screenshot o PDF dell'annuncio</Label>
             {!filePreview ? (
               <label 
                 className="flex flex-col items-center justify-center border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 cursor-pointer hover-elevate transition-colors"
                 data-testid="label-file-upload"
               >
                 <Upload className="h-10 w-10 text-muted-foreground mb-4" />
-                <p className="text-sm font-medium">Clicca per caricare uno screenshot</p>
+                <p className="text-sm font-medium">Clicca per caricare un file</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  JPEG, PNG, GIF o WebP (max 10MB)
+                  Immagini (JPEG, PNG, GIF, WebP) o PDF (max 10MB)
                 </p>
                 <input
                   type="file"
-                  accept="image/jpeg,image/png,image/gif,image/webp"
+                  accept="image/jpeg,image/png,image/gif,image/webp,application/pdf"
                   onChange={handleFileSelect}
                   className="hidden"
                   data-testid="input-file-upload"
                 />
               </label>
+            ) : filePreview === "pdf" ? (
+              <div className="relative flex items-center gap-3 p-4 border rounded-lg bg-muted/50">
+                <FileText className="h-12 w-12 text-red-500" />
+                <div className="flex-1">
+                  <p className="font-medium">{selectedFile?.name}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedFile && (selectedFile.size / 1024).toFixed(1)} KB
+                  </p>
+                </div>
+                <Button
+                  size="icon"
+                  variant="secondary"
+                  onClick={() => {
+                    setSelectedFile(null);
+                    setFilePreview(null);
+                  }}
+                  data-testid="button-remove-file"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
             ) : (
               <div className="relative">
                 <img
@@ -313,7 +346,7 @@ function ParseAnnuncioForm({ onSuccess }: { onSuccess: () => void }) {
               </div>
             )}
             <p className="text-sm text-muted-foreground">
-              Fai uno screenshot della pagina dell'annuncio e caricalo qui. L'AI estrarrà automaticamente tutti i dati visibili.
+              Carica uno screenshot o PDF della pagina dell'annuncio. L'AI estrarrà automaticamente tutti i dati.
             </p>
           </div>
 
@@ -326,12 +359,12 @@ function ParseAnnuncioForm({ onSuccess }: { onSuccess: () => void }) {
             {parseImageMutation.isPending ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Analisi screenshot...
+                Analisi in corso...
               </>
             ) : (
               <>
                 <Sparkles className="h-4 w-4 mr-2" />
-                Analizza Screenshot con AI
+                Analizza File con AI
               </>
             )}
           </Button>

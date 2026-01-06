@@ -878,7 +878,7 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
     }
   });
 
-  // Parse property image/PDF with AI Vision
+  // Parse property image with AI Vision
   app.post("/api/acquisizione/parse-image", async (req, res) => {
     try {
       const { imageBase64, mimeType } = req.body;
@@ -894,6 +894,31 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
     } catch (error) {
       console.error("Parse image error:", error);
       res.status(500).json({ error: "Errore nell'analisi dell'immagine" });
+    }
+  });
+
+  // Parse PDF with text extraction + AI
+  app.post("/api/acquisizione/parse-pdf", async (req, res) => {
+    try {
+      const { pdfBase64 } = req.body;
+      if (!pdfBase64 || typeof pdfBase64 !== "string") {
+        return res.status(400).json({ error: "PDF richiesto" });
+      }
+      
+      const pdfParseModule = await import("pdf-parse");
+      const pdfParse = pdfParseModule.default || pdfParseModule;
+      const buffer = Buffer.from(pdfBase64, "base64");
+      const pdfData = await pdfParse(buffer);
+      
+      if (!pdfData.text || pdfData.text.trim().length < 50) {
+        return res.status(400).json({ error: "Impossibile estrarre testo dal PDF. Prova con uno screenshot." });
+      }
+      
+      const parsed = await parsePropertyListingWithAI(pdfData.text);
+      res.json(parsed);
+    } catch (error) {
+      console.error("Parse PDF error:", error);
+      res.status(500).json({ error: "Errore nell'analisi del PDF" });
     }
   });
 
