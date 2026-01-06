@@ -218,32 +218,61 @@ export async function parsePropertyImageWithAI(imageBase64: string, mimeType: st
       messages: [
         {
           role: "system",
-          content: `Sei un assistente immobiliare italiano ESPERTO nell'estrazione dati da screenshot e immagini di annunci immobiliari.
+          content: `Sei un assistente immobiliare italiano ESPERTO nell'estrazione dati da screenshot di annunci immobiliari.
 Analizza ATTENTAMENTE l'immagine ed estrai TUTTE le informazioni visibili.
 
-Rispondi SOLO con un oggetto JSON valido contenente:
-- titolo: titolo dell'annuncio (crea uno se manca, es. "Trilocale in Via Roma 15")
-- descrizione: descrizione completa dell'immobile
-- indirizzo: via e numero civico (es. "Via Roma 15")
-- zona: quartiere o zona della città (es. "Porta Romana", "Centro")
-- citta: nome della città
-- mq: metri quadri (solo numero intero)
-- prezzo: prezzo richiesto (solo numero intero, senza € o punti)
-- piano: numero del piano (0=terra, 1=primo, ecc.)
-- camere: numero di camere/locali
-- bagni: numero di bagni
-- contattoNome: nome del venditore/agenzia
-- contattoTelefono: numero di telefono COMPLETO
-- contattoEmail: email del contatto
-- fonte: portale (immobiliare.it, idealista, subito.it, ecc.)
-- caratteristiche: {riscaldamento, classe_energetica, garage, cantina, giardino, ascensore, balcone, terrazzo, arredato}
+Rispondi SOLO con un oggetto JSON valido contenente TUTTI questi campi (ometti solo se non visibili):
+
+DATI PRINCIPALI:
+- titolo: string - titolo dell'annuncio
+- descrizione: string - descrizione completa
+- indirizzo: string - via e numero civico
+- zona: string - quartiere o zona
+- citta: string - nome della città
+- mq: number - metri quadri
+- prezzo: number - prezzo (solo numero)
+- piano: number - numero del piano (0=terra)
+- pianiEdificio: number - piani totali edificio
+- camere: number - numero locali/camere
+- bagni: number - numero bagni
+
+CARATTERISTICHE (booleani):
+- ascensore: boolean
+- balcone: boolean
+- terrazzo: boolean
+- box: boolean - garage/posto auto
+- cantina: boolean
+- giardino: boolean
+- arredato: boolean
+
+STATO IMMOBILE:
+- statoNuovo: boolean
+- statoRistrutturato: boolean
+- statoBuono: boolean
+- statoDaRistrutturare: boolean
+
+INFO AGGIUNTIVE:
+- classeEnergetica: string - A, B, C, D, E, F, G
+- prestazioneEnergetica: string - es. "76 kWh/m² anno"
+- speseCondominiali: number - euro/mese
+- riscaldamento: string - autonomo/centralizzato
+- esposizione: string
+
+CONTATTO:
+- contattoNome: string
+- contattoTelefono: string - numero COMPLETO
+- contattoEmail: string
+
+META:
+- fonte: string - portale (immobiliare.it, idealista, etc.)
+- riferimentoAnnuncio: string - codice annuncio
 
 REGOLE:
-1. LEGGI tutti i testi visibili nell'immagine
-2. Cerca numeri di telefono in formato italiano (3xx, 02, +39)
-3. Estrai prezzo, mq, camere dai badge/etichette
-4. Se vedi un logo del portale, identifica la fonte
-5. Non inventare dati non visibili nell'immagine`
+1. LEGGI tutti i testi visibili
+2. Cerca telefoni formato italiano (3xx, 02, +39)
+3. Estrai prezzo, mq, camere dai badge
+4. Identifica fonte dal logo
+5. Non inventare dati non visibili`
         },
         {
           role: "user",
@@ -286,13 +315,37 @@ export interface ParsedPropertyListing {
   mq?: number;
   prezzo?: number;
   piano?: number;
+  pianiEdificio?: number;
   camere?: number;
   bagni?: number;
+  // Caratteristiche booleane
+  ascensore?: boolean;
+  balcone?: boolean;
+  terrazzo?: boolean;
+  box?: boolean;
+  cantina?: boolean;
+  giardino?: boolean;
+  arredato?: boolean;
+  // Stato immobile
+  statoNuovo?: boolean;
+  statoRistrutturato?: boolean;
+  statoBuono?: boolean;
+  statoDaRistrutturare?: boolean;
+  // Informazioni aggiuntive
+  classeEnergetica?: string;
+  prestazioneEnergetica?: string;
+  speseCondominiali?: number;
+  riscaldamento?: string;
+  esposizione?: string;
+  annoCostruzione?: number;
+  // Contatto
   contattoNome?: string;
   contattoTelefono?: string;
   contattoEmail?: string;
+  // Meta
   fonte?: string;
   dataPubblicazione?: string;
+  riferimentoAnnuncio?: string;
   caratteristiche?: Record<string, any>;
 }
 
@@ -306,38 +359,71 @@ export async function parsePropertyListingWithAI(text: string, url?: string): Pr
           content: `Sei un assistente immobiliare italiano ESPERTO nell'estrazione dati da annunci immobiliari.
 Analizza ATTENTAMENTE il testo dell'annuncio ed estrai TUTTE le informazioni, anche quelle implicite.
 
-Rispondi SOLO con un oggetto JSON valido contenente:
-- titolo: titolo dell'annuncio (crea uno se manca, es. "Trilocale in Via Roma 15")
-- descrizione: descrizione completa dell'immobile
-- indirizzo: via e numero civico (es. "Via Roma 15" - cerca parole come "via", "viale", "piazza", "corso" seguite da nome e numero)
-- zona: quartiere o zona della città (es. "Porta Romana", "Centro", "Navigli")
-- citta: nome della città (es. "Milano", "Roma")
-- mq: metri quadri (solo numero intero, cerca "mq", "m²", "metri quadri", "superficie")
-- prezzo: prezzo richiesto (solo numero intero, senza € o punti)
-- piano: numero del piano (0=terra, 1=primo, ecc. - cerca "piano terra", "1° piano", "secondo piano")
-- camere: numero di camere/locali (cerca "trilocale"=3, "bilocale"=2, "quadrilocale"=4, o "N locali/camere")
-- bagni: numero di bagni
-- contattoNome: nome del venditore/agenzia/inserzionista
-- contattoTelefono: numero di telefono COMPLETO (cerca numeri con 10+ cifre, prefissi 02, 06, 3xx, +39)
-- contattoEmail: email del contatto
-- fonte: portale (immobiliare.it, idealista, subito.it, casa.it, bakeca, privato)
-- dataPubblicazione: data di pubblicazione (formato YYYY-MM-DD)
-- caratteristiche: {riscaldamento, classe_energetica, garage, cantina, giardino, ascensore, balcone, terrazzo, arredato, ecc.}
+Rispondi SOLO con un oggetto JSON valido contenente TUTTI questi campi (ometti solo se non trovati):
+
+DATI PRINCIPALI:
+- titolo: string - titolo dell'annuncio (crea uno se manca, es. "Trilocale in Via Roma 15")
+- descrizione: string - descrizione completa dell'immobile
+- indirizzo: string - via e numero civico
+- zona: string - quartiere o zona della città
+- citta: string - nome della città
+- mq: number - metri quadri (solo numero intero)
+- prezzo: number - prezzo richiesto (solo numero intero)
+- piano: number - numero del piano (0=terra, 1=primo)
+- pianiEdificio: number - piani totali dell'edificio
+- camere: number - numero di locali/camere (bilocale=2, trilocale=3)
+- bagni: number - numero di bagni
+
+CARATTERISTICHE (booleani true/false):
+- ascensore: boolean - se presente ascensore
+- balcone: boolean - se presente balcone
+- terrazzo: boolean - se presente terrazzo
+- box: boolean - se presente box/garage/posto auto
+- cantina: boolean - se presente cantina/solaio
+- giardino: boolean - se presente giardino
+- arredato: boolean - se arredato
+
+STATO IMMOBILE (booleani true/false):
+- statoNuovo: boolean - immobile nuovo/di nuova costruzione
+- statoRistrutturato: boolean - immobile ristrutturato
+- statoBuono: boolean - in buono stato/buone condizioni
+- statoDaRistrutturare: boolean - da ristrutturare
+
+INFORMAZIONI AGGIUNTIVE:
+- classeEnergetica: string - classe energetica (A, B, C, D, E, F, G)
+- prestazioneEnergetica: string - es. "76 kWh/m² anno"
+- speseCondominiali: number - spese condominiali mensili in euro
+- riscaldamento: string - tipo riscaldamento (autonomo, centralizzato)
+- esposizione: string - esposizione (sud, nord, est, ovest, interna)
+- annoCostruzione: number - anno di costruzione
+
+CONTATTO:
+- contattoNome: string - nome del venditore/agenzia
+- contattoTelefono: string - numero di telefono COMPLETO
+- contattoEmail: string - email del contatto
+
+META:
+- fonte: string - portale (immobiliare.it, idealista, subito.it)
+- dataPubblicazione: string - data pubblicazione (YYYY-MM-DD)
+- riferimentoAnnuncio: string - codice riferimento annuncio
 
 REGOLE CRITICHE:
-1. TELEFONO: Cerca SEMPRE numeri con pattern 3xx-xxx-xxxx, 02-xxxx-xxxx, +39-xxx. Rimuovi spazi/trattini. Se trovi "cell." o "tel." estrai il numero che segue.
-2. INDIRIZZO: Cerca "Via/Viale/Piazza/Corso + Nome + Numero". Se l'annuncio dice "zona Citylife" senza via specifica, metti zona="Citylife".
-3. MQ: Estrai il numero prima di "mq", "m²" o "metri". Se dice "100 mq" → mq: 100
-4. PIANO: "piano terra"=0, "primo piano"=1, "rialzato"=1, "ultimo piano" cerca il numero totale piani.
-5. PREZZO: Converti "250k"=250000, "300.000"=300000, "1.200.000"=1200000
-6. Non inventare dati che non esistono nel testo.`
+1. TELEFONO: Cerca numeri con pattern 3xx-xxx-xxxx, 02-xxxx-xxxx, +39. Rimuovi spazi.
+2. INDIRIZZO: Cerca "Via/Viale/Piazza/Corso + Nome + Numero"
+3. MQ: Estrai il numero prima di "mq", "m²", "metri"
+4. PIANO: "piano terra"=0, "primo piano"=1, "rialzato"=1
+5. PREZZO: Converti "250k"=250000, "300.000"=300000
+6. STATO: "ristrutturato" → statoRistrutturato=true, "buono stato" → statoBuono=true
+7. CARATTERISTICHE: "con ascensore" → ascensore=true, "no ascensore" → ascensore=false
+8. SPESE: "€150/mese" o "150€ mensili" → speseCondominiali=150
+9. Non inventare dati non presenti nel testo.`
         },
         {
           role: "user",
           content: url ? `URL: ${url}\n\nTesto annuncio:\n${text}` : text
         }
       ],
-      max_completion_tokens: 1000,
+      max_completion_tokens: 2000,
       response_format: { type: "json_object" }
     });
 

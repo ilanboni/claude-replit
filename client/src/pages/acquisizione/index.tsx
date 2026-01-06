@@ -24,16 +24,41 @@ interface ParsedListing {
   descrizione?: string;
   indirizzo?: string;
   zona?: string;
+  citta?: string;
   mq?: number;
   prezzo?: number;
   piano?: number;
+  pianiEdificio?: number;
   camere?: number;
   bagni?: number;
+  // Caratteristiche booleane
+  ascensore?: boolean;
+  balcone?: boolean;
+  terrazzo?: boolean;
+  box?: boolean;
+  cantina?: boolean;
+  giardino?: boolean;
+  arredato?: boolean;
+  // Stato immobile
+  statoNuovo?: boolean;
+  statoRistrutturato?: boolean;
+  statoBuono?: boolean;
+  statoDaRistrutturare?: boolean;
+  // Info aggiuntive
+  classeEnergetica?: string;
+  prestazioneEnergetica?: string;
+  speseCondominiali?: number;
+  riscaldamento?: string;
+  esposizione?: string;
+  annoCostruzione?: number;
+  // Contatti
   contattoNome?: string;
   contattoTelefono?: string;
   contattoEmail?: string;
+  // Meta
   fonte?: string;
   dataPubblicazione?: string;
+  riferimentoAnnuncio?: string;
   caratteristiche?: Record<string, any>;
 }
 
@@ -396,62 +421,114 @@ function ParseAnnuncioForm({ onSuccess }: { onSuccess: () => void }) {
       )}
 
       <Dialog open={showPreview} onOpenChange={setShowPreview}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-auto">
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-auto">
           <DialogHeader>
             <DialogTitle>Dati estratti dall'annuncio</DialogTitle>
           </DialogHeader>
           
           {parsedData && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
+              <div className="grid grid-cols-3 gap-4">
+                <div className="col-span-3">
                   <Label className="text-muted-foreground text-xs">Titolo</Label>
                   <p className="font-medium">{parsedData.titolo || "Non trovato"}</p>
                 </div>
 
                 <div>
                   <Label className="text-muted-foreground text-xs">Zona</Label>
-                  <p>{parsedData.zona || "Non trovata"}</p>
+                  <p>{parsedData.zona || "-"}</p>
+                </div>
+
+                <div>
+                  <Label className="text-muted-foreground text-xs">Citta</Label>
+                  <p>{parsedData.citta || "-"}</p>
                 </div>
 
                 <div>
                   <Label className="text-muted-foreground text-xs">Indirizzo</Label>
-                  <p>{parsedData.indirizzo || "Non trovato"}</p>
+                  <p>{parsedData.indirizzo || "-"}</p>
                 </div>
 
                 <div>
                   <Label className="text-muted-foreground text-xs">Prezzo</Label>
                   <p className="font-semibold text-primary">
-                    {parsedData.prezzo ? `€${parsedData.prezzo.toLocaleString('it-IT')}` : "Non trovato"}
+                    {parsedData.prezzo ? `${parsedData.prezzo.toLocaleString('it-IT')}` : "-"}
                   </p>
                 </div>
 
                 <div>
                   <Label className="text-muted-foreground text-xs">Metri quadri</Label>
-                  <p>{parsedData.mq ? `${parsedData.mq} mq` : "Non trovato"}</p>
+                  <p>{parsedData.mq ? `${parsedData.mq} mq` : "-"}</p>
                 </div>
 
                 <div>
                   <Label className="text-muted-foreground text-xs">Camere</Label>
-                  <p>{parsedData.camere || "Non trovato"}</p>
+                  <p>{parsedData.camere || "-"}</p>
                 </div>
 
                 <div>
                   <Label className="text-muted-foreground text-xs">Bagni</Label>
-                  <p>{parsedData.bagni || "Non trovato"}</p>
+                  <p>{parsedData.bagni || "-"}</p>
                 </div>
 
                 <div>
                   <Label className="text-muted-foreground text-xs">Piano</Label>
-                  <p>{parsedData.piano !== undefined ? (parsedData.piano === 0 ? "Terra" : parsedData.piano) : "Non trovato"}</p>
+                  <p>{parsedData.piano !== undefined ? (parsedData.piano === 0 ? "Terra" : `${parsedData.piano}`) : "-"}{parsedData.pianiEdificio ? ` / ${parsedData.pianiEdificio}` : ""}</p>
                 </div>
 
                 <div>
                   <Label className="text-muted-foreground text-xs">Fonte</Label>
-                  <p>{parsedData.fonte || "Non riconosciuta"}</p>
+                  <p>{parsedData.fonte || "-"}</p>
                 </div>
 
-                <div className="col-span-2 border-t pt-4">
+                <div className="col-span-3 border-t pt-4">
+                  <Label className="text-muted-foreground text-xs mb-2 block">Caratteristiche</Label>
+                  <div className="flex gap-2 flex-wrap">
+                    {parsedData.ascensore && <Badge variant="outline">Ascensore</Badge>}
+                    {parsedData.balcone && <Badge variant="outline">Balcone</Badge>}
+                    {parsedData.terrazzo && <Badge variant="outline">Terrazzo</Badge>}
+                    {parsedData.box && <Badge variant="outline">Box</Badge>}
+                    {parsedData.cantina && <Badge variant="outline">Cantina</Badge>}
+                    {parsedData.giardino && <Badge variant="outline">Giardino</Badge>}
+                    {parsedData.arredato && <Badge variant="outline">Arredato</Badge>}
+                    {parsedData.statoNuovo && <Badge variant="secondary">Nuovo</Badge>}
+                    {parsedData.statoRistrutturato && <Badge variant="secondary">Ristrutturato</Badge>}
+                    {parsedData.statoBuono && <Badge variant="secondary">Buono stato</Badge>}
+                    {parsedData.statoDaRistrutturare && <Badge variant="secondary">Da ristrutturare</Badge>}
+                    {!parsedData.ascensore && !parsedData.balcone && !parsedData.terrazzo && !parsedData.box && !parsedData.cantina && !parsedData.giardino && !parsedData.arredato && !parsedData.statoNuovo && !parsedData.statoRistrutturato && !parsedData.statoBuono && !parsedData.statoDaRistrutturare && (
+                      <span className="text-muted-foreground text-sm">Nessuna caratteristica rilevata</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="col-span-3 border-t pt-4 grid grid-cols-4 gap-4">
+                  <div>
+                    <Label className="text-muted-foreground text-xs">Classe energetica</Label>
+                    <p>{parsedData.classeEnergetica || "-"}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground text-xs">Spese condominiali</Label>
+                    <p>{parsedData.speseCondominiali ? `${parsedData.speseCondominiali.toLocaleString('it-IT')}/mese` : "-"}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground text-xs">Riscaldamento</Label>
+                    <p>{parsedData.riscaldamento || "-"}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground text-xs">Esposizione</Label>
+                    <p>{parsedData.esposizione || "-"}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground text-xs">Anno costruzione</Label>
+                    <p>{parsedData.annoCostruzione || "-"}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground text-xs">Riferimento</Label>
+                    <p>{parsedData.riferimentoAnnuncio || "-"}</p>
+                  </div>
+                </div>
+
+                <div className="col-span-3 border-t pt-4">
                   <Label className="text-muted-foreground text-xs">Contatto</Label>
                   <div className="flex gap-4 mt-1 flex-wrap">
                     {parsedData.contattoNome && <p>{parsedData.contattoNome}</p>}
@@ -467,11 +544,14 @@ function ParseAnnuncioForm({ onSuccess }: { onSuccess: () => void }) {
                         {parsedData.contattoEmail}
                       </Badge>
                     )}
+                    {!parsedData.contattoNome && !parsedData.contattoTelefono && !parsedData.contattoEmail && (
+                      <span className="text-muted-foreground text-sm">Nessun contatto trovato</span>
+                    )}
                   </div>
                 </div>
 
                 {parsedData.descrizione && (
-                  <div className="col-span-2">
+                  <div className="col-span-3">
                     <Label className="text-muted-foreground text-xs">Descrizione</Label>
                     <p className="text-sm mt-1 text-muted-foreground line-clamp-4">{parsedData.descrizione}</p>
                   </div>

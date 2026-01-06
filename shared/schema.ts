@@ -65,7 +65,7 @@ export const richieste = pgTable("richieste", {
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
-// IMMOBILI - Properties
+// IMMOBILI - Properties (unificato: mandato + acquisizione)
 export const immobili = pgTable("immobili", {
   id: serial("id").primaryKey(),
   proprietarioId: integer("proprietario_id").references(() => clienti.id, { onDelete: "set null" }),
@@ -77,6 +77,7 @@ export const immobili = pgTable("immobili", {
   mq: integer("mq"),
   prezzo: decimal("prezzo", { precision: 12, scale: 2 }),
   piano: integer("piano"),
+  pianiEdificio: integer("piani_edificio"),
   statoVendita: text("stato_vendita").default("disponibile"), // disponibile, in_trattativa, venduto, ritirato
   statoNuovo: boolean("stato_nuovo").default(false),
   statoRistrutturato: boolean("stato_ristrutturato").default(false),
@@ -86,15 +87,42 @@ export const immobili = pgTable("immobili", {
   terrazzo: boolean("terrazzo").default(false),
   ascensore: boolean("ascensore").default(false),
   box: boolean("box").default(false),
+  cantina: boolean("cantina").default(false),
+  giardino: boolean("giardino").default(false),
+  arredato: boolean("arredato").default(false),
   camere: integer("camere"),
   bagni: integer("bagni"),
+  // Informazioni aggiuntive
+  classeEnergetica: text("classe_energetica"),
+  prestazioneEnergetica: text("prestazione_energetica"),
+  speseCondominiali: decimal("spese_condominiali", { precision: 10, scale: 2 }),
+  riscaldamento: text("riscaldamento"),
+  esposizione: text("esposizione"),
+  annoCostruzione: integer("anno_costruzione"),
+  // Contatto proprietario (per acquisizioni)
+  contattoNome: text("contatto_nome"),
+  contattoTelefono: text("contatto_telefono"),
+  contattoEmail: text("contatto_email"),
+  // Meta acquisizione
+  urlAnnuncio: text("url_annuncio"),
+  testoOriginale: text("testo_originale"),
+  riferimentoAnnuncio: text("riferimento_annuncio"),
+  dataPubblicazione: text("data_pubblicazione"),
+  // Stato contatto acquisizione
+  statoContatto: text("stato_contatto").default("nuovo"), // nuovo, contattato, interessato, scartato
+  messaggioInviato: text("messaggio_inviato"),
+  dataContatto: timestamp("data_contatto"),
+  preferito: boolean("preferito").default(false),
+  // Origine e gestione
+  origine: text("origine").default("mandato"), // mandato, acquisizione
   noteInterne: text("note_interne"),
   latitudine: decimal("latitudine", { precision: 10, scale: 7 }),
   longitudine: decimal("longitudine", { precision: 10, scale: 7 }),
   esclusiva: boolean("esclusiva").default(false),
   multiagenzia: boolean("multiagenzia").default(false),
-  fonte: text("fonte").default("privato"), // privato, agenzia, scraping
+  fonte: text("fonte").default("privato"), // privato, agenzia, immobiliare.it, idealista, etc.
   immagini: json("immagini").$type<string[]>().default([]),
+  caratteristiche: json("caratteristiche").$type<Record<string, any>>().default({}),
   attivo: boolean("attivo").default(true),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
@@ -176,16 +204,40 @@ export const immobiliEsterni = pgTable("immobili_esterni", {
   descrizione: text("descrizione"),
   indirizzo: text("indirizzo"),
   zona: text("zona"),
+  citta: text("citta"),
   mq: integer("mq"),
   prezzo: decimal("prezzo", { precision: 12, scale: 2 }),
   piano: integer("piano"),
+  pianiEdificio: integer("piani_edificio"),
   camere: integer("camere"),
   bagni: integer("bagni"),
+  // Caratteristiche booleane
+  ascensore: boolean("ascensore").default(false),
+  balcone: boolean("balcone").default(false),
+  terrazzo: boolean("terrazzo").default(false),
+  box: boolean("box").default(false),
+  cantina: boolean("cantina").default(false),
+  giardino: boolean("giardino").default(false),
+  arredato: boolean("arredato").default(false),
+  // Stato immobile
+  statoNuovo: boolean("stato_nuovo").default(false),
+  statoRistrutturato: boolean("stato_ristrutturato").default(false),
+  statoBuono: boolean("stato_buono").default(false),
+  statoDaRistrutturare: boolean("stato_da_ristrutturare").default(false),
+  // Info aggiuntive
+  classeEnergetica: text("classe_energetica"),
+  prestazioneEnergetica: text("prestazione_energetica"),
+  speseCondominiali: decimal("spese_condominiali", { precision: 10, scale: 2 }),
+  riscaldamento: text("riscaldamento"),
+  esposizione: text("esposizione"),
+  annoCostruzione: integer("anno_costruzione"),
+  riferimentoAnnuncio: text("riferimento_annuncio"),
+  // Contatti
   contattoNome: text("contatto_nome"),
   contattoTelefono: text("contatto_telefono"),
   contattoEmail: text("contatto_email"),
   urlAnnuncio: text("url_annuncio"),
-  fonte: text("fonte").default("manuale"), // immobiliare, idealista, subito, manuale
+  fonte: text("fonte").default("manuale"), // immobiliare.it, idealista, subito, manuale
   testoOriginale: text("testo_originale"), // original pasted text for reference
   caratteristiche: json("caratteristiche").$type<Record<string, any>>().default({}),
   immagini: json("immagini").$type<string[]>().default([]),
@@ -317,8 +369,11 @@ export const insertImmobileSchema = createInsertSchema(immobili).omit({
   prezzo: coerceOptionalDecimal,
   mq: coerceOptionalNumber,
   piano: coerceOptionalNumber,
+  pianiEdificio: coerceOptionalNumber,
   camere: coerceOptionalNumber,
   bagni: coerceOptionalNumber,
+  speseCondominiali: coerceOptionalDecimal,
+  annoCostruzione: coerceOptionalNumber,
   latitudine: coerceOptionalDecimal,
   longitudine: coerceOptionalDecimal,
 });
@@ -348,8 +403,11 @@ export const insertImmobileEsternoSchema = createInsertSchema(immobiliEsterni).o
   prezzo: coerceOptionalDecimal,
   mq: coerceOptionalNumber,
   piano: coerceOptionalNumber,
+  pianiEdificio: coerceOptionalNumber,
   camere: coerceOptionalNumber,
   bagni: coerceOptionalNumber,
+  speseCondominiali: coerceOptionalDecimal,
+  annoCostruzione: coerceOptionalNumber,
 });
 
 export const insertConversationSchema = createInsertSchema(conversations).omit({
