@@ -982,31 +982,67 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         return res.status(400).json({ error: "Immagini PDF richieste" });
       }
       
-      // Use the first page image for Vision AI (most content is usually there)
-      // For multi-page PDFs, we concatenate the text from all pages
-      const parsed = await parsePropertyImageWithAI(pdfImages[0], "image/jpeg");
+      console.log(`Processing ${pdfImages.length} PDF image slices with Vision AI`);
       
-      // If we also have extracted text, merge it to improve results
-      if (pdfText && pdfText.length > 100) {
-        const textParsed = await parsePropertyListingWithAI(pdfText);
-        const flatText = flattenAIResponse(textParsed);
-        const flatVision = flattenAIResponse(parsed);
-        
-        // Merge: prefer vision data for contact info (often in images), text for descriptions
-        const merged = {
-          ...flatText,
-          ...flatVision,
-          // Use text version if vision didn't get description
-          descrizione: flatVision.descrizione || flatText.descrizione,
-          // Prefer vision for phone (often hidden in images)
-          contattoTelefono: flatVision.contattoTelefono || flatText.contattoTelefono,
-          contattoEmail: flatVision.contattoEmail || flatText.contattoEmail,
-        };
-        
-        return res.json(merged);
+      // Process all image slices and merge results
+      const allParsedResults: any[] = [];
+      
+      for (let i = 0; i < Math.min(pdfImages.length, 10); i++) { // Max 10 slices
+        try {
+          console.log(`  Parsing slice ${i + 1}/${pdfImages.length}`);
+          const parsed = await parsePropertyImageWithAI(pdfImages[i], "image/jpeg");
+          allParsedResults.push(flattenAIResponse(parsed));
+        } catch (sliceErr) {
+          console.log(`  Slice ${i + 1} parsing failed:`, sliceErr);
+        }
       }
       
-      res.json(flattenAIResponse(parsed));
+      if (allParsedResults.length === 0) {
+        return res.status(500).json({ error: "Impossibile analizzare le immagini del PDF" });
+      }
+      
+      // Merge all slice results: keep first non-empty value for single fields, concatenate strings
+      const merged: any = {};
+      const stringFields = ["descrizione", "note"];
+      
+      for (const result of allParsedResults) {
+        for (const [key, value] of Object.entries(result)) {
+          if (value === null || value === undefined || value === "") continue;
+          
+          if (stringFields.includes(key) && typeof value === "string") {
+            // Concatenate text fields
+            merged[key] = merged[key] ? `${merged[key]} ${value}` : value;
+          } else if (merged[key] === undefined || merged[key] === null || merged[key] === "") {
+            // Keep first non-empty value for other fields
+            merged[key] = value;
+          }
+        }
+      }
+      
+      // If we also have extracted text, merge it to fill gaps
+      if (pdfText && pdfText.length > 100) {
+        try {
+          const textParsed = await parsePropertyListingWithAI(pdfText);
+          const flatText = flattenAIResponse(textParsed);
+          
+          // Fill in any missing fields from text extraction
+          for (const [key, value] of Object.entries(flatText)) {
+            if ((merged[key] === undefined || merged[key] === null || merged[key] === "") && value) {
+              merged[key] = value;
+            }
+          }
+          
+          // Prefer longer description
+          if (flatText.descrizione && (!merged.descrizione || flatText.descrizione.length > merged.descrizione.length)) {
+            merged.descrizione = flatText.descrizione;
+          }
+        } catch (textErr) {
+          console.log("Text parsing failed, using vision-only results");
+        }
+      }
+      
+      console.log(`PDF Vision parsing complete. Merged fields: ${Object.keys(merged).length}`);
+      res.json(merged);
     } catch (error) {
       console.error("Parse PDF Vision error:", error);
       res.status(500).json({ error: "Errore nell'analisi visiva del PDF" });

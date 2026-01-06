@@ -112,8 +112,9 @@ function ParseAnnuncioForm({ onSuccess }: { onSuccess: () => void }) {
           
           const textParts: string[] = [];
           
-          // Process each page: extract text AND render to image
-          const MAX_CANVAS_DIM = 7000; // Browser limit ~8192, use 7000 for safety
+          // Process each page: extract text AND render to image(s)
+          const MAX_CANVAS_DIM = 6000; // Browser limit ~8192, use 6000 for safety margin
+          const RENDER_SCALE = 1.5; // Good quality without excessive size
           
           for (let i = 1; i <= Math.min(pdf.numPages, 5); i++) { // Max 5 pages
             const page = await pdf.getPage(i);
@@ -127,33 +128,55 @@ function ParseAnnuncioForm({ onSuccess }: { onSuccess: () => void }) {
               textParts.push(pageText);
             } catch {}
             
-            // Render page to image with dynamic scale to fit browser canvas limits
+            // Render page to image(s) - slice if too tall
             try {
-              // Get natural dimensions at scale 1.0
-              const baseViewport = page.getViewport({ scale: 1.0 });
+              const viewport = page.getViewport({ scale: RENDER_SCALE });
+              const pageWidth = viewport.width;
+              const pageHeight = viewport.height;
               
-              // Calculate max scale that keeps both dimensions under limit
-              const maxScaleWidth = MAX_CANVAS_DIM / baseViewport.width;
-              const maxScaleHeight = MAX_CANVAS_DIM / baseViewport.height;
-              const safeScale = Math.min(2.0, maxScaleWidth, maxScaleHeight);
+              console.log(`PDF page ${i}: natural size ${Math.round(pageWidth)}x${Math.round(pageHeight)}`);
               
-              const viewport = page.getViewport({ scale: safeScale });
-              const canvas = document.createElement("canvas");
-              const context = canvas.getContext("2d");
-              
-              if (context) {
-                canvas.height = viewport.height;
-                canvas.width = viewport.width;
-                const renderContext = {
-                  canvasContext: context,
-                  viewport: viewport,
-                  canvas: canvas,
-                };
-                await page.render(renderContext as any).promise;
-                const imageData = canvas.toDataURL("image/jpeg", 0.9);
-                pdfImages.push(imageData.split(",")[1]);
+              if (pageHeight <= MAX_CANVAS_DIM) {
+                // Page fits in one canvas
+                const canvas = document.createElement("canvas");
+                const context = canvas.getContext("2d");
+                if (context) {
+                  canvas.width = pageWidth;
+                  canvas.height = pageHeight;
+                  await page.render({ canvasContext: context, viewport, canvas } as any).promise;
+                  const imageData = canvas.toDataURL("image/jpeg", 0.85);
+                  pdfImages.push(imageData.split(",")[1]);
+                  console.log(`  -> Single image: ${Math.round(pageWidth)}x${Math.round(pageHeight)}`);
+                }
+              } else {
+                // Page too tall - render in vertical slices
+                const numSlices = Math.ceil(pageHeight / MAX_CANVAS_DIM);
+                console.log(`  -> Slicing into ${numSlices} parts`);
                 
-                console.log(`PDF page ${i}: ${Math.round(viewport.width)}x${Math.round(viewport.height)} @ scale ${safeScale.toFixed(2)}`);
+                for (let sliceIdx = 0; sliceIdx < numSlices; sliceIdx++) {
+                  const yOffset = sliceIdx * MAX_CANVAS_DIM;
+                  const sliceHeight = Math.min(MAX_CANVAS_DIM, pageHeight - yOffset);
+                  
+                  const canvas = document.createElement("canvas");
+                  const context = canvas.getContext("2d");
+                  if (context) {
+                    canvas.width = pageWidth;
+                    canvas.height = sliceHeight;
+                    
+                    // Use transform to shift the render area up
+                    context.translate(0, -yOffset);
+                    
+                    await page.render({ 
+                      canvasContext: context, 
+                      viewport,
+                      canvas
+                    } as any).promise;
+                    
+                    const imageData = canvas.toDataURL("image/jpeg", 0.85);
+                    pdfImages.push(imageData.split(",")[1]);
+                    console.log(`  -> Slice ${sliceIdx + 1}/${numSlices}: y=${yOffset}, h=${Math.round(sliceHeight)}`);
+                  }
+                }
               }
             } catch (renderErr) {
               console.log("Page render failed:", renderErr);
