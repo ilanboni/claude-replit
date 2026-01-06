@@ -99,8 +99,10 @@ function ParseAnnuncioForm({ onSuccess }: { onSuccess: () => void }) {
       const base64 = await fileToBase64(file);
       
       if (file.type === "application/pdf") {
-        // Extract text from PDF client-side
+        // Convert PDF pages to high-resolution images for AI Vision (handles text in images)
+        let pdfImages: string[] = [];
         let pdfText = "";
+        
         try {
           const pdfjsLib = await import("pdfjs-dist");
           pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
@@ -109,19 +111,57 @@ function ParseAnnuncioForm({ onSuccess }: { onSuccess: () => void }) {
           const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
           
           const textParts: string[] = [];
-          for (let i = 1; i <= pdf.numPages; i++) {
+          
+          // Process each page: extract text AND render to image
+          for (let i = 1; i <= Math.min(pdf.numPages, 5); i++) { // Max 5 pages
             const page = await pdf.getPage(i);
-            const content = await page.getTextContent();
-            const pageText = content.items
-              .map((item: any) => item.str)
-              .join(" ");
-            textParts.push(pageText);
+            
+            // Extract text
+            try {
+              const content = await page.getTextContent();
+              const pageText = content.items
+                .map((item: any) => item.str)
+                .join(" ");
+              textParts.push(pageText);
+            } catch {}
+            
+            // Render page to high-res image (scale 2.0 for better quality)
+            try {
+              const viewport = page.getViewport({ scale: 2.0 });
+              const canvas = document.createElement("canvas");
+              const context = canvas.getContext("2d");
+              if (context) {
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+                const renderContext = {
+                  canvasContext: context,
+                  viewport: viewport,
+                  canvas: canvas,
+                };
+                await page.render(renderContext as any).promise;
+                const imageData = canvas.toDataURL("image/jpeg", 0.9);
+                pdfImages.push(imageData.split(",")[1]); // Remove data:image/jpeg;base64, prefix
+              }
+            } catch (renderErr) {
+              console.log("Page render failed:", renderErr);
+            }
           }
+          
           pdfText = textParts.join("\n\n");
         } catch (e) {
-          console.log("Client-side PDF extraction failed, falling back to server:", e);
+          console.log("Client-side PDF processing failed:", e);
         }
         
+        // If we have images, use vision endpoint for better extraction
+        if (pdfImages.length > 0) {
+          const res = await apiRequest("POST", "/api/acquisizione/parse-pdf-vision", {
+            pdfImages: pdfImages,
+            pdfText: pdfText,
+          });
+          return res.json();
+        }
+        
+        // Fallback to text-only parsing
         const res = await apiRequest("POST", "/api/acquisizione/parse-pdf", {
           pdfBase64: base64,
           pdfText: pdfText,

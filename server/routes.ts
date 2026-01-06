@@ -973,6 +973,46 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
     }
   });
 
+  // Parse PDF with Vision AI (for PDFs with images/scanned content)
+  app.post("/api/acquisizione/parse-pdf-vision", async (req, res) => {
+    try {
+      const { pdfImages, pdfText } = req.body;
+      
+      if (!pdfImages || !Array.isArray(pdfImages) || pdfImages.length === 0) {
+        return res.status(400).json({ error: "Immagini PDF richieste" });
+      }
+      
+      // Use the first page image for Vision AI (most content is usually there)
+      // For multi-page PDFs, we concatenate the text from all pages
+      const parsed = await parsePropertyImageWithAI(pdfImages[0], "image/jpeg");
+      
+      // If we also have extracted text, merge it to improve results
+      if (pdfText && pdfText.length > 100) {
+        const textParsed = await parsePropertyListingWithAI(pdfText);
+        const flatText = flattenAIResponse(textParsed);
+        const flatVision = flattenAIResponse(parsed);
+        
+        // Merge: prefer vision data for contact info (often in images), text for descriptions
+        const merged = {
+          ...flatText,
+          ...flatVision,
+          // Use text version if vision didn't get description
+          descrizione: flatVision.descrizione || flatText.descrizione,
+          // Prefer vision for phone (often hidden in images)
+          contattoTelefono: flatVision.contattoTelefono || flatText.contattoTelefono,
+          contattoEmail: flatVision.contattoEmail || flatText.contattoEmail,
+        };
+        
+        return res.json(merged);
+      }
+      
+      res.json(flattenAIResponse(parsed));
+    } catch (error) {
+      console.error("Parse PDF Vision error:", error);
+      res.status(500).json({ error: "Errore nell'analisi visiva del PDF" });
+    }
+  });
+
   // Receive data from browser extension and save
   app.post("/api/acquisizione/from-extension", async (req, res) => {
     try {
