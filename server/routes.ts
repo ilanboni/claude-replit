@@ -1135,7 +1135,9 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         esposizione: parsedData.esposizione ? String(parsedData.esposizione).substring(0, 100) : undefined,
         annoCostruzione: typeof parsedData.annoCostruzione === "number" ? parsedData.annoCostruzione : undefined,
         riferimentoAnnuncio: parsedData.riferimentoAnnuncio ? String(parsedData.riferimentoAnnuncio).substring(0, 100) : undefined,
-        contattoNome: parsedData.contattoNome ? String(parsedData.contattoNome).substring(0, 200) : undefined,
+        contattoNome: parsedData.contattoNome 
+          ? String(parsedData.contattoNome).substring(0, 200) 
+          : (parsedData.indirizzo ? `Proprietario di ${String(parsedData.indirizzo).substring(0, 150)}` : undefined),
         contattoTelefono: parsedData.contattoTelefono ? String(parsedData.contattoTelefono).substring(0, 50) : undefined,
         contattoEmail: parsedData.contattoEmail ? String(parsedData.contattoEmail).substring(0, 200) : undefined,
         urlAnnuncio: parsedData.url ? String(parsedData.url).substring(0, 1000) : undefined,
@@ -1179,13 +1181,17 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
       
       // Auto-create prospect client if we have contact info (phone or email required)
       let clienteProspect = null;
-      const { contattoNome, contattoTelefono, contattoEmail } = parsed.data;
+      const { contattoTelefono, contattoEmail } = parsed.data;
       const normalizedPhone = contattoTelefono?.replace(/\s+/g, '').trim();
       const normalizedEmail = contattoEmail?.toLowerCase().trim();
       
+      // Generate contact name: use provided name or "Proprietario di [indirizzo]"
+      const generatedContactName = parsed.data.contattoNome 
+        || (parsed.data.indirizzo ? `Proprietario di ${parsed.data.indirizzo}` : "Proprietario");
+      
       if (normalizedPhone || normalizedEmail) {
         // Parse name into nome/cognome
-        const nameParts = (contattoNome || "Proprietario").trim().split(" ");
+        const nameParts = generatedContactName.trim().split(" ");
         const nome = nameParts[0] || "Proprietario";
         const cognome = nameParts.slice(1).join(" ") || "";
         
