@@ -877,7 +877,7 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         return res.status(400).json({ error: "Testo dell'annuncio richiesto" });
       }
       const parsed = await parsePropertyListingWithAI(text, url);
-      res.json(parsed);
+      res.json(flattenAIResponse(parsed));
     } catch (error) {
       console.error("Parse listing error:", error);
       res.status(500).json({ error: "Errore nell'analisi dell'annuncio" });
@@ -896,12 +896,33 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         return res.status(400).json({ error: "Formato immagine non supportato. Usa JPEG, PNG, GIF o WebP." });
       }
       const parsed = await parsePropertyImageWithAI(imageBase64, mimeType);
-      res.json(parsed);
+      res.json(flattenAIResponse(parsed));
     } catch (error) {
       console.error("Parse image error:", error);
       res.status(500).json({ error: "Errore nell'analisi dell'immagine" });
     }
   });
+
+  // Helper to flatten nested AI response to flat object
+  function flattenAIResponse(parsed: any): any {
+    const result: any = {};
+    const sections = ["DATI PRINCIPALI", "CARATTERISTICHE", "STATO IMMOBILE", "INFORMAZIONI AGGIUNTIVE", "CONTATTO", "META"];
+    
+    for (const section of sections) {
+      if (parsed[section] && typeof parsed[section] === "object") {
+        Object.assign(result, parsed[section]);
+      }
+    }
+    
+    // Also include any top-level fields not in sections
+    for (const key of Object.keys(parsed)) {
+      if (!sections.includes(key)) {
+        result[key] = parsed[key];
+      }
+    }
+    
+    return result;
+  }
 
   // Parse PDF with text extraction + AI
   app.post("/api/acquisizione/parse-pdf", async (req, res) => {
@@ -911,7 +932,7 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
       // If frontend already extracted text (preferred)
       if (pdfText && typeof pdfText === "string" && pdfText.trim().length > 50) {
         const parsed = await parsePropertyListingWithAI(pdfText);
-        return res.json(parsed);
+        return res.json(flattenAIResponse(parsed));
       }
       
       // Fallback: try to extract text from PDF using pdftotext CLI
@@ -938,7 +959,7 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         }
         
         const parsed = await parsePropertyListingWithAI(extractedText);
-        res.json(parsed);
+        res.json(flattenAIResponse(parsed));
       } catch (execError) {
         // Clean up temp files on error
         try { fs.unlinkSync(tempPdfPath); } catch {}
