@@ -20,6 +20,7 @@ import ComunicazioniPage from "@/pages/comunicazioni";
 import AppuntamentiPage from "@/pages/appuntamenti";
 import MatchingPage from "@/pages/matching";
 import AcquisizionePage from "@/pages/acquisizione";
+import AcquisizioneDetailPage from "@/pages/acquisizione/detail";
 
 function Router() {
   return (
@@ -34,6 +35,7 @@ function Router() {
       <Route path="/appuntamenti" component={AppuntamentiPage} />
       <Route path="/matching" component={MatchingPage} />
       <Route path="/acquisizione" component={AcquisizionePage} />
+      <Route path="/acquisizione/:id" component={AcquisizioneDetailPage} />
       <Route component={NotFound} />
     </Switch>
   );
