@@ -7,9 +7,12 @@ import {
   insertImmobileEsternoSchema
 } from "@shared/schema";
 import { parseRequestWithAI, calculateMatchScore, generateAICoachMessage, parsePropertyListingWithAI, parsePropertyImageWithAI, generateAcquisitionMessage } from "./ai-service";
-import { createRequire } from "module";
-const require = createRequire(import.meta.url);
-const pdfParse = require("pdf-parse");
+import { exec } from "child_process";
+import { promisify } from "util";
+import * as fs from "fs";
+import * as path from "path";
+import * as os from "os";
+const execAsync = promisify(exec);
 
 export async function registerRoutes(server: Server, app: Express): Promise<void> {
   // ==================== RICERCA GLOBALE ====================
@@ -903,20 +906,46 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
   // Parse PDF with text extraction + AI
   app.post("/api/acquisizione/parse-pdf", async (req, res) => {
     try {
-      const { pdfBase64 } = req.body;
+      const { pdfBase64, pdfText } = req.body;
+      
+      // If frontend already extracted text (preferred)
+      if (pdfText && typeof pdfText === "string" && pdfText.trim().length > 50) {
+        const parsed = await parsePropertyListingWithAI(pdfText);
+        return res.json(parsed);
+      }
+      
+      // Fallback: try to extract text from PDF using pdftotext CLI
       if (!pdfBase64 || typeof pdfBase64 !== "string") {
-        return res.status(400).json({ error: "PDF richiesto" });
+        return res.status(400).json({ error: "PDF o testo richiesto" });
       }
       
       const buffer = Buffer.from(pdfBase64, "base64");
-      const pdfData = await pdfParse(buffer);
+      const tempDir = os.tmpdir();
+      const tempPdfPath = path.join(tempDir, `temp_${Date.now()}.pdf`);
+      const tempTxtPath = path.join(tempDir, `temp_${Date.now()}.txt`);
       
-      if (!pdfData.text || pdfData.text.trim().length < 50) {
-        return res.status(400).json({ error: "Impossibile estrarre testo dal PDF. Prova con uno screenshot." });
+      try {
+        fs.writeFileSync(tempPdfPath, buffer);
+        await execAsync(`pdftotext -layout "${tempPdfPath}" "${tempTxtPath}"`);
+        const extractedText = fs.readFileSync(tempTxtPath, "utf-8");
+        
+        // Clean up temp files
+        try { fs.unlinkSync(tempPdfPath); } catch {}
+        try { fs.unlinkSync(tempTxtPath); } catch {}
+        
+        if (!extractedText || extractedText.trim().length < 50) {
+          return res.status(400).json({ error: "Impossibile estrarre testo dal PDF. Prova con uno screenshot." });
+        }
+        
+        const parsed = await parsePropertyListingWithAI(extractedText);
+        res.json(parsed);
+      } catch (execError) {
+        // Clean up temp files on error
+        try { fs.unlinkSync(tempPdfPath); } catch {}
+        try { fs.unlinkSync(tempTxtPath); } catch {}
+        console.error("pdftotext error:", execError);
+        return res.status(400).json({ error: "Impossibile estrarre testo dal PDF. Usa uno screenshot dell'annuncio." });
       }
-      
-      const parsed = await parsePropertyListingWithAI(pdfData.text);
-      res.json(parsed);
     } catch (error) {
       console.error("Parse PDF error:", error);
       res.status(500).json({ error: "Errore nell'analisi del PDF" });

@@ -74,8 +74,32 @@ function ParseAnnuncioForm({ onSuccess }: { onSuccess: () => void }) {
       const base64 = await fileToBase64(file);
       
       if (file.type === "application/pdf") {
+        // Extract text from PDF client-side
+        let pdfText = "";
+        try {
+          const pdfjsLib = await import("pdfjs-dist");
+          pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+          
+          const arrayBuffer = await file.arrayBuffer();
+          const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+          
+          const textParts: string[] = [];
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            const pageText = content.items
+              .map((item: any) => item.str)
+              .join(" ");
+            textParts.push(pageText);
+          }
+          pdfText = textParts.join("\n\n");
+        } catch (e) {
+          console.log("Client-side PDF extraction failed, falling back to server:", e);
+        }
+        
         const res = await apiRequest("POST", "/api/acquisizione/parse-pdf", {
           pdfBase64: base64,
+          pdfText: pdfText,
         });
         return res.json();
       } else {
