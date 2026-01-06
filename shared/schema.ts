@@ -105,10 +105,11 @@ export const comunicazioni = pgTable("comunicazioni", {
   id: serial("id").primaryKey(),
   clienteId: integer("cliente_id").references(() => clienti.id, { onDelete: "cascade" }),
   immobileId: integer("immobile_id").references(() => immobili.id, { onDelete: "set null" }),
-  tipo: text("tipo").notNull().default("nota"), // matching, richiesta, risposta, followup, auguri, nota
+  tipo: text("tipo").notNull().default("nota"), // proposta, richiesta, risposta, followup, auguri, nota
   testo: text("testo").notNull(),
   canale: text("canale").default("sistema"), // whatsapp, email, telefono, sistema
   creatoDA: text("creato_da").default("sistema"), // sistema, agente, cliente
+  esito: text("esito"), // interessato, da_richiamare, non_interessato, in_attesa
   dataOra: timestamp("data_ora").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 

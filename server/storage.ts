@@ -40,7 +40,9 @@ export interface IStorage {
 
   // Comunicazioni
   getComunicazioni(clienteId?: number): Promise<Comunicazione[]>;
+  getComunicazioniByImmobile(immobileId: number): Promise<Comunicazione[]>;
   createComunicazione(data: InsertComunicazione): Promise<Comunicazione>;
+  updateComunicazione(id: number, data: Partial<InsertComunicazione>): Promise<Comunicazione | undefined>;
 
   // Appuntamenti
   getAppuntamenti(clienteId?: number): Promise<Appuntamento[]>;
@@ -198,6 +200,19 @@ export class DatabaseStorage implements IStorage {
 
   async createComunicazione(data: InsertComunicazione): Promise<Comunicazione> {
     const [comunicazione] = await db.insert(comunicazioni).values(data).returning();
+    return comunicazione;
+  }
+
+  async getComunicazioniByImmobile(immobileId: number): Promise<Comunicazione[]> {
+    return db.select().from(comunicazioni).where(eq(comunicazioni.immobileId, immobileId)).orderBy(desc(comunicazioni.dataOra));
+  }
+
+  async updateComunicazione(id: number, data: Partial<InsertComunicazione>): Promise<Comunicazione | undefined> {
+    const [comunicazione] = await db
+      .update(comunicazioni)
+      .set(data)
+      .where(eq(comunicazioni.id, id))
+      .returning();
     return comunicazione;
   }
 
@@ -360,11 +375,6 @@ export class DatabaseStorage implements IStorage {
   async createStoricoPrezzo(data: InsertStoricoPrezzo): Promise<StoricoPrezzo> {
     const [storico] = await db.insert(storicoPrezzo).values(data).returning();
     return storico;
-  }
-
-  // Comunicazioni per Immobile
-  async getComunicazioniByImmobile(immobileId: number): Promise<Comunicazione[]> {
-    return db.select().from(comunicazioni).where(eq(comunicazioni.immobileId, immobileId)).orderBy(desc(comunicazioni.dataOra));
   }
 
   // Appuntamenti per Immobile

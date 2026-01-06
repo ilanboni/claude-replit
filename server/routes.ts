@@ -631,6 +631,20 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
     }
   });
 
+  app.patch("/api/comunicazioni/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const comunicazione = await storage.updateComunicazione(id, req.body);
+      if (!comunicazione) {
+        return res.status(404).json({ error: "Comunicazione non trovata" });
+      }
+      res.json(comunicazione);
+    } catch (error) {
+      console.error("Update comunicazione error:", error);
+      res.status(500).json({ error: "Errore nell'aggiornamento della comunicazione" });
+    }
+  });
+
   // ==================== APPUNTAMENTI ====================
   app.get("/api/appuntamenti", async (req, res) => {
     try {
