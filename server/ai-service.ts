@@ -211,6 +211,35 @@ Sii positivo, concreto e professionale. Usa il "tu" informale.`
 
 // ========== ACQUISIZIONE - Property Listing Parser ==========
 
+// Regex patterns for Italian phone numbers
+const ITALIAN_PHONE_PATTERNS = [
+  /(?:\+39[\s.-]?)?3[0-9]{2}[\s.-]?[0-9]{3}[\s.-]?[0-9]{4}/g, // Mobile: 3xx xxx xxxx
+  /(?:\+39[\s.-]?)?3[0-9]{8,9}/g, // Mobile without spaces
+  /(?:\+39[\s.-]?)?0[0-9]{1,3}[\s.-]?[0-9]{5,8}/g, // Landline: 0xx xxxxx
+  /(?:\+39[\s.-]?)?[0-9]{2,4}[\s.-]?[0-9]{5,7}/g, // Generic Italian
+];
+
+const EMAIL_PATTERN = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+
+function extractPhoneFromText(text: string): string | undefined {
+  for (const pattern of ITALIAN_PHONE_PATTERNS) {
+    const matches = text.match(pattern);
+    if (matches && matches.length > 0) {
+      // Return the first valid phone, cleaned up
+      const phone = matches[0].replace(/[\s.-]/g, '');
+      if (phone.length >= 9 && phone.length <= 13) {
+        return phone;
+      }
+    }
+  }
+  return undefined;
+}
+
+function extractEmailFromText(text: string): string | undefined {
+  const matches = text.match(EMAIL_PATTERN);
+  return matches?.[0];
+}
+
 export async function parsePropertyImageWithAI(imageBase64: string, mimeType: string): Promise<ParsedPropertyListing> {
   try {
     const response = await openai.chat.completions.create({
@@ -218,64 +247,52 @@ export async function parsePropertyImageWithAI(imageBase64: string, mimeType: st
       messages: [
         {
           role: "system",
-          content: `Sei un assistente immobiliare italiano ESPERTO nell'estrazione dati da screenshot di annunci immobiliari.
-Analizza ATTENTAMENTE l'immagine ed estrai TUTTE le informazioni visibili.
+          content: `Sei un ESPERTO OCR italiano specializzato nell'estrazione dati da screenshot di annunci immobiliari.
+La tua PRIORITÀ ASSOLUTA è estrarre il NUMERO DI TELEFONO - leggi OGNI singolo carattere nell'immagine.
 
-Rispondi SOLO con un oggetto JSON valido contenente TUTTI questi campi (ometti solo se non visibili):
+ISTRUZIONI OCR TELEFONO:
+1. Scansiona TUTTA l'immagine pixel per pixel cercando sequenze numeriche
+2. Cerca in: header, footer, sidebar, bottoni, badge, overlay, watermark, angoli
+3. Pattern italiani: 3XX XXX XXXX, +39 XXX, 02-XXXX, 06 XXXX, 335.123.4567
+4. Anche numeri parzialmente oscurati: 3XX**XXXX → riportali comunque
+5. Se vedi QUALSIASI sequenza di 9-12 cifre, è probabilmente un telefono
 
-DATI PRINCIPALI:
-- titolo: string - titolo dell'annuncio
-- descrizione: string - descrizione completa
-- indirizzo: string - via e numero civico
-- zona: string - quartiere o zona
-- citta: string - nome della città
-- mq: number - metri quadri
-- prezzo: number - prezzo (solo numero)
-- piano: number - numero del piano (0=terra)
-- pianiEdificio: number - piani totali edificio
-- camere: number - numero locali/camere
-- bagni: number - numero bagni
+Rispondi con JSON contenente TUTTI i campi trovati:
 
-CARATTERISTICHE (booleani):
-- ascensore: boolean
-- balcone: boolean
-- terrazzo: boolean
-- box: boolean - garage/posto auto
-- cantina: boolean
-- giardino: boolean
-- arredato: boolean
+{
+  "titolo": "string - titolo annuncio",
+  "descrizione": "string - descrizione",
+  "indirizzo": "string - via e numero",
+  "zona": "string - quartiere",
+  "citta": "string - città",
+  "mq": number,
+  "prezzo": number,
+  "piano": number,
+  "camere": number,
+  "bagni": number,
+  "ascensore": boolean,
+  "balcone": boolean,
+  "terrazzo": boolean,
+  "box": boolean,
+  "cantina": boolean,
+  "giardino": boolean,
+  "arredato": boolean,
+  "statoNuovo": boolean,
+  "statoRistrutturato": boolean,
+  "statoBuono": boolean,
+  "statoDaRistrutturare": boolean,
+  "classeEnergetica": "string A-G",
+  "speseCondominiali": number,
+  "riscaldamento": "string",
+  "contattoNome": "string - OBBLIGATORIO: nome/agenzia/privato",
+  "contattoTelefono": "string - OBBLIGATORIO SE VISIBILE: numero completo con tutte le cifre",
+  "contattoEmail": "string - email se presente",
+  "fonte": "string - immobiliare.it/idealista/subito",
+  "riferimentoAnnuncio": "string - codice",
+  "testoCompleto": "string - TRASCRIVI TUTTO IL TESTO VISIBILE NELL'IMMAGINE"
+}
 
-STATO IMMOBILE:
-- statoNuovo: boolean
-- statoRistrutturato: boolean
-- statoBuono: boolean
-- statoDaRistrutturare: boolean
-
-INFO AGGIUNTIVE:
-- classeEnergetica: string - A, B, C, D, E, F, G
-- prestazioneEnergetica: string - es. "76 kWh/m² anno"
-- speseCondominiali: number - euro/mese
-- riscaldamento: string - autonomo/centralizzato
-- esposizione: string
-
-CONTATTO (PRIORITÀ MASSIMA):
-- contattoNome: string - nome venditore/agenzia/privato
-- contattoTelefono: string - numero di telefono COMPLETO (CERCALO OVUNQUE!)
-- contattoEmail: string - email del contatto
-
-META:
-- fonte: string - portale (immobiliare.it, idealista, etc.)
-- riferimentoAnnuncio: string - codice annuncio
-
-REGOLE CRITICHE:
-1. TELEFONO È FONDAMENTALE - cercalo ovunque: in badge, footer, sidebar, bottoni, overlay
-2. Pattern telefono italiano: 3xx xxx xxxx, +39 xxx, 02 xxxx, 06 xxxx
-3. Cerca anche numeri che sembrano mascherati (es. 3xx**xxxx - riportali comunque)
-4. Email: cerca pattern xxx@xxx.xxx
-5. Leggi TUTTI i testi nell'immagine, anche quelli piccoli
-6. Estrai prezzo, mq, camere dai badge/icone
-7. Identifica fonte dal logo (immobiliare.it, idealista, subito, casa.it)
-8. Non inventare dati - riporta solo ciò che vedi`
+REGOLA CRITICA: Il campo "testoCompleto" deve contenere OGNI parola e numero che leggi nell'immagine, inclusi numeri di telefono, codici, date. Questo è fondamentale per il backup dell'estrazione.`
         },
         {
           role: "user",
@@ -289,18 +306,45 @@ REGOLE CRITICHE:
             },
             {
               type: "text",
-              text: "Analizza questo screenshot di un annuncio immobiliare ed estrai tutti i dati in formato JSON."
+              text: "LEGGI ATTENTAMENTE: Estrai TUTTI i dati visibili, specialmente il NUMERO DI TELEFONO. Trascrivi anche tutto il testo che vedi nel campo testoCompleto."
             }
           ]
         }
       ],
-      max_completion_tokens: 1500,
+      max_completion_tokens: 2000,
       response_format: { type: "json_object" }
     });
 
     const content = response.choices[0]?.message?.content;
     if (content) {
-      return JSON.parse(content);
+      const parsed = JSON.parse(content);
+      
+      // Post-processing: extract phone/email from testoCompleto if not found
+      if (!parsed.contattoTelefono && parsed.testoCompleto) {
+        const extractedPhone = extractPhoneFromText(parsed.testoCompleto);
+        if (extractedPhone) {
+          console.log(`[AI] Phone extracted via regex fallback: ${extractedPhone}`);
+          parsed.contattoTelefono = extractedPhone;
+        }
+      }
+      
+      if (!parsed.contattoEmail && parsed.testoCompleto) {
+        const extractedEmail = extractEmailFromText(parsed.testoCompleto);
+        if (extractedEmail) {
+          console.log(`[AI] Email extracted via regex fallback: ${extractedEmail}`);
+          parsed.contattoEmail = extractedEmail;
+        }
+      }
+      
+      // Log when phone is missing for monitoring
+      if (!parsed.contattoTelefono) {
+        console.log(`[AI] WARNING: No phone extracted from image. testoCompleto: ${parsed.testoCompleto?.substring(0, 200)}`);
+      }
+      
+      // Clean up internal field
+      delete parsed.testoCompleto;
+      
+      return parsed;
     }
     return {};
   } catch (error) {
@@ -433,7 +477,26 @@ REGOLE CRITICHE:
 
     const content = response.choices[0]?.message?.content;
     if (content) {
-      return JSON.parse(content);
+      const parsed = JSON.parse(content);
+      
+      // Post-processing: extract phone/email from original text if AI missed them
+      if (!parsed.contattoTelefono) {
+        const extractedPhone = extractPhoneFromText(text);
+        if (extractedPhone) {
+          console.log(`[AI] Phone extracted via regex fallback from text: ${extractedPhone}`);
+          parsed.contattoTelefono = extractedPhone;
+        }
+      }
+      
+      if (!parsed.contattoEmail) {
+        const extractedEmail = extractEmailFromText(text);
+        if (extractedEmail) {
+          console.log(`[AI] Email extracted via regex fallback from text: ${extractedEmail}`);
+          parsed.contattoEmail = extractedEmail;
+        }
+      }
+      
+      return parsed;
     }
     return {};
   } catch (error) {
