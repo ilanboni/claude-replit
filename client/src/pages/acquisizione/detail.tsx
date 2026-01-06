@@ -24,6 +24,10 @@ import {
   MessageSquare,
   Plus,
   FileText,
+  CheckSquare,
+  Globe,
+  ChartBar,
+  TrendingUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,14 +37,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -52,6 +55,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { ImmobileEsterno } from "@shared/schema";
@@ -326,6 +336,23 @@ function TabDettagli({ immobile }: { immobile: ImmobileEsterno }) {
           </CardContent>
         </Card>
 
+        <Card>
+          <CardHeader>
+            <CardTitle>Posizione</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="aspect-video bg-muted rounded-md flex items-center justify-center">
+              <div className="text-center text-muted-foreground">
+                <MapPin className="h-8 w-8 mx-auto mb-2" />
+                <p className="text-sm">Mappa non disponibile</p>
+                <p className="text-xs">
+                  {[immobile.indirizzo, immobile.zona, immobile.citta].filter(Boolean).join(", ")}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {immobile.testoOriginale && (
           <Card>
             <CardHeader>
@@ -343,7 +370,7 @@ function TabDettagli({ immobile }: { immobile: ImmobileEsterno }) {
       <div className="space-y-6">
         <Card>
           <CardHeader>
-            <CardTitle>Contatti</CardTitle>
+            <CardTitle>Contatti Proprietario</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {immobile.contattoNome && (
@@ -428,7 +455,7 @@ function TabDettagli({ immobile }: { immobile: ImmobileEsterno }) {
             {immobile.riferimentoAnnuncio && (
               <div>
                 <p className="text-sm text-muted-foreground">Riferimento</p>
-                <p className="font-medium">{immobile.riferimentoAnnuncio}</p>
+                <p className="font-medium font-mono text-sm">{immobile.riferimentoAnnuncio}</p>
               </div>
             )}
 
@@ -480,7 +507,7 @@ function TabDettagli({ immobile }: { immobile: ImmobileEsterno }) {
                   ? "Contattato"
                   : immobile.statoContatto === "risposto"
                   ? "Risposta ricevuta"
-                  : immobile.statoContatto}
+                  : immobile.statoContatto || "nuovo"}
               </Badge>
             </div>
 
@@ -517,6 +544,591 @@ function TabDettagli({ immobile }: { immobile: ImmobileEsterno }) {
   );
 }
 
+function TabAttivita({ immobileId }: { immobileId: number }) {
+  const { toast } = useToast();
+  const [showForm, setShowForm] = useState(false);
+  const [newTask, setNewTask] = useState({ titolo: "", descrizione: "", stato: "da_fare" });
+
+  interface AttivitaAcquisizione {
+    id: number;
+    immobileEsternoId: number;
+    titolo: string;
+    descrizione: string | null;
+    stato: string;
+    createdAt: string;
+  }
+
+  const { data: attivita = [], isLoading } = useQuery<AttivitaAcquisizione[]>({
+    queryKey: ["/api/acquisizione", immobileId, "attivita"],
+    queryFn: async () => {
+      const res = await fetch(`/api/acquisizione/${immobileId}/attivita`);
+      if (!res.ok) {
+        if (res.status === 404) return [];
+        throw new Error("Failed to fetch");
+      }
+      return res.json();
+    },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (data: typeof newTask) => {
+      return apiRequest("POST", `/api/acquisizione/${immobileId}/attivita`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/acquisizione", immobileId, "attivita"] });
+      toast({ title: "Attività creata" });
+      setShowForm(false);
+      setNewTask({ titolo: "", descrizione: "", stato: "da_fare" });
+    },
+  });
+
+  const toggleMutation = useMutation({
+    mutationFn: async ({ id, completata }: { id: number; completata: boolean }) => {
+      return apiRequest("PATCH", `/api/acquisizione/attivita/${id}`, { stato: completata ? "fatto" : "da_fare" });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/acquisizione", immobileId, "attivita"] });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return apiRequest("DELETE", `/api/acquisizione/attivita/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/acquisizione", immobileId, "attivita"] });
+      toast({ title: "Attività eliminata" });
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        {[1, 2, 3].map((i) => (
+          <Skeleton key={i} className="h-16 w-full" />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <Button onClick={() => setShowForm(true)} data-testid="button-new-activity">
+          <Plus className="h-4 w-4 mr-2" />
+          Nuova Attività
+        </Button>
+      </div>
+
+      {attivita.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <CheckSquare className="h-12 w-12 text-muted-foreground/30 mb-4" />
+            <h3 className="text-lg font-medium">Nessuna attività</h3>
+            <p className="text-muted-foreground text-sm">
+              Aggiungi attività e task per questo immobile in acquisizione
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-2">
+          {attivita.map((task) => (
+            <Card key={task.id} className={task.stato === "fatto" ? "opacity-60" : ""}>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-4">
+                  <Checkbox
+                    checked={task.stato === "fatto"}
+                    onCheckedChange={(checked) =>
+                      toggleMutation.mutate({ id: task.id, completata: !!checked })
+                    }
+                    data-testid={`checkbox-task-${task.id}`}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p
+                        className={`font-medium ${task.stato === "fatto" ? "line-through" : ""}`}
+                      >
+                        {task.titolo}
+                      </p>
+                      <Badge
+                        variant={
+                          task.stato === "fatto"
+                            ? "secondary"
+                            : task.stato === "in_corso"
+                            ? "default"
+                            : "outline"
+                        }
+                      >
+                        {task.stato === "fatto" ? "Fatto" : task.stato === "in_corso" ? "In Corso" : "Da Fare"}
+                      </Badge>
+                    </div>
+                    {task.descrizione && (
+                      <p className="text-sm text-muted-foreground mt-1">{task.descrizione}</p>
+                    )}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => deleteMutation.mutate(task.id)}
+                    data-testid={`button-delete-task-${task.id}`}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <Dialog open={showForm} onOpenChange={setShowForm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nuova Attività</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Titolo</label>
+              <Input
+                value={newTask.titolo}
+                onChange={(e) => setNewTask({ ...newTask, titolo: e.target.value })}
+                placeholder="Titolo attività"
+                data-testid="input-task-title"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Descrizione</label>
+              <Textarea
+                value={newTask.descrizione}
+                onChange={(e) => setNewTask({ ...newTask, descrizione: e.target.value })}
+                placeholder="Descrizione opzionale"
+                data-testid="input-task-description"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Stato</label>
+              <Select
+                value={newTask.stato}
+                onValueChange={(v) => setNewTask({ ...newTask, stato: v })}
+              >
+                <SelectTrigger data-testid="select-task-stato">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="da_fare">Da Fare</SelectItem>
+                  <SelectItem value="in_corso">In Corso</SelectItem>
+                  <SelectItem value="fatto">Fatto</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowForm(false)}>
+              Annulla
+            </Button>
+            <Button
+              onClick={() => createMutation.mutate(newTask)}
+              disabled={!newTask.titolo || createMutation.isPending}
+              data-testid="button-save-task"
+            >
+              Salva
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function TabComunicazioni({ immobileId }: { immobileId: number }) {
+  interface ComunicazioneAcquisizione {
+    id: number;
+    immobileEsternoId: number;
+    tipo: string;
+    testo: string;
+    canale: string | null;
+    esito: string | null;
+    dataOra: string;
+  }
+
+  const { data: comunicazioni = [], isLoading } = useQuery<ComunicazioneAcquisizione[]>({
+    queryKey: ["/api/acquisizione", immobileId, "comunicazioni"],
+    queryFn: async () => {
+      const res = await fetch(`/api/acquisizione/${immobileId}/comunicazioni`);
+      if (!res.ok) {
+        if (res.status === 404) return [];
+        throw new Error("Failed to fetch");
+      }
+      return res.json();
+    },
+  });
+
+  const getCanaleIcon = (canale: string | null) => {
+    switch (canale) {
+      case "telefono":
+        return <Phone className="h-4 w-4" />;
+      case "email":
+        return <Mail className="h-4 w-4" />;
+      case "whatsapp":
+        return <MessageSquare className="h-4 w-4" />;
+      default:
+        return <MessageSquare className="h-4 w-4" />;
+    }
+  };
+
+  const getEsitoBadge = (esito: string | null) => {
+    switch (esito) {
+      case "interessato":
+        return <Badge className="bg-green-500/10 text-green-600">Interessato</Badge>;
+      case "non_interessato":
+        return <Badge className="bg-red-500/10 text-red-600">Non interessato</Badge>;
+      case "da_richiamare":
+        return <Badge className="bg-yellow-500/10 text-yellow-700">Da richiamare</Badge>;
+      case "in_attesa":
+        return <Badge variant="outline">In attesa</Badge>;
+      default:
+        return null;
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        {[1, 2, 3].map((i) => (
+          <Skeleton key={i} className="h-20 w-full" />
+        ))}
+      </div>
+    );
+  }
+
+  if (comunicazioni.length === 0) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center py-12">
+          <MessageSquare className="h-12 w-12 text-muted-foreground/30 mb-4" />
+          <h3 className="text-lg font-medium">Nessuna comunicazione</h3>
+          <p className="text-muted-foreground text-sm">
+            Le comunicazioni con il proprietario appariranno qui
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {comunicazioni.map((com) => (
+        <Card key={com.id}>
+          <CardContent className="p-4">
+            <div className="flex items-start gap-4">
+              <div className="p-2 bg-muted rounded-full">{getCanaleIcon(com.canale)}</div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge variant="outline">{com.canale || "sistema"}</Badge>
+                  <Badge variant="secondary">{com.tipo}</Badge>
+                  {getEsitoBadge(com.esito)}
+                </div>
+                <p className="text-sm mt-1">{com.testo}</p>
+                <p className="text-xs text-muted-foreground mt-2">
+                  {format(new Date(com.dataOra), "dd MMM yyyy HH:mm", { locale: it })}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function TabDocumenti({ immobileId }: { immobileId: number }) {
+  const { toast } = useToast();
+  const [showForm, setShowForm] = useState(false);
+  const [newDoc, setNewDoc] = useState({ nome: "", tipo: "altro", url: "" });
+
+  interface DocumentoAcquisizione {
+    id: number;
+    immobileEsternoId: number;
+    nome: string;
+    tipo: string;
+    url: string | null;
+    createdAt: string;
+  }
+
+  const { data: documenti = [], isLoading } = useQuery<DocumentoAcquisizione[]>({
+    queryKey: ["/api/acquisizione", immobileId, "documenti"],
+    queryFn: async () => {
+      const res = await fetch(`/api/acquisizione/${immobileId}/documenti`);
+      if (!res.ok) {
+        if (res.status === 404) return [];
+        throw new Error("Failed to fetch");
+      }
+      return res.json();
+    },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (data: typeof newDoc) => {
+      return apiRequest("POST", `/api/acquisizione/${immobileId}/documenti`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/acquisizione", immobileId, "documenti"] });
+      toast({ title: "Documento aggiunto" });
+      setShowForm(false);
+      setNewDoc({ nome: "", tipo: "altro", url: "" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return apiRequest("DELETE", `/api/acquisizione/documenti/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/acquisizione", immobileId, "documenti"] });
+      toast({ title: "Documento eliminato" });
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        {[1, 2, 3].map((i) => (
+          <Skeleton key={i} className="h-16 w-full" />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <Button onClick={() => setShowForm(true)} data-testid="button-new-document">
+          <Plus className="h-4 w-4 mr-2" />
+          Aggiungi Documento
+        </Button>
+      </div>
+
+      {documenti.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <FileText className="h-12 w-12 text-muted-foreground/30 mb-4" />
+            <h3 className="text-lg font-medium">Nessun documento</h3>
+            <p className="text-muted-foreground text-sm">
+              Carica documenti relativi a questo immobile
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {documenti.map((doc) => (
+            <Card key={doc.id}>
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-muted rounded-md">
+                      <FileText className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-medium truncate">{doc.nome}</p>
+                      <Badge variant="outline" className="mt-1">
+                        {doc.tipo}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="flex gap-1">
+                    {doc.url && (
+                      <Button variant="ghost" size="icon" asChild>
+                        <a href={doc.url} target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="h-4 w-4" />
+                        </a>
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => deleteMutation.mutate(doc.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <Dialog open={showForm} onOpenChange={setShowForm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nuovo Documento</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Nome</label>
+              <Input
+                value={newDoc.nome}
+                onChange={(e) => setNewDoc({ ...newDoc, nome: e.target.value })}
+                placeholder="Nome documento"
+                data-testid="input-doc-name"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Tipo</label>
+              <Select
+                value={newDoc.tipo}
+                onValueChange={(v) => setNewDoc({ ...newDoc, tipo: v })}
+              >
+                <SelectTrigger data-testid="select-doc-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ape">APE</SelectItem>
+                  <SelectItem value="planimetria">Planimetria</SelectItem>
+                  <SelectItem value="visura">Visura</SelectItem>
+                  <SelectItem value="foto">Foto</SelectItem>
+                  <SelectItem value="annuncio">Annuncio</SelectItem>
+                  <SelectItem value="altro">Altro</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-sm font-medium">URL (opzionale)</label>
+              <Input
+                value={newDoc.url}
+                onChange={(e) => setNewDoc({ ...newDoc, url: e.target.value })}
+                placeholder="https://..."
+                data-testid="input-doc-url"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowForm(false)}>
+              Annulla
+            </Button>
+            <Button
+              onClick={() => createMutation.mutate(newDoc)}
+              disabled={!newDoc.nome || createMutation.isPending}
+              data-testid="button-save-doc"
+            >
+              Salva
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function TabNote({ immobile }: { immobile: ImmobileEsterno }) {
+  const { toast } = useToast();
+  const [note, setNote] = useState(immobile.note || "");
+  const [isSaving, setIsSaving] = useState(false);
+
+  const updateNoteMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("PATCH", `/api/acquisizione/${immobile.id}`, { note });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/acquisizione", immobile.id] });
+      toast({ title: "Note salvate" });
+      setIsSaving(false);
+    },
+    onError: () => {
+      toast({ title: "Errore", description: "Impossibile salvare le note", variant: "destructive" });
+      setIsSaving(false);
+    },
+  });
+
+  const handleSave = () => {
+    setIsSaving(true);
+    updateNoteMutation.mutate();
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Note Interne</CardTitle>
+        <CardDescription>Annotazioni private su questo immobile in acquisizione</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <Textarea
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="Inserisci le tue note qui..."
+          className="min-h-32"
+          data-testid="textarea-notes"
+        />
+        <div className="flex justify-end">
+          <Button
+            onClick={handleSave}
+            disabled={isSaving || note === (immobile.note || "")}
+            data-testid="button-save-notes"
+          >
+            {isSaving ? "Salvataggio..." : "Salva Note"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function TabStatistiche({ immobile }: { immobile: ImmobileEsterno }) {
+  return (
+    <div className="grid gap-6 lg:grid-cols-2">
+      <Card>
+        <CardHeader>
+          <CardTitle>Riepilogo Immobile</CardTitle>
+          <CardDescription>Informazioni principali</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Prezzo al mq</span>
+              <span className="font-medium">
+                {immobile.mq && immobile.prezzo
+                  ? `€${Math.round(Number(immobile.prezzo) / immobile.mq).toLocaleString("it-IT")}`
+                  : "N/D"}
+              </span>
+            </div>
+            <Separator />
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Giorni in lista</span>
+              <span className="font-medium">
+                {immobile.createdAt
+                  ? Math.floor(
+                      (Date.now() - new Date(immobile.createdAt).getTime()) / (1000 * 60 * 60 * 24)
+                    )
+                  : "N/D"}
+              </span>
+            </div>
+            <Separator />
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Stato contatto</span>
+              <Badge variant="outline">{immobile.statoContatto || "nuovo"}</Badge>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Confronto Mercato</CardTitle>
+          <CardDescription>Analisi rispetto al mercato</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <TrendingUp className="h-8 w-8 text-muted-foreground/30 mb-2" />
+            <p className="text-sm text-muted-foreground">
+              Analisi di mercato disponibile dopo l'acquisizione
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function AcquisizioneDetailPage() {
   const params = useParams<{ id: string }>();
   const immobileId = params.id ? parseInt(params.id, 10) : null;
@@ -530,16 +1142,8 @@ export default function AcquisizioneDetailPage() {
     return (
       <div className="p-6 space-y-6">
         <Skeleton className="h-48 w-full" />
-        <div className="grid gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2 space-y-6">
-            <Skeleton className="h-64 w-full" />
-            <Skeleton className="h-48 w-full" />
-          </div>
-          <div className="space-y-6">
-            <Skeleton className="h-48 w-full" />
-            <Skeleton className="h-32 w-full" />
-          </div>
-        </div>
+        <Skeleton className="h-12 w-full" />
+        <Skeleton className="h-96 w-full" />
       </div>
     );
   }
@@ -564,10 +1168,57 @@ export default function AcquisizioneDetailPage() {
   }
 
   return (
-    <div className="min-h-full">
+    <div className="min-h-screen">
       <PropertyHeader immobile={immobile} />
+
       <div className="p-6">
-        <TabDettagli immobile={immobile} />
+        <Tabs defaultValue="dettagli" className="space-y-6">
+          <TabsList className="flex-wrap h-auto gap-1" data-testid="tabs-acquisizione-detail">
+            <TabsTrigger value="dettagli" data-testid="tab-dettagli">
+              <Home className="h-4 w-4 mr-2" />
+              Dettagli
+            </TabsTrigger>
+            <TabsTrigger value="comunicazioni" data-testid="tab-comunicazioni">
+              <MessageSquare className="h-4 w-4 mr-2" />
+              Comunicazioni
+            </TabsTrigger>
+            <TabsTrigger value="attivita" data-testid="tab-attivita">
+              <CheckSquare className="h-4 w-4 mr-2" />
+              Attività
+            </TabsTrigger>
+            <TabsTrigger value="documenti" data-testid="tab-documenti">
+              <FileText className="h-4 w-4 mr-2" />
+              Documenti
+            </TabsTrigger>
+            <TabsTrigger value="note" data-testid="tab-note">
+              <Edit className="h-4 w-4 mr-2" />
+              Note
+            </TabsTrigger>
+            <TabsTrigger value="statistiche" data-testid="tab-statistiche">
+              <ChartBar className="h-4 w-4 mr-2" />
+              Statistiche
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="dettagli">
+            <TabDettagli immobile={immobile} />
+          </TabsContent>
+          <TabsContent value="comunicazioni">
+            <TabComunicazioni immobileId={immobile.id} />
+          </TabsContent>
+          <TabsContent value="attivita">
+            <TabAttivita immobileId={immobile.id} />
+          </TabsContent>
+          <TabsContent value="documenti">
+            <TabDocumenti immobileId={immobile.id} />
+          </TabsContent>
+          <TabsContent value="note">
+            <TabNote immobile={immobile} />
+          </TabsContent>
+          <TabsContent value="statistiche">
+            <TabStatistiche immobile={immobile} />
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

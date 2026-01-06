@@ -258,21 +258,24 @@ INFO AGGIUNTIVE:
 - riscaldamento: string - autonomo/centralizzato
 - esposizione: string
 
-CONTATTO:
-- contattoNome: string
-- contattoTelefono: string - numero COMPLETO
-- contattoEmail: string
+CONTATTO (PRIORITÀ MASSIMA):
+- contattoNome: string - nome venditore/agenzia/privato
+- contattoTelefono: string - numero di telefono COMPLETO (CERCALO OVUNQUE!)
+- contattoEmail: string - email del contatto
 
 META:
 - fonte: string - portale (immobiliare.it, idealista, etc.)
 - riferimentoAnnuncio: string - codice annuncio
 
-REGOLE:
-1. LEGGI tutti i testi visibili
-2. Cerca telefoni formato italiano (3xx, 02, +39)
-3. Estrai prezzo, mq, camere dai badge
-4. Identifica fonte dal logo
-5. Non inventare dati non visibili`
+REGOLE CRITICHE:
+1. TELEFONO È FONDAMENTALE - cercalo ovunque: in badge, footer, sidebar, bottoni, overlay
+2. Pattern telefono italiano: 3xx xxx xxxx, +39 xxx, 02 xxxx, 06 xxxx
+3. Cerca anche numeri che sembrano mascherati (es. 3xx**xxxx - riportali comunque)
+4. Email: cerca pattern xxx@xxx.xxx
+5. Leggi TUTTI i testi nell'immagine, anche quelli piccoli
+6. Estrai prezzo, mq, camere dai badge/icone
+7. Identifica fonte dal logo (immobiliare.it, idealista, subito, casa.it)
+8. Non inventare dati - riporta solo ciò che vedi`
         },
         {
           role: "user",
@@ -397,9 +400,9 @@ INFORMAZIONI AGGIUNTIVE:
 - esposizione: string - esposizione (sud, nord, est, ovest, interna)
 - annoCostruzione: number - anno di costruzione
 
-CONTATTO:
-- contattoNome: string - nome del venditore/agenzia
-- contattoTelefono: string - numero di telefono COMPLETO
+CONTATTO (PRIORITÀ MASSIMA - CERCALI OVUNQUE):
+- contattoNome: string - nome del venditore/agenzia/privato
+- contattoTelefono: string - numero di telefono COMPLETO (OBBLIGATORIO se presente!)
 - contattoEmail: string - email del contatto
 
 META:
@@ -408,11 +411,12 @@ META:
 - riferimentoAnnuncio: string - codice riferimento annuncio
 
 REGOLE CRITICHE:
-1. TELEFONO: Cerca numeri con pattern 3xx-xxx-xxxx, 02-xxxx-xxxx, +39. Rimuovi spazi.
+1. TELEFONO È LA PRIORITÀ - cerca OVUNQUE nel testo: 3xx, 02x, 06x, +39, anche parzialmente mascherati
 2. INDIRIZZO: Cerca "Via/Viale/Piazza/Corso + Nome + Numero"
 3. MQ: Estrai il numero prima di "mq", "m²", "metri"
 4. PIANO: "piano terra"=0, "primo piano"=1, "rialzato"=1
 5. PREZZO: Converti "250k"=250000, "300.000"=300000
+6. EMAIL: cerca pattern con @ nel testo
 6. STATO: "ristrutturato" → statoRistrutturato=true, "buono stato" → statoBuono=true
 7. CARATTERISTICHE: "con ascensore" → ascensore=true, "no ascensore" → ascensore=false
 8. SPESE: "€150/mese" o "150€ mensili" → speseCondominiali=150

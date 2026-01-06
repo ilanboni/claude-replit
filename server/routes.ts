@@ -1039,6 +1039,35 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         } catch (textErr) {
           console.log("Text parsing failed, using vision-only results");
         }
+        
+        // Post-processing: extract phone/email with regex if AI missed them
+        if (!merged.contattoTelefono) {
+          const phonePatterns = [
+            /\+39[\s./-]*3\d{2}[\s./-]?\d{3}[\s./-]?\d{4}/g,
+            /\+39[\s./-]*0\d{1,3}[\s./-]?\d{3,4}[\s./-]?\d{3,4}/g,
+            /\b3\d{2}[\s./-]?\d{3}[\s./-]?\d{4}\b/g,
+            /\b0\d{1,3}[\s./-]?\d{3,4}[\s./-]?\d{3,4}\b/g,
+            /\(\d{2,4}\)[\s./-]?\d{3,4}[\s./-]?\d{3,4}/g,
+          ];
+          for (const pattern of phonePatterns) {
+            const matches = pdfText.match(pattern);
+            if (matches && matches.length > 0) {
+              const phone = matches[0].replace(/[\s.()/-]/g, "");
+              merged.contattoTelefono = phone.startsWith("+39") ? phone : phone;
+              console.log(`Regex extracted phone: ${merged.contattoTelefono}`);
+              break;
+            }
+          }
+        }
+        
+        if (!merged.contattoEmail) {
+          const emailPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+          const matches = pdfText.match(emailPattern);
+          if (matches && matches.length > 0) {
+            merged.contattoEmail = matches[0].toLowerCase();
+            console.log(`Regex extracted email: ${merged.contattoEmail}`);
+          }
+        }
       }
       
       console.log(`PDF Vision parsing complete. Merged fields: ${Object.keys(merged).length}`);

@@ -17,7 +17,7 @@ import type { ImmobileEsterno } from "@shared/schema";
 import { 
   Search, Star, StarOff, Phone, Mail, ExternalLink, MapPin, Home, Euro, 
   Trash2, MessageSquare, Copy, Check, Loader2, Sparkles, Building2, Plus,
-  Image, FileText, Upload, X, Ruler, Bath
+  Image, FileText, Upload, X, Ruler, Bath, Eye
 } from "lucide-react";
 
 interface ParsedListing {
@@ -903,14 +903,24 @@ function ImmobileEsternoCard({
         )}
       </CardContent>
 
-      <CardFooter className="gap-2 pt-0 pb-4 px-4">
+      <CardFooter className="gap-2 pt-0 pb-4 px-4 flex-wrap">
+        <Link href={`/acquisizione/${immobile.id}`}>
+          <Button 
+            variant="default" 
+            size="sm"
+            data-testid={`button-view-${immobile.id}`}
+          >
+            <Eye className="h-4 w-4 mr-1" />
+            Vedi Scheda
+          </Button>
+        </Link>
         <Button 
           variant="outline" 
           size="sm"
           onClick={() => setExpanded(!expanded)}
           data-testid={`button-expand-${immobile.id}`}
         >
-          {expanded ? "Meno dettagli" : "Dettagli"}
+          {expanded ? "Meno" : "Altro"}
         </Button>
         <Button 
           variant="outline" 
