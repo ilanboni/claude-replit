@@ -200,6 +200,7 @@ export const storicoPrezzo = pgTable("storico_prezzo", {
 // IMMOBILI ESTERNI - External properties (scraped/manual from portals)
 export const immobiliEsterni = pgTable("immobili_esterni", {
   id: serial("id").primaryKey(),
+  clienteId: integer("cliente_id").references(() => clienti.id, { onDelete: "set null" }),
   titolo: text("titolo").notNull(),
   descrizione: text("descrizione"),
   indirizzo: text("indirizzo"),

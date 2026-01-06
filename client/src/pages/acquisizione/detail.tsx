@@ -64,7 +64,202 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import type { ImmobileEsterno } from "@shared/schema";
+import type { ImmobileEsterno, Cliente } from "@shared/schema";
+import { Label } from "@/components/ui/label";
+import { User } from "lucide-react";
+
+function ContactCard({ immobile }: { immobile: ImmobileEsterno }) {
+  const { toast } = useToast();
+  const [isEditing, setIsEditing] = useState(false);
+  const [editPhone, setEditPhone] = useState(immobile.contattoTelefono || "");
+  const [editEmail, setEditEmail] = useState(immobile.contattoEmail || "");
+  const [editName, setEditName] = useState(immobile.contattoNome || "");
+
+  const clienteId = (immobile as any).clienteId;
+  
+  const { data: cliente } = useQuery<Cliente>({
+    queryKey: ["/api/clienti", clienteId],
+    queryFn: async () => {
+      if (!clienteId) return null;
+      const res = await fetch(`/api/clienti/${clienteId}`);
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!clienteId,
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async (data: { contattoTelefono?: string; contattoEmail?: string; contattoNome?: string }) => {
+      return apiRequest("PATCH", `/api/acquisizione/${immobile.id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/acquisizione", immobile.id] });
+      toast({ title: "Contatti aggiornati" });
+      setIsEditing(false);
+    },
+    onError: () => {
+      toast({ title: "Errore", description: "Impossibile aggiornare i contatti", variant: "destructive" });
+    },
+  });
+
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    toast({ title: `${label} copiato` });
+  };
+
+  const handleSave = () => {
+    updateMutation.mutate({
+      contattoTelefono: editPhone || undefined,
+      contattoEmail: editEmail || undefined,
+      contattoNome: editName || undefined,
+    });
+  };
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-2">
+        <CardTitle>Contatti Proprietario</CardTitle>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setIsEditing(!isEditing)}
+          data-testid="button-edit-contacts"
+        >
+          <Edit className="h-4 w-4" />
+        </Button>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {isEditing ? (
+          <div className="space-y-3">
+            <div>
+              <Label>Nome</Label>
+              <Input
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="Nome proprietario"
+                data-testid="input-contact-name"
+              />
+            </div>
+            <div>
+              <Label>Telefono</Label>
+              <Input
+                value={editPhone}
+                onChange={(e) => setEditPhone(e.target.value)}
+                placeholder="es. 3357262126"
+                data-testid="input-contact-phone"
+              />
+            </div>
+            <div>
+              <Label>Email</Label>
+              <Input
+                value={editEmail}
+                onChange={(e) => setEditEmail(e.target.value)}
+                placeholder="email@esempio.it"
+                data-testid="input-contact-email"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={handleSave} disabled={updateMutation.isPending} data-testid="button-save-contacts">
+                <Check className="h-4 w-4 mr-1" />
+                Salva
+              </Button>
+              <Button variant="outline" onClick={() => setIsEditing(false)} data-testid="button-cancel-edit">
+                Annulla
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {immobile.contattoNome && (
+              <div>
+                <p className="text-sm text-muted-foreground">Nome</p>
+                <p className="font-medium">{immobile.contattoNome}</p>
+              </div>
+            )}
+
+            {immobile.contattoTelefono ? (
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Telefono</p>
+                  <a href={`tel:${immobile.contattoTelefono}`} className="font-medium flex items-center gap-2 text-primary hover:underline">
+                    <Phone className="h-4 w-4" />
+                    {immobile.contattoTelefono}
+                  </a>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => copyToClipboard(immobile.contattoTelefono!, "Telefono")}
+                  data-testid="button-copy-phone"
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">Telefono non disponibile</p>
+                <Button variant="outline" size="sm" onClick={() => setIsEditing(true)} data-testid="button-add-phone">
+                  <Plus className="h-4 w-4 mr-1" />
+                  Aggiungi
+                </Button>
+              </div>
+            )}
+
+            {immobile.contattoEmail && (
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Email</p>
+                  <a href={`mailto:${immobile.contattoEmail}`} className="font-medium flex items-center gap-2 text-primary hover:underline">
+                    <Mail className="h-4 w-4" />
+                    {immobile.contattoEmail}
+                  </a>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => copyToClipboard(immobile.contattoEmail!, "Email")}
+                  data-testid="button-copy-email"
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+
+            {cliente && (
+              <>
+                <Separator />
+                <div>
+                  <p className="text-sm text-muted-foreground mb-2">Cliente Collegato</p>
+                  <Link href={`/clienti/${cliente.id}`}>
+                    <div className="flex items-center gap-3 p-3 bg-muted rounded-md hover-elevate cursor-pointer">
+                      <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+                        <User className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="font-medium">{cliente.nome} {cliente.cognome}</p>
+                        <p className="text-sm text-muted-foreground">{cliente.tipoCliente}</p>
+                      </div>
+                    </div>
+                  </Link>
+                </div>
+              </>
+            )}
+
+            {!immobile.contattoNome && !immobile.contattoTelefono && !immobile.contattoEmail && !cliente && (
+              <div className="text-center py-4">
+                <p className="text-muted-foreground text-sm mb-2">Nessun contatto disponibile</p>
+                <Button variant="outline" size="sm" onClick={() => setIsEditing(true)} data-testid="button-add-contacts">
+                  <Plus className="h-4 w-4 mr-1" />
+                  Aggiungi contatti
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 function PropertyHeader({ immobile }: { immobile: ImmobileEsterno }) {
   const { toast } = useToast();
@@ -368,77 +563,7 @@ function TabDettagli({ immobile }: { immobile: ImmobileEsterno }) {
       </div>
 
       <div className="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Contatti Proprietario</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {immobile.contattoNome && (
-              <div>
-                <p className="text-sm text-muted-foreground">Nome</p>
-                <p className="font-medium">{immobile.contattoNome}</p>
-              </div>
-            )}
-
-            {immobile.contattoTelefono && (
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Telefono</p>
-                  <p className="font-medium flex items-center gap-2">
-                    <Phone className="h-4 w-4" />
-                    {immobile.contattoTelefono}
-                  </p>
-                </div>
-                <div className="flex gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => copyToClipboard(immobile.contattoTelefono!, "Telefono")}
-                    data-testid="button-copy-phone"
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                  <a href={`tel:${immobile.contattoTelefono}`}>
-                    <Button variant="ghost" size="icon" data-testid="button-call">
-                      <Phone className="h-4 w-4" />
-                    </Button>
-                  </a>
-                </div>
-              </div>
-            )}
-
-            {immobile.contattoEmail && (
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Email</p>
-                  <p className="font-medium flex items-center gap-2">
-                    <Mail className="h-4 w-4" />
-                    {immobile.contattoEmail}
-                  </p>
-                </div>
-                <div className="flex gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => copyToClipboard(immobile.contattoEmail!, "Email")}
-                    data-testid="button-copy-email"
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                  <a href={`mailto:${immobile.contattoEmail}`}>
-                    <Button variant="ghost" size="icon" data-testid="button-email">
-                      <Mail className="h-4 w-4" />
-                    </Button>
-                  </a>
-                </div>
-              </div>
-            )}
-
-            {!immobile.contattoNome && !immobile.contattoTelefono && !immobile.contattoEmail && (
-              <p className="text-muted-foreground text-sm">Nessun contatto disponibile</p>
-            )}
-          </CardContent>
-        </Card>
+        <ContactCard immobile={immobile} />
 
         <Card>
           <CardHeader>

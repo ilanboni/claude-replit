@@ -1177,8 +1177,6 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         return res.status(400).json({ error: "Dati non validi", details: parsed.error });
       }
       
-      const immobile = await storage.createImmobileEsterno(parsed.data);
-      
       // Auto-create prospect client if we have contact info (phone or email required)
       let clienteProspect = null;
       const { contattoTelefono, contattoEmail } = parsed.data;
@@ -1215,7 +1213,7 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
               compleanno: "",
               religione: "",
               tipoCliente: "venditore",
-              note: `Prospect da acquisizione: ${immobile.titolo}`,
+              note: `Prospect da acquisizione: ${parsed.data.titolo}`,
               ratingCliente: 1,
               attivo: true,
             });
@@ -1226,6 +1224,13 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
           clienteProspect = esistente;
         }
       }
+      
+      // Create immobile with clienteId if we have a prospect
+      const immobileData = clienteProspect 
+        ? { ...parsed.data, clienteId: clienteProspect.id }
+        : parsed.data;
+      
+      const immobile = await storage.createImmobileEsterno(immobileData);
       
       res.status(201).json({ immobile, clienteProspect });
     } catch (error) {
