@@ -161,13 +161,17 @@ function ParseAnnuncioForm({ onSuccess }: { onSuccess: () => void }) {
       });
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (result: { immobile: any; clienteProspect: any }) => {
+      const hasProspect = result.clienteProspect;
       toast({
         title: "Immobile salvato",
-        description: "L'immobile è stato aggiunto alla lista",
+        description: hasProspect 
+          ? `Immobile aggiunto e cliente prospect "${result.clienteProspect.nome} ${result.clienteProspect.cognome}" creato`
+          : "L'immobile e stato aggiunto alla lista",
       });
       resetForm();
       queryClient.invalidateQueries({ queryKey: ["/api/acquisizione"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/clienti"] });
       onSuccess();
     },
     onError: () => {

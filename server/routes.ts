@@ -1048,8 +1048,54 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
       if (!parsed.success) {
         return res.status(400).json({ error: "Dati non validi", details: parsed.error });
       }
+      
       const immobile = await storage.createImmobileEsterno(parsed.data);
-      res.status(201).json(immobile);
+      
+      // Auto-create prospect client if we have contact info (phone or email required)
+      let clienteProspect = null;
+      const { contattoNome, contattoTelefono, contattoEmail } = parsed.data;
+      const normalizedPhone = contattoTelefono?.replace(/\s+/g, '').trim();
+      const normalizedEmail = contattoEmail?.toLowerCase().trim();
+      
+      if (normalizedPhone || normalizedEmail) {
+        // Parse name into nome/cognome
+        const nameParts = (contattoNome || "Proprietario").trim().split(" ");
+        const nome = nameParts[0] || "Proprietario";
+        const cognome = nameParts.slice(1).join(" ") || "";
+        
+        // Check if client with same phone/email already exists
+        const esistenti = await storage.getClienti();
+        const esistente = esistenti.find(c => {
+          const clientPhone = c.telefono?.replace(/\s+/g, '').trim();
+          const clientEmail = c.email?.toLowerCase().trim();
+          return (normalizedPhone && clientPhone === normalizedPhone) ||
+                 (normalizedEmail && clientEmail === normalizedEmail);
+        });
+        
+        if (!esistente) {
+          try {
+            clienteProspect = await storage.createCliente({
+              appellativo: "",
+              nome,
+              cognome: cognome || "Sconosciuto",
+              telefono: normalizedPhone || "",
+              email: normalizedEmail || "",
+              compleanno: "",
+              religione: "",
+              tipoCliente: "venditore",
+              note: `Prospect da acquisizione: ${immobile.titolo}`,
+              ratingCliente: 1,
+              attivo: true,
+            });
+          } catch (e) {
+            console.log("Could not create prospect client:", e);
+          }
+        } else {
+          clienteProspect = esistente;
+        }
+      }
+      
+      res.status(201).json({ immobile, clienteProspect });
     } catch (error) {
       console.error("Create acquisizione error:", error);
       res.status(500).json({ error: "Errore nella creazione dell'immobile" });
