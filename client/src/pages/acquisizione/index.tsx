@@ -868,8 +868,13 @@ function ImmobileEsternoCard({
                 {immobile.contattoTelefono && (
                   <div className="flex items-center gap-2">
                     <Phone className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-mono">{immobile.contattoTelefono}</span>
-                    <Button size="icon" variant="ghost" className="h-6 w-6" onClick={copyPhone}>
+                    <a 
+                      href={`tel:${immobile.contattoTelefono}`}
+                      className="font-mono text-primary hover:underline"
+                    >
+                      {immobile.contattoTelefono}
+                    </a>
+                    <Button size="icon" variant="ghost" onClick={copyPhone}>
                       {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
                     </Button>
                   </div>
@@ -914,6 +919,22 @@ function ImmobileEsternoCard({
             Vedi Scheda
           </Button>
         </Link>
+        {immobile.urlAnnuncio && (
+          <a 
+            href={immobile.urlAnnuncio} 
+            target="_blank" 
+            rel="noopener noreferrer"
+          >
+            <Button 
+              variant="outline" 
+              size="sm"
+              data-testid={`button-link-${immobile.id}`}
+            >
+              <ExternalLink className="h-4 w-4 mr-1" />
+              Annuncio
+            </Button>
+          </a>
+        )}
         <Button 
           variant="outline" 
           size="sm"
