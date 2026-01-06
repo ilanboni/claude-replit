@@ -63,6 +63,9 @@ Preferred communication style: Simple, everyday language.
 - `appuntamenti` - Scheduled appointments with clients and properties
 - `matching` - AI-generated property-to-request matches with scores
 - `conversations` / `messages` - AI chat conversation storage
+- `whatsapp_campaigns` - WhatsApp acquisition campaigns for private sellers
+- `campaign_messages` - Individual messages sent in campaigns with tracking
+- `bot_conversation_logs` - AI chatbot conversation logs with intent analysis
 
 **Migrations:** Managed via Drizzle Kit with `drizzle-kit push` command
 
@@ -73,6 +76,8 @@ Preferred communication style: Simple, everyday language.
 **Capabilities:**
 - Natural language parsing of buyer requests to structured data
 - Property matching score calculation
+- WhatsApp chatbot (Dott. Ilan Boni persona) for acquisition conversations
+- Intent analysis and objection handling for real estate negotiations
 - AI coach messaging for agent guidance
 - Image generation support
 - Conversational chat interface

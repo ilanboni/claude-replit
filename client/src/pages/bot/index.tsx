@@ -97,36 +97,36 @@ export default function BotPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
+        <Card data-testid="card-campagne-attive">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Campagne Attive</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{activeCampaigns.length}</div>
+            <div className="text-2xl font-bold" data-testid="text-campagne-attive">{activeCampaigns.length}</div>
           </CardContent>
         </Card>
-        <Card>
+        <Card data-testid="card-conversazioni-attive">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Conversazioni Attive</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{activeConversations.length}</div>
+            <div className="text-2xl font-bold" data-testid="text-conversazioni-attive">{activeConversations.length}</div>
           </CardContent>
         </Card>
-        <Card>
+        <Card data-testid="card-proprietari-contattabili">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Proprietari Contattabili</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{propertiesWithPhone.length}</div>
+            <div className="text-2xl font-bold" data-testid="text-proprietari-contattabili">{propertiesWithPhone.length}</div>
           </CardContent>
         </Card>
-        <Card>
+        <Card data-testid="card-risposte-totali">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Risposte Totali</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{conversations.filter(c => c.response).length}</div>
+            <div className="text-2xl font-bold" data-testid="text-risposte-totali">{conversations.filter(c => c.response).length}</div>
           </CardContent>
         </Card>
       </div>

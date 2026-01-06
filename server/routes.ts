@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { 
   insertClienteSchema, insertRichiestaSchema, insertImmobileSchema,
   insertComunicazioneSchema, insertAppuntamentoSchema, insertMatchingSchema,
-  insertImmobileEsternoSchema
+  insertImmobileEsternoSchema, insertWhatsappCampaignSchema, insertCampaignMessageSchema
 } from "@shared/schema";
 import { parseRequestWithAI, calculateMatchScore, generateAICoachMessage, parsePropertyListingWithAI, parsePropertyImageWithAI, generateAcquisitionMessage } from "./ai-service";
 import { exec } from "child_process";
@@ -1335,6 +1335,128 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
     } catch (error) {
       console.error("Toggle preferito error:", error);
       res.status(500).json({ error: "Errore nell'aggiornamento dello stato preferito" });
+    }
+  });
+
+  // ==================== WHATSAPP CAMPAIGNS ====================
+  
+  // Get all campaigns
+  app.get("/api/whatsapp-campaigns", async (req, res) => {
+    try {
+      const campaigns = await storage.getWhatsappCampaigns();
+      res.json(campaigns);
+    } catch (error) {
+      console.error("Get campaigns error:", error);
+      res.status(500).json({ error: "Errore nel caricamento delle campagne" });
+    }
+  });
+
+  // Get single campaign
+  app.get("/api/whatsapp-campaigns/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const campaign = await storage.getWhatsappCampaign(id);
+      if (!campaign) {
+        return res.status(404).json({ error: "Campagna non trovata" });
+      }
+      res.json(campaign);
+    } catch (error) {
+      console.error("Get campaign error:", error);
+      res.status(500).json({ error: "Errore nel caricamento della campagna" });
+    }
+  });
+
+  // Create campaign
+  app.post("/api/whatsapp-campaigns", async (req, res) => {
+    try {
+      const parsed = insertWhatsappCampaignSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Dati non validi", details: parsed.error });
+      }
+      const campaign = await storage.createWhatsappCampaign(parsed.data);
+      res.status(201).json(campaign);
+    } catch (error) {
+      console.error("Create campaign error:", error);
+      res.status(500).json({ error: "Errore nella creazione della campagna" });
+    }
+  });
+
+  // Update campaign
+  app.patch("/api/whatsapp-campaigns/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const parsed = insertWhatsappCampaignSchema.partial().safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Dati non validi", details: parsed.error });
+      }
+      const campaign = await storage.updateWhatsappCampaign(id, parsed.data);
+      if (!campaign) {
+        return res.status(404).json({ error: "Campagna non trovata" });
+      }
+      res.json(campaign);
+    } catch (error) {
+      console.error("Update campaign error:", error);
+      res.status(500).json({ error: "Errore nell'aggiornamento della campagna" });
+    }
+  });
+
+  // Delete campaign
+  app.delete("/api/whatsapp-campaigns/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteWhatsappCampaign(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Delete campaign error:", error);
+      res.status(500).json({ error: "Errore nell'eliminazione della campagna" });
+    }
+  });
+
+  // ==================== CAMPAIGN MESSAGES ====================
+
+  // Get campaign messages (with optional filters)
+  app.get("/api/campaign-messages", async (req, res) => {
+    try {
+      const campaignId = req.query.campaignId ? parseInt(req.query.campaignId as string) : undefined;
+      const hasResponse = req.query.hasResponse === "true";
+      
+      let messages = await storage.getCampaignMessages(campaignId);
+      
+      if (hasResponse) {
+        messages = messages.filter(m => m.response);
+      }
+      
+      res.json(messages);
+    } catch (error) {
+      console.error("Get messages error:", error);
+      res.status(500).json({ error: "Errore nel caricamento dei messaggi" });
+    }
+  });
+
+  // Get single message
+  app.get("/api/campaign-messages/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const message = await storage.getCampaignMessage(id);
+      if (!message) {
+        return res.status(404).json({ error: "Messaggio non trovato" });
+      }
+      res.json(message);
+    } catch (error) {
+      console.error("Get message error:", error);
+      res.status(500).json({ error: "Errore nel caricamento del messaggio" });
+    }
+  });
+
+  // Get conversation logs for a message
+  app.get("/api/campaign-messages/:id/logs", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const logs = await storage.getBotConversationLogs(id);
+      res.json(logs);
+    } catch (error) {
+      console.error("Get logs error:", error);
+      res.status(500).json({ error: "Errore nel caricamento dei log" });
     }
   });
 }

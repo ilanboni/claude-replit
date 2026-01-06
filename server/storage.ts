@@ -1,6 +1,7 @@
 import { 
   clienti, richieste, immobili, comunicazioni, appuntamenti, matching, immobiliEsterni,
   attivitaImmobile, documentiImmobile, portaliImmobile, storicoPrezzo,
+  whatsappCampaigns, campaignMessages, botConversationLogs,
   type Cliente, type InsertCliente,
   type Richiesta, type InsertRichiesta,
   type Immobile, type InsertImmobile,
@@ -12,6 +13,9 @@ import {
   type DocumentoImmobile, type InsertDocumentoImmobile,
   type PortaleImmobile, type InsertPortaleImmobile,
   type StoricoPrezzo, type InsertStoricoPrezzo,
+  type WhatsappCampaign, type InsertWhatsappCampaign,
+  type CampaignMessage, type InsertCampaignMessage,
+  type BotConversationLog, type InsertBotConversationLog,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql } from "drizzle-orm";
@@ -94,6 +98,24 @@ export interface IStorage {
 
   // Matching per Immobile
   getMatchingByImmobile(immobileId: number): Promise<Matching[]>;
+
+  // WhatsApp Campaigns
+  getWhatsappCampaigns(): Promise<WhatsappCampaign[]>;
+  getWhatsappCampaign(id: number): Promise<WhatsappCampaign | undefined>;
+  createWhatsappCampaign(data: InsertWhatsappCampaign): Promise<WhatsappCampaign>;
+  updateWhatsappCampaign(id: number, data: Partial<InsertWhatsappCampaign>): Promise<WhatsappCampaign | undefined>;
+  deleteWhatsappCampaign(id: number): Promise<boolean>;
+
+  // Campaign Messages
+  getCampaignMessages(campaignId?: number): Promise<CampaignMessage[]>;
+  getCampaignMessage(id: number): Promise<CampaignMessage | undefined>;
+  getCampaignMessagesByPhone(phoneNumber: string): Promise<CampaignMessage[]>;
+  createCampaignMessage(data: InsertCampaignMessage): Promise<CampaignMessage>;
+  updateCampaignMessage(id: number, data: Partial<InsertCampaignMessage>): Promise<CampaignMessage | undefined>;
+
+  // Bot Conversation Logs
+  getBotConversationLogs(campaignMessageId: number): Promise<BotConversationLog[]>;
+  createBotConversationLog(data: InsertBotConversationLog): Promise<BotConversationLog>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -385,6 +407,68 @@ export class DatabaseStorage implements IStorage {
   // Matching per Immobile
   async getMatchingByImmobile(immobileId: number): Promise<Matching[]> {
     return db.select().from(matching).where(eq(matching.immobileId, immobileId)).orderBy(desc(matching.punteggio));
+  }
+
+  // WhatsApp Campaigns
+  async getWhatsappCampaigns(): Promise<WhatsappCampaign[]> {
+    return db.select().from(whatsappCampaigns).orderBy(desc(whatsappCampaigns.createdAt));
+  }
+
+  async getWhatsappCampaign(id: number): Promise<WhatsappCampaign | undefined> {
+    const [campaign] = await db.select().from(whatsappCampaigns).where(eq(whatsappCampaigns.id, id));
+    return campaign;
+  }
+
+  async createWhatsappCampaign(data: InsertWhatsappCampaign): Promise<WhatsappCampaign> {
+    const [campaign] = await db.insert(whatsappCampaigns).values(data).returning();
+    return campaign;
+  }
+
+  async updateWhatsappCampaign(id: number, data: Partial<InsertWhatsappCampaign>): Promise<WhatsappCampaign | undefined> {
+    const [campaign] = await db.update(whatsappCampaigns).set(data).where(eq(whatsappCampaigns.id, id)).returning();
+    return campaign;
+  }
+
+  async deleteWhatsappCampaign(id: number): Promise<boolean> {
+    await db.delete(whatsappCampaigns).where(eq(whatsappCampaigns.id, id));
+    return true;
+  }
+
+  // Campaign Messages
+  async getCampaignMessages(campaignId?: number): Promise<CampaignMessage[]> {
+    if (campaignId) {
+      return db.select().from(campaignMessages).where(eq(campaignMessages.campaignId, campaignId)).orderBy(desc(campaignMessages.createdAt));
+    }
+    return db.select().from(campaignMessages).orderBy(desc(campaignMessages.createdAt));
+  }
+
+  async getCampaignMessage(id: number): Promise<CampaignMessage | undefined> {
+    const [message] = await db.select().from(campaignMessages).where(eq(campaignMessages.id, id));
+    return message;
+  }
+
+  async getCampaignMessagesByPhone(phoneNumber: string): Promise<CampaignMessage[]> {
+    return db.select().from(campaignMessages).where(eq(campaignMessages.phoneNumber, phoneNumber)).orderBy(desc(campaignMessages.createdAt));
+  }
+
+  async createCampaignMessage(data: InsertCampaignMessage): Promise<CampaignMessage> {
+    const [message] = await db.insert(campaignMessages).values(data).returning();
+    return message;
+  }
+
+  async updateCampaignMessage(id: number, data: Partial<InsertCampaignMessage>): Promise<CampaignMessage | undefined> {
+    const [message] = await db.update(campaignMessages).set(data).where(eq(campaignMessages.id, id)).returning();
+    return message;
+  }
+
+  // Bot Conversation Logs
+  async getBotConversationLogs(campaignMessageId: number): Promise<BotConversationLog[]> {
+    return db.select().from(botConversationLogs).where(eq(botConversationLogs.campaignMessageId, campaignMessageId)).orderBy(desc(botConversationLogs.createdAt));
+  }
+
+  async createBotConversationLog(data: InsertBotConversationLog): Promise<BotConversationLog> {
+    const [log] = await db.insert(botConversationLogs).values(data).returning();
+    return log;
   }
 }
 
