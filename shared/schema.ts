@@ -128,12 +128,42 @@ export const immobili = pgTable("immobili", {
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
+// WHATSAPP CONVERSATIONS - Conversazioni WhatsApp per numero
+export const whatsappConversations = pgTable("whatsapp_conversations", {
+  id: serial("id").primaryKey(),
+  phoneNumber: text("phone_number").notNull().unique(),
+  clienteId: integer("cliente_id").references(() => clienti.id, { onDelete: "set null" }),
+  immobileId: integer("immobile_id").references(() => immobili.id, { onDelete: "set null" }),
+  nome: text("nome"),
+  ultimoMessaggio: text("ultimo_messaggio"),
+  ultimoMessaggioData: timestamp("ultimo_messaggio_data").default(sql`CURRENT_TIMESTAMP`),
+  nonLetti: integer("non_letti").default(0),
+  stato: text("stato").default("attivo"), // attivo, archiviato, bloccato
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// WHATSAPP MESSAGES - Messaggi WhatsApp
+export const whatsappMessages = pgTable("whatsapp_messages", {
+  id: serial("id").primaryKey(),
+  conversationId: integer("conversation_id").notNull().references(() => whatsappConversations.id, { onDelete: "cascade" }),
+  whatsappMessageId: text("whatsapp_message_id"),
+  direction: text("direction").notNull(), // inbound, outbound
+  messageType: text("message_type").default("text"), // text, image, document, audio, video
+  content: text("content").notNull(),
+  mediaUrl: text("media_url"),
+  status: text("status").default("sent"), // pending, sent, delivered, read, failed
+  statusTimestamp: timestamp("status_timestamp"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
 // COMUNICAZIONI - Communications
 export const comunicazioni = pgTable("comunicazioni", {
   id: serial("id").primaryKey(),
   clienteId: integer("cliente_id").references(() => clienti.id, { onDelete: "cascade" }),
   immobileId: integer("immobile_id").references(() => immobili.id, { onDelete: "set null" }),
   immobileEsternoId: integer("immobile_esterno_id").references(() => immobiliEsterni.id, { onDelete: "set null" }),
+  whatsappMessageId: integer("whatsapp_message_id").references(() => whatsappMessages.id, { onDelete: "set null" }),
   tipo: text("tipo").notNull().default("nota"), // proposta, richiesta, risposta, followup, auguri, nota
   testo: text("testo").notNull(),
   canale: text("canale").default("sistema"), // whatsapp, email, telefono, sistema
@@ -368,6 +398,17 @@ export const storicoPrezzoRelations = relations(storicoPrezzo, ({ one }) => ({
 export const comunicazioniRelations = relations(comunicazioni, ({ one }) => ({
   cliente: one(clienti, { fields: [comunicazioni.clienteId], references: [clienti.id] }),
   immobile: one(immobili, { fields: [comunicazioni.immobileId], references: [immobili.id] }),
+  whatsappMessage: one(whatsappMessages, { fields: [comunicazioni.whatsappMessageId], references: [whatsappMessages.id] }),
+}));
+
+export const whatsappConversationsRelations = relations(whatsappConversations, ({ one, many }) => ({
+  cliente: one(clienti, { fields: [whatsappConversations.clienteId], references: [clienti.id] }),
+  immobile: one(immobili, { fields: [whatsappConversations.immobileId], references: [immobili.id] }),
+  messages: many(whatsappMessages),
+}));
+
+export const whatsappMessagesRelations = relations(whatsappMessages, ({ one }) => ({
+  conversation: one(whatsappConversations, { fields: [whatsappMessages.conversationId], references: [whatsappConversations.id] }),
 }));
 
 export const appuntamentiRelations = relations(appuntamenti, ({ one }) => ({
@@ -561,3 +602,12 @@ export type InsertCampaignMessage = z.infer<typeof insertCampaignMessageSchema>;
 export const insertBotConversationLogSchema = createInsertSchema(botConversationLogs).omit({ id: true, createdAt: true });
 export type BotConversationLog = typeof botConversationLogs.$inferSelect;
 export type InsertBotConversationLog = z.infer<typeof insertBotConversationLogSchema>;
+
+// WhatsApp Chat types
+export const insertWhatsappConversationSchema = createInsertSchema(whatsappConversations).omit({ id: true, createdAt: true, updatedAt: true });
+export type WhatsappConversation = typeof whatsappConversations.$inferSelect;
+export type InsertWhatsappConversation = z.infer<typeof insertWhatsappConversationSchema>;
+
+export const insertWhatsappMessageSchema = createInsertSchema(whatsappMessages).omit({ id: true, createdAt: true });
+export type WhatsappMessage = typeof whatsappMessages.$inferSelect;
+export type InsertWhatsappMessage = z.infer<typeof insertWhatsappMessageSchema>;
