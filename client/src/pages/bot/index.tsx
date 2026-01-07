@@ -7,6 +7,13 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { 
   Bot, 
   Send, 
@@ -20,7 +27,11 @@ import {
   Pause,
   Eye,
   RefreshCw,
-  User
+  User,
+  X,
+  FileText,
+  Target,
+  Settings
 } from "lucide-react";
 import type { WhatsappCampaign, CampaignMessage, ImmobileEsterno } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
@@ -41,6 +52,7 @@ export default function BotPage() {
   const [activeTab, setActiveTab] = useState("acquisizione");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState("");
+  const [selectedCampaign, setSelectedCampaign] = useState<WhatsappCampaign | null>(null);
   const [propertyContext, setPropertyContext] = useState<PropertyContext>({
     titolo: "Trilocale luminoso zona Navigli",
     testoAnnuncio: `VENDESI TRILOCALE LUMINOSO ZONA NAVIGLI
@@ -365,7 +377,12 @@ Assistente del Dott. Ilan Boni`,
                               Pausa
                             </Button>
                           )}
-                          <Button size="sm" variant="outline" data-testid={`button-view-campaign-${campaign.id}`}>
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            onClick={() => setSelectedCampaign(campaign)}
+                            data-testid={`button-view-campaign-${campaign.id}`}
+                          >
                             Dettagli
                           </Button>
                         </div>
@@ -636,6 +653,115 @@ Assistente del Dott. Ilan Boni`,
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Dialog Dettagli Campagna */}
+      <Dialog open={!!selectedCampaign} onOpenChange={(open) => !open && setSelectedCampaign(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Target className="h-5 w-5" />
+              {selectedCampaign?.name}
+            </DialogTitle>
+            <DialogDescription>
+              Dettagli e configurazione della campagna
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedCampaign && (
+            <ScrollArea className="flex-1 pr-4">
+              <div className="space-y-6">
+                {/* Statistiche */}
+                <div className="grid grid-cols-4 gap-4">
+                  <Card>
+                    <CardContent className="pt-4">
+                      <div className="text-2xl font-bold">{selectedCampaign.totalTargets || 0}</div>
+                      <div className="text-xs text-muted-foreground">Destinatari</div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="pt-4">
+                      <div className="text-2xl font-bold">{selectedCampaign.sentCount || 0}</div>
+                      <div className="text-xs text-muted-foreground">Inviati</div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="pt-4">
+                      <div className="text-2xl font-bold">{selectedCampaign.respondedCount || 0}</div>
+                      <div className="text-xs text-muted-foreground">Risposte</div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="pt-4">
+                      <div className="text-2xl font-bold">{selectedCampaign.convertedCount || 0}</div>
+                      <div className="text-xs text-muted-foreground">Convertiti</div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Template Messaggio */}
+                <div className="space-y-2">
+                  <h3 className="font-semibold flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    Template Messaggio Iniziale
+                  </h3>
+                  <div className="bg-muted p-4 rounded-lg text-sm whitespace-pre-wrap max-h-[200px] overflow-y-auto">
+                    {selectedCampaign.template}
+                  </div>
+                </div>
+
+                {/* Istruzioni Bot */}
+                {selectedCampaign.instructions && (
+                  <div className="space-y-2">
+                    <h3 className="font-semibold flex items-center gap-2">
+                      <Settings className="h-4 w-4" />
+                      Istruzioni per il Bot
+                    </h3>
+                    <div className="bg-muted p-4 rounded-lg text-sm whitespace-pre-wrap max-h-[300px] overflow-y-auto">
+                      {selectedCampaign.instructions}
+                    </div>
+                  </div>
+                )}
+
+                {/* Gestione Obiezioni */}
+                {selectedCampaign.objectionHandling && Object.keys(selectedCampaign.objectionHandling).length > 0 && (
+                  <div className="space-y-2">
+                    <h3 className="font-semibold flex items-center gap-2">
+                      <MessageCircle className="h-4 w-4" />
+                      Gestione Obiezioni ({Object.keys(selectedCampaign.objectionHandling).length})
+                    </h3>
+                    <div className="space-y-3">
+                      {Object.entries(selectedCampaign.objectionHandling).map(([key, handler]: [string, any]) => (
+                        <div key={key} className="border rounded-lg p-3">
+                          <div className="font-medium text-sm mb-1">{key.replace(/_/g, ' ').toUpperCase()}</div>
+                          <div className="text-xs text-muted-foreground mb-2">
+                            Trigger: {handler.triggers?.join(', ')}
+                          </div>
+                          <div className="text-sm bg-muted p-2 rounded">
+                            {handler.responses?.[0]?.substring(0, 200)}...
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Follow-up Template */}
+                {selectedCampaign.followUpTemplate && (
+                  <div className="space-y-2">
+                    <h3 className="font-semibold flex items-center gap-2">
+                      <RefreshCw className="h-4 w-4" />
+                      Template Follow-up (dopo {selectedCampaign.followUpDelayDays || 3} giorni)
+                    </h3>
+                    <div className="bg-muted p-4 rounded-lg text-sm whitespace-pre-wrap">
+                      {selectedCampaign.followUpTemplate}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </ScrollArea>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
