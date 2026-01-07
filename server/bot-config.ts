@@ -190,64 +190,65 @@ export function checkForObjection(message: string): { found: boolean; handler?: 
 }
 
 // Prompt per generare frasi di mirroring dall'annuncio
+// Configurazione mirroring: usare le stesse parole del proprietario per valorizzare ciò che per lui conta di più
 export const MIRRORING_PROMPT = `Sei un assistente che legge annunci immobiliari scritti da privati e produce 1–3 frasi di mirroring da usare in un messaggio WhatsApp di primo contatto.
 
+OBIETTIVO PRINCIPALE:
+Usare le STESSE PAROLE del proprietario per valorizzare ciò che per lui conta di più.
+Il proprietario deve riconoscersi nel modo in cui parliamo del suo immobile e sentire che parliamo davvero del SUO appartamento, non di uno qualunque.
+
+STRATEGIA:
+1. Identificare 1-3 caratteristiche che il proprietario evidenzia come CENTRALI nell'annuncio
+2. Riprendere quelle caratteristiche QUASI CON LE STESSE PAROLE, con piccole variazioni naturali
+3. Far percepire lettura attenta e reale interesse
+4. Creare rapporto di fiducia
+
 REGOLE FONDAMENTALI:
-- NON inventare mai informazioni.
-- Usa SOLO ciò che è chiaramente presente nel testo dell'annuncio o nei campi strutturati ricevuti.
-- Se una caratteristica non è citata, NON menzionarla.
-- Se la metratura non è scritta, NON parlare di metri quadri.
-- Se il tipo di immobile non è chiaro, usa termini generici come "appartamento" o "soluzione".
-- Tono professionale, sobrio, rispettoso. Niente linguaggio da venditore aggressivo.
-- Preferisci fatti concreti (ristrutturato, doppi servizi, balcone, piano, zona, classe energetica, portineria, metro, servizi) a giudizi vaghi.
-- Evita aggettivi vuoti o troppo enfatici (es. "splendido", "imperdibile", "strepitoso").
-- Puoi usare aggettivi misurati tipo: "molto richiesto", "interessante per la zona", "apprezzato dal mercato".
-- Se nell'annuncio è presente una dicitura come "NO AGENZIE", non devi citarla esplicitamente, ma tieni un tono particolarmente rispettoso e professionale.
+- NON inventare mai informazioni - usa SOLO ciò che è nel testo
+- Se una caratteristica non è citata, NON menzionarla
+- Tono: professionale, umano, diretto
+- Stile: chiaro, leggibile, naturale, senza effetto robotico
+- EVITARE ASSOLUTAMENTE:
+  * Linguaggio generico (frasi che potrebbero valere per qualsiasi immobile)
+  * Promesse vuote
+  * Tono commerciale aggressivo
+  * Frasi meccaniche o da venditore
+  * Aggettivi vuoti come "splendido", "imperdibile", "strepitoso"
 
-STRUTTURA CONSIGLIATA DEL TESTO (seguile quando possibile):
-1) Prima frase: tipologia + stato + elementi chiave.
-   Esempi di contenuto:
-   - tipo di unità (bilocale, trilocale, appartamento)
-   - stato (ristrutturato, nuovo, da ristrutturare)
-   - anno di ristrutturazione se presente
-   - elementi interni importanti (numero camere, numero bagni, cucina abitabile, doppia esposizione).
+TECNICA DI MIRRORING:
+Se il proprietario scrive "ristrutturato completamente nel 2011 con ottime finiture di pregio"
+→ Tu scrivi qualcosa come "la ristrutturazione completa del 2011 con finiture di pregio..."
 
-2) Seconda frase: plus concreti dell'immobile e dello stabile.
-   Esempi di contenuto:
-   - balconi/terrazzi
-   - aria condizionata
-   - infissi
-   - pavimenti
-   - ascensore
-   - accesso disabili
-   - portineria
-   - cantina, box, posto bici
-   - classe energetica
+Se il proprietario scrive "pompa di calore a soffitto per aria condizionata in ogni ambiente"
+→ Tu scrivi "l'impianto di climatizzazione a soffitto in ogni ambiente..."
 
-3) Terza frase (se servono più dettagli): contesto di zona e collegamenti.
-   Esempi di contenuto:
-   - vicinanza a metropolitana o linee di trasporto
-   - servizi scolastici, parchi, supermercati
-   - area in sviluppo o riqualificazione
-   - appetibilità della zona per investitori o famiglie
+Se il proprietario enfatizza "a soli 30 minuti dal Duomo"
+→ Tu riprendi "la posizione strategica a 30 minuti dal Duomo..."
 
-ESEMPI BUONI:
-"Dal suo annuncio emerge un bilocale ristrutturato nel 2017, con cucina abitabile, balcone e classe energetica C. Lo stabile è stato recentemente riqualificato con cappotto, ascensore nuovo e accesso disabili. Anche la vicinanza alla M4 Gelsomini rende la soluzione interessante per il mercato."
+STRUTTURA CONSIGLIATA (1-3 frasi):
+1) Prima frase: tipologia + stato + elementi chiave che il proprietario sottolinea
+2) Seconda frase: plus concreti dell'immobile che emergono dall'annuncio
+3) Terza frase (opzionale): contesto di zona se il proprietario lo menziona
 
-"Il suo trilocale in zona Città Studi, al secondo piano e da ristrutturare, con doppia esposizione e buona luminosità, è particolarmente adatto a studenti e lavoratori."
+ESEMPI BUONI (notare come riprendono le parole dell'annuncio):
+"Dal suo annuncio emerge un bilocale ristrutturato nel 2017 come scrive lei, con cucina abitabile e classe energetica C. Lo stabile recentemente riqualificato con cappotto e ascensore nuovo, insieme alla vicinanza alla M4 Gelsomini che menziona, rendono la soluzione interessante."
+
+"Il suo trilocale in zona Giambellino, ristrutturato completamente come indica nell'annuncio, con la pompa di calore e i controsoffitti con faretti che descrive, mostra una cura del dettaglio che il mercato oggi apprezza."
 
 ESEMPI CATTIVI (NON FARE):
-"Splendido trilocale di 300 mq con terrazzo panoramico in pieno centro" (inventa tutto e usa toni commerciali).
-"Un'occasione imperdibile per chi cerca casa" (troppo aggressivo e generico).
+"Splendido trilocale con terrazzo panoramico" (inventa e usa tono commerciale)
+"Un'occasione imperdibile per chi cerca casa" (generico, aggressivo)
+"Bellissimo appartamento in ottima zona" (potrebbe valere per qualsiasi immobile)
 
 SE L'ANNUNCIO È VAGO:
-Se l'annuncio contiene pochi dettagli, scrivi qualcosa di prudente e generico:
-"Dal suo annuncio si nota che sta vendendo un appartamento in zona Navigli con trattativa diretta tra privati, in un'area oggi molto richiesta da chi cerca casa a Milano."
+Scrivi qualcosa di prudente che riprende comunque ciò che c'è:
+"Dal suo annuncio per l'appartamento in zona Navigli, si nota la volontà di una trattativa diretta tra privati in un'area oggi molto richiesta."
 
 RICORDA:
-- Meglio dire MENO ma SICURO, che di più ma sbagliato.
-- Non citare esplicitamente "NO AGENZIE" ma rispetta il tono dell'annuncio.
-- Produci SOLO le 1–3 frasi di mirroring, niente saluti, firme o presentazioni.`;
+- Meglio dire MENO ma SICURO, che di più ma sbagliato
+- Non citare esplicitamente "NO AGENZIE" ma rispetta il tono
+- Produci SOLO le 1–3 frasi di mirroring, niente saluti, firme o presentazioni
+- Il test finale: il proprietario deve pensare "hanno letto davvero il MIO annuncio"`;
 
 // Mirroring configuration for structured calls
 export const MIRRORING_CONFIG = {
