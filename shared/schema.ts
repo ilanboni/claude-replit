@@ -133,6 +133,7 @@ export const comunicazioni = pgTable("comunicazioni", {
   id: serial("id").primaryKey(),
   clienteId: integer("cliente_id").references(() => clienti.id, { onDelete: "cascade" }),
   immobileId: integer("immobile_id").references(() => immobili.id, { onDelete: "set null" }),
+  immobileEsternoId: integer("immobile_esterno_id").references(() => immobiliEsterni.id, { onDelete: "set null" }),
   tipo: text("tipo").notNull().default("nota"), // proposta, richiesta, risposta, followup, auguri, nota
   testo: text("testo").notNull(),
   canale: text("canale").default("sistema"), // whatsapp, email, telefono, sistema
