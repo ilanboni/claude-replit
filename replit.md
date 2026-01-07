@@ -24,6 +24,12 @@ Preferred communication style: Simple, everyday language.
   2. `server/ai-service.ts` - funzione generateMirroring
   3. `server/routes.ts` - endpoint generate-initial-message (se usa parametri diversi)
 
+**Flusso auto-popolamento annunci:**
+- `extractPropertyFacts()` in ai-service.ts estrae 18+ campi strutturati da testo annuncio (temperature 0)
+- POST /api/acquisizione chiama extractPropertyFacts e popola automaticamente camere, bagni, piano, ascensore, balcone, terrazzo, cantina, arredato, box, classe energetica, zona
+- I fatti estratti sono salvati in `caratteristiche.extractedFacts` per il mirroring
+- Gli endpoint generate-message e generate-mirroring usano i fatti estratti per contesto AI coerente
+
 ## System Architecture
 
 ### Frontend Architecture
