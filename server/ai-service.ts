@@ -263,8 +263,44 @@ const EXCLUDED_PHONE_PATTERNS = [
   /^0[0-9]*0{4,}/, // Numeri con 4+ zeri consecutivi (probabilmente codici)
 ];
 
+// Known P. IVA numbers from real estate portals (NOT phone numbers!)
+const KNOWN_PIVA_NUMBERS = [
+  '08435221000', // Immobiliare.it P. IVA
+  '05426150481', // Idealista Italia P. IVA
+  '04645850960', // Casa.it P. IVA
+];
+
+// Check if a number appears near "P. IVA" or similar markers in text
+function isNumberNearPIVA(phone: string, text: string): boolean {
+  const patterns = [
+    /P\.\s*IVA\s*[\d\s.-]*/gi,
+    /P\.IVA\s*[\d\s.-]*/gi,
+    /Partita\s*IVA\s*[\d\s.-]*/gi,
+    /VAT\s*[\d\s.-]*/gi,
+    /C\.F\.\s*[\d\s.-]*/gi,
+    /Codice\s*Fiscale\s*[\d\s.-]*/gi,
+  ];
+  
+  const phoneDigits = phone.replace(/\D/g, '');
+  
+  for (const pattern of patterns) {
+    const matches = text.match(pattern);
+    if (matches) {
+      for (const match of matches) {
+        const matchDigits = match.replace(/\D/g, '');
+        if (matchDigits === phoneDigits || matchDigits.includes(phoneDigits)) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
 // Check if number looks like a reference code (not a real phone)
 function looksLikeReferenceCode(phone: string): boolean {
+  // Known portal P. IVA numbers
+  if (KNOWN_PIVA_NUMBERS.includes(phone)) return true;
   // Contains 4+ consecutive zeros
   if (/0{4,}/.test(phone)) return true;
   // Contains 4+ consecutive same digits
@@ -401,15 +437,21 @@ Rispondi con JSON contenente TUTTI i campi trovati:
   "classeEnergetica": "string A-G",
   "speseCondominiali": number,
   "riscaldamento": "string",
-  "contattoNome": "string - OBBLIGATORIO: nome/agenzia/privato",
-  "contattoTelefono": "string - OBBLIGATORIO SE VISIBILE: numero completo con tutte le cifre",
+  "contattoNome": "string - nome/agenzia/privato",
+  "contattoTelefono": "string - SOLO numero telefono REALE del proprietario (3xx cellulare, 02/06 fisso). MAI partite IVA!",
   "contattoEmail": "string - email se presente",
   "fonte": "string - immobiliare.it/idealista/subito",
   "riferimentoAnnuncio": "string - codice",
   "testoCompleto": "string - TRASCRIVI TUTTO IL TESTO VISIBILE NELL'IMMAGINE"
 }
 
-REGOLA CRITICA: Il campo "testoCompleto" deve contenere OGNI parola e numero che leggi nell'immagine, inclusi numeri di telefono, codici, date. Questo è fondamentale per il backup dell'estrazione.`
+REGOLE CRITICHE TELEFONO:
+1. contattoTelefono deve essere SOLO il numero del proprietario/venditore (inizia con 3xx o 02/06)
+2. NON sono telefoni: "P. IVA", "P.IVA", "Partita IVA", codici riferimento, numeri di servizio
+3. La P.IVA di Immobiliare.it (08435221000) NON è un telefono - IGNORALA SEMPRE
+4. Se l'annuncio dice "telefonare" ma il numero non è visibile, OMETTI contattoTelefono
+
+REGOLA TRASCRIZIONE: Il campo "testoCompleto" deve contenere OGNI parola e numero che leggi nell'immagine.`
         },
         {
           role: "user",
@@ -438,29 +480,46 @@ REGOLA CRITICA: Il campo "testoCompleto" deve contenere OGNI parola e numero che
       
       // Filter invalid phone values
       const invalidPhoneValues = ['non disponibile', 'nascosto', 'privato', 'n/a', 'nd', '-', ''];
-      const isValidPhone = (phone: string | undefined): boolean => {
+      const testoCompleto = parsed.testoCompleto || '';
+      
+      const isValidPhoneFromImage = (phone: string | undefined): boolean => {
         if (!phone) return false;
         const normalized = phone.toLowerCase().replace(/\s+/g, '');
         if (invalidPhoneValues.some(v => normalized === v.replace(/\s+/g, ''))) return false;
-        // Must contain at least 8 digits
         const digits = phone.replace(/\D/g, '');
-        return digits.length >= 8;
+        if (digits.length < 8) return false;
+        // Check if it's a known P.IVA
+        if (KNOWN_PIVA_NUMBERS.includes(digits)) {
+          console.log(`[AI] Rejecting known P.IVA as phone: ${digits}`);
+          return false;
+        }
+        // Check if number appears near P.IVA marker
+        if (isNumberNearPIVA(digits, testoCompleto)) {
+          console.log(`[AI] Rejecting phone near P.IVA marker: ${digits}`);
+          return false;
+        }
+        // Check for reference code patterns
+        if (looksLikeReferenceCode(digits)) {
+          console.log(`[AI] Rejecting reference code as phone: ${digits}`);
+          return false;
+        }
+        return true;
       };
       
       // Post-processing: validate phone or extract from testoCompleto
-      if (!isValidPhone(parsed.contattoTelefono)) {
+      if (!isValidPhoneFromImage(parsed.contattoTelefono)) {
         parsed.contattoTelefono = undefined; // Clear invalid value
-        if (parsed.testoCompleto) {
-          const extractedPhone = extractPhoneFromText(parsed.testoCompleto);
-          if (extractedPhone) {
+        if (testoCompleto) {
+          const extractedPhone = extractPhoneFromText(testoCompleto);
+          if (extractedPhone && !isNumberNearPIVA(extractedPhone, testoCompleto)) {
             console.log(`[AI] Phone extracted via regex fallback: ${extractedPhone}`);
             parsed.contattoTelefono = extractedPhone;
           }
         }
       }
       
-      if (!parsed.contattoEmail && parsed.testoCompleto) {
-        const extractedEmail = extractEmailFromText(parsed.testoCompleto);
+      if (!parsed.contattoEmail && testoCompleto) {
+        const extractedEmail = extractEmailFromText(testoCompleto);
         if (extractedEmail) {
           console.log(`[AI] Email extracted via regex fallback: ${extractedEmail}`);
           parsed.contattoEmail = extractedEmail;
@@ -469,7 +528,7 @@ REGOLA CRITICA: Il campo "testoCompleto" deve contenere OGNI parola e numero che
       
       // Log when phone is missing for monitoring
       if (!parsed.contattoTelefono) {
-        console.log(`[AI] WARNING: No valid phone extracted from image. testoCompleto: ${parsed.testoCompleto?.substring(0, 300)}`);
+        console.log(`[AI] No valid phone found - may be hidden by portal`);
       }
       
       // Clean up internal field
@@ -577,7 +636,7 @@ INFORMAZIONI AGGIUNTIVE:
 
 CONTATTO (PRIORITÀ MASSIMA - CERCALI OVUNQUE):
 - contattoNome: string - nome del venditore/agenzia/privato
-- contattoTelefono: string - numero di telefono COMPLETO (OBBLIGATORIO se presente!)
+- contattoTelefono: string - numero di telefono REALE del proprietario/venditore (NON partite IVA!)
 - contattoEmail: string - email del contatto
 
 META:
@@ -585,8 +644,13 @@ META:
 - dataPubblicazione: string - data pubblicazione (YYYY-MM-DD)
 - riferimentoAnnuncio: string - codice riferimento annuncio
 
-REGOLE CRITICHE:
-1. TELEFONO È LA PRIORITÀ - cerca OVUNQUE nel testo: 3xx, 02x, 06x, +39, anche parzialmente mascherati
+REGOLE CRITICHE TELEFONO:
+1. TELEFONO: cerca numeri che iniziano con 3xx (cellulare) o 02/06 (fisso)
+2. NON SONO TELEFONI: "P. IVA", "P.IVA", "Partita IVA", codici riferimento (es. EK-123456), VAT numbers
+3. Se l'annuncio dice "telefonare" ma NON mostra il numero, contattoTelefono deve essere null/omesso
+4. La P. IVA di Immobiliare.it (08435221000) NON è un telefono - IGNORALA
+
+ALTRE REGOLE:
 2. INDIRIZZO: Cerca "Via/Viale/Piazza/Corso + Nome + Numero"
 3. MQ: Estrai il numero prima di "mq", "m²", "metri"
 4. PIANO: "piano terra"=0, "primo piano"=1, "rialzato"=1
@@ -617,14 +681,30 @@ REGOLE CRITICHE:
         const normalized = phone.toLowerCase().replace(/\s+/g, '');
         if (invalidPhoneValues.some(v => normalized === v.replace(/\s+/g, ''))) return false;
         const digits = phone.replace(/\D/g, '');
-        return digits.length >= 8;
+        if (digits.length < 8) return false;
+        // Check if it's a known P.IVA
+        if (KNOWN_PIVA_NUMBERS.includes(digits)) {
+          console.log(`[AI] Rejecting known P.IVA as phone: ${digits}`);
+          return false;
+        }
+        // Check if number appears near P.IVA marker in text
+        if (isNumberNearPIVA(digits, text)) {
+          console.log(`[AI] Rejecting phone near P.IVA marker: ${digits}`);
+          return false;
+        }
+        // Check for reference code patterns
+        if (looksLikeReferenceCode(digits)) {
+          console.log(`[AI] Rejecting reference code as phone: ${digits}`);
+          return false;
+        }
+        return true;
       };
       
       // Post-processing: validate phone or extract from text
       if (!isValidPhone(parsed.contattoTelefono)) {
         parsed.contattoTelefono = undefined;
         const extractedPhone = extractPhoneFromText(text);
-        if (extractedPhone) {
+        if (extractedPhone && !isNumberNearPIVA(extractedPhone, text)) {
           console.log(`[AI] Phone extracted via regex fallback from text: ${extractedPhone}`);
           parsed.contattoTelefono = extractedPhone;
         }
@@ -636,6 +716,11 @@ REGOLE CRITICHE:
           console.log(`[AI] Email extracted via regex fallback from text: ${extractedEmail}`);
           parsed.contattoEmail = extractedEmail;
         }
+      }
+      
+      // Log when no phone found
+      if (!parsed.contattoTelefono) {
+        console.log(`[AI] No valid phone found - may be hidden by portal`);
       }
       
       return parsed;
