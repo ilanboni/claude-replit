@@ -2228,15 +2228,30 @@ FORMATO RISPOSTE:
         return res.status(200).json({ status: "ok", action: "ack_updated" });
       }
 
-      // Handle incoming message
-      if (data.fromMe === false && data.body) {
-        const phoneNumber = data.from?.replace("@c.us", "").replace(/\D/g, '') || "";
+      // Handle incoming message (from others) or outgoing message sent from phone
+      if (data.body) {
+        const isFromMe = data.fromMe === true;
+        // For outgoing messages, use "to" as the conversation phone; for incoming use "from"
+        const rawPhone = isFromMe 
+          ? (data.to?.replace("@c.us", "") || "")
+          : (data.from?.replace("@c.us", "") || "");
+        const phoneNumber = rawPhone.replace(/\D/g, '');
         const body = data.body;
         const profileName = data.pushname || null;
-        const messageId = data.id || null;
+        const messageId = req.body.id ? String(req.body.id) : (data.sid || null);
 
         if (!phoneNumber) {
           return res.status(200).json({ status: "ignored", reason: "no phone number" });
+        }
+        
+        // Check if this message already exists (avoid duplicates from app-sent messages)
+        const existingConv = await storage.getWhatsappConversationByPhone(phoneNumber);
+        if (existingConv && messageId) {
+          const existingMessages = await storage.getWhatsappMessages(existingConv.id);
+          const alreadyExists = existingMessages.some(m => m.whatsappMessageId === messageId);
+          if (alreadyExists) {
+            return res.status(200).json({ status: "ignored", reason: "duplicate message" });
+          }
         }
 
         // Find or create conversation
@@ -2251,18 +2266,18 @@ FORMATO RISPOSTE:
             phoneNumber,
             clienteId: matchingClient?.id || null,
             immobileId: null,
-            nome: profileName,
+            nome: isFromMe ? null : profileName,
             ultimoMessaggio: body.substring(0, 100),
             ultimoMessaggioData: new Date(),
-            nonLetti: 1,
+            nonLetti: isFromMe ? 0 : 1,
             stato: "attivo"
           });
         } else {
           await storage.updateWhatsappConversation(conversation.id, {
             ultimoMessaggio: body.substring(0, 100),
             ultimoMessaggioData: new Date(),
-            nonLetti: (conversation.nonLetti || 0) + 1,
-            nome: profileName || conversation.nome
+            nonLetti: isFromMe ? (conversation.nonLetti || 0) : (conversation.nonLetti || 0) + 1,
+            nome: isFromMe ? conversation.nome : (profileName || conversation.nome)
           });
         }
 
@@ -2270,11 +2285,11 @@ FORMATO RISPOSTE:
         const message = await storage.createWhatsappMessage({
           conversationId: conversation.id,
           whatsappMessageId: messageId,
-          direction: "inbound",
+          direction: isFromMe ? "outbound" : "inbound",
           messageType: data.type || "text",
           content: body,
           mediaUrl: data.media || null,
-          status: "received"
+          status: isFromMe ? "sent" : "received"
         });
 
         // Create comunicazione
@@ -2283,10 +2298,10 @@ FORMATO RISPOSTE:
           immobileId: conversation.immobileId,
           immobileEsternoId: null,
           whatsappMessageId: message.id,
-          tipo: "risposta",
+          tipo: isFromMe ? "messaggio" : "risposta",
           testo: body,
           canale: "whatsapp",
-          creatoDA: "cliente",
+          creatoDA: isFromMe ? "agente" : "cliente",
           esito: null
         });
 
