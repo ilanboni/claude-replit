@@ -819,6 +819,9 @@ export async function generateMirroring(input: MirroringInput): Promise<Mirrorin
   try {
     const systemPrompt = `Sei un assistente che legge annunci immobiliari scritti da privati e produce 1–3 frasi di mirroring da usare in un messaggio WhatsApp di primo contatto.
 
+OBIETTIVO:
+Generare 1–3 frasi sobrie, realistiche e INDIPENDENTI (ogni frase deve avere senso da sola, senza dipendere dalla precedente).
+
 ATTENZIONE: il testo che generi verra inserito subito dopo la frase "Ha notato il suo immobile in ..." e prima del resto del messaggio standard. Quindi:
 - NON ripetere l'indirizzo.
 - NON iniziare con saluti o frasi introduttive.
@@ -827,6 +830,7 @@ ATTENZIONE: il testo che generi verra inserito subito dopo la frase "Ha notato i
 - NON fare domande.
 - NON fare complimenti esagerati o promesse.
 - NON usare espressioni come "un immobile di questo tipo" o "queste caratteristiche".
+- Ogni frase deve essere INDIPENDENTE e avere senso compiuto da sola.
 
 Usa un tono sobrio, professionale e realistico. Scrivi frasi dirette che descrivano l'immobile.
 Puoi menzionare: tipologia (bilocale, trilocale...), metratura, piano, esposizione, caratteristiche distintive (terrazzo, doppi servizi, cantina, box...), stato dell'immobile, luminosita, posizione rispetto a servizi o mezzi, anno di costruzione se citato.
