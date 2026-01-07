@@ -31,6 +31,7 @@ export const clienti = pgTable("clienti", {
   note: text("note"),
   tipoCliente: text("tipo_cliente").notNull().default("compratore"), // compratore, venditore, entrambi
   ratingCliente: integer("rating_cliente").default(3), // 1-5
+  linkImmobile: text("link_immobile"), // Link all'annuncio immobile per proprietari
   attivo: boolean("attivo").default(true),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
@@ -60,6 +61,7 @@ export const richieste = pgTable("richieste", {
   bagniMinimi: integer("bagni_minimi"),
   priorita: integer("priorita").default(2), // 1=alta, 2=media, 3=bassa
   ratingRichiesta: integer("rating_richiesta").default(3), // 1-5
+  linkRicerca: text("link_ricerca"), // Link personalizzato ricerca immobili
   attiva: boolean("attiva").default(true),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),

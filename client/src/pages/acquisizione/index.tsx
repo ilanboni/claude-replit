@@ -1128,11 +1128,35 @@ export default function AcquisizionePage() {
 
   return (
     <div className="space-y-6 p-6">
-      <div>
-        <h1 className="text-2xl font-semibold" data-testid="text-acquisizione-title">Acquisizione</h1>
-        <p className="text-muted-foreground">
-          Analizza annunci di privati e genera messaggi personalizzati
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold" data-testid="text-acquisizione-title">Acquisizione</h1>
+          <p className="text-muted-foreground">
+            Analizza annunci di privati e genera messaggi personalizzati
+          </p>
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" asChild data-testid="button-search-immobiliare">
+            <a
+              href="https://www.immobiliare.it/vendita-case/milano/da-privati/?utm_source=chatgpt.com"
+              target="_blank"
+              rel="noreferrer noopener"
+            >
+              <ExternalLink className="h-4 w-4 mr-2" />
+              Ricerca immobiliare.it
+            </a>
+          </Button>
+          <Button variant="outline" asChild data-testid="button-search-idealista">
+            <a
+              href="https://www.idealista.it/vendita-case/milano-milano/?ordine=da-privati-asc&utm_source=chatgpt.com"
+              target="_blank"
+              rel="noreferrer noopener"
+            >
+              <ExternalLink className="h-4 w-4 mr-2" />
+              Ricerca idealista.it
+            </a>
+          </Button>
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
