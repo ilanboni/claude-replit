@@ -817,32 +817,54 @@ export interface MirroringOutput {
 
 export async function generateMirroring(input: MirroringInput): Promise<MirroringOutput> {
   try {
-    const systemPrompt = `Leggi l'annuncio immobiliare fornito e genera 1–3 frasi che descrivono l'immobile in modo sobrio, professionale e neutro. Questo testo verra inserito subito dopo la frase "Ha notato il suo immobile in ...".
+    // Mirroring v2: 2-4 frasi sobrie, neutre, senza marketing
+    const systemPrompt = `Leggi con attenzione l'annuncio immobiliare fornito. Scrivi 2–4 frasi che mostrino che hai letto davvero ciò che il proprietario ha scritto.
 
-REGOLE DI POSIZIONAMENTO TESTO:
-- NON ripetere l'indirizzo.
-- NON usare saluti, presentazioni o chiusure.
-- NON nominare Ilan Boni, Sara, agenzia o clienti.
-- Il testo deve essere autonomo e completo grammaticalmente.
+OBIETTIVO: dimostrare ascolto, rispetto e professionalità. Testo sobrio, istituzionale, neutro, reale.
 
-OBBLIGHI ASSOLUTI:
-- NON inventare informazioni non presenti nell'annuncio.
-- NON usare tono promozionale o di vendita.
-- NON usare espressioni vaghe come "queste caratteristiche", "un immobile di questo tipo", "ottima soluzione".
-- NON iniziare frasi con "Si tratta di", "L'immobile presenta", "Da notare".
-- Ogni frase deve essere INDIPENDENTE, grammaticalmente corretta e avere senso compiuto da sola.
-- Usa solo FATTI verificabili presenti nel testo.
+TONO OBBLIGATORIO:
+- neutro
+- professionale
+- rispettoso
+- italiano corretto e pulito
+- NESSUNA enfatizzazione
 
-TONO:
-Sobrio, neutro, descrittivo. Nessun tono di vendita.
+BLOCCHI DI DIVIETO ASSOLUTI:
+- vietato usare parole da marketing: strategico, bellissimo, prestigioso, unico, comodissimo, opportunita, ideale, perfetto
+- vietato scrivere giudizi: vantaggio, comfort, valore, garantisce, ecc.
+- vietato inventare informazioni non presenti
+- vietato esprimere certezze commerciali
+- vietato tono emozionale
 
-Puoi menzionare: tipologia (bilocale, trilocale...), metratura, piano, esposizione, caratteristiche distintive (terrazzo, doppi servizi, cantina, box...), stato dell'immobile, luminosita, posizione rispetto a servizi o mezzi, anno di costruzione se citato.
-Se l'annuncio e molto scarno, limita il mirroring a una sola frase.
+REGOLE DI STILE OBBLIGATORIE:
+- usa solo informazioni presenti nell'annuncio
+- preferisci indicativo presente
+- frasi brevi, chiare, sobrie
+- nessun tono pubblicitario
+- niente superlativi
+
+STRUTTURA CONSIGLIATA:
+1) descrizione sintetica dello stato dell'immobile se citato (es: ristrutturazione, anno, arredamento)
+2) elementi strutturali: piano, esposizione, balconi, ascensore, lavori condominiali
+3) elementi di contesto: zona, servizi, trasporti SOLO se scritti
+
+FORMULAZIONI CONSIGLIATE:
+- "Dal suo annuncio emerge..."
+- "Sono indicati..."
+- "Risulta inoltre..."
+- "La vicinanza a ... rappresenta un elemento pratico per gli spostamenti"
+
+GESTIONE DEI CASI:
+- Se poche informazioni → scrivi poco
+- Se manca certezza → non scrivere
+
+FORMATTAZIONE WHATSAPP:
+- Paragrafi brevi separati da riga vuota
+- Max 1-2 frasi per paragrafo
 
 Rispondi SOLO con un oggetto JSON nel formato: {"mirroring": "testo"}`;
 
     const userMessage = `Testo annuncio: ${input.testoAnnuncio}
-${input.tipoUnita ? `Tipo unita: ${input.tipoUnita}` : ''}
 ${input.zonaOVia ? `Zona/via: ${input.zonaOVia}` : ''}`;
 
     const response = await openai.chat.completions.create({
@@ -851,8 +873,8 @@ ${input.zonaOVia ? `Zona/via: ${input.zonaOVia}` : ''}`;
         { role: "system", content: systemPrompt },
         { role: "user", content: userMessage }
       ],
-      max_completion_tokens: 300,
-      temperature: 0.18,
+      max_completion_tokens: 350,
+      temperature: 0.15,
       response_format: { type: "json_object" }
     });
 

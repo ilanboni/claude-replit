@@ -189,112 +189,67 @@ export function checkForObjection(message: string): { found: boolean; handler?: 
   return { found: false };
 }
 
-// Prompt per generare frasi di mirroring dall'annuncio
-// Configurazione mirroring: usare le stesse parole del proprietario per valorizzare ciò che per lui conta di più
-export const MIRRORING_PROMPT = `Leggi l'annuncio immobiliare fornito e genera 1–3 frasi che descrivono l'immobile in modo sobrio, professionale e neutro. Questo testo verra inserito subito dopo la frase "Ha notato il suo immobile in ...".
+// Prompt per generare frasi di mirroring dall'annuncio - v2
+// Mirroring annuncio privato: 2-4 frasi sobrie, neutre, senza marketing
+export const MIRRORING_PROMPT = `Leggi con attenzione l'annuncio immobiliare fornito. Scrivi 2–4 frasi che mostrino che hai letto davvero ciò che il proprietario ha scritto.
 
-REGOLE DI POSIZIONAMENTO TESTO:
-- NON ripetere l'indirizzo.
-- NON usare saluti, presentazioni o chiusure.
-- NON nominare Ilan Boni, Sara, agenzia o clienti.
-- Il testo deve essere autonomo e completo grammaticalmente.
+OBIETTIVO: dimostrare ascolto, rispetto e professionalità. Testo sobrio, istituzionale, neutro, reale.
 
-OBBLIGHI ASSOLUTI:
-- NON inventare informazioni non presenti nell'annuncio.
-- NON usare tono promozionale o di vendita.
-- NON usare espressioni vaghe come "queste caratteristiche", "un immobile di questo tipo", "ottima soluzione".
-- NON iniziare frasi con "Si tratta di", "L'immobile presenta", "Da notare".
-- Ogni frase deve essere INDIPENDENTE, grammaticalmente corretta e avere senso compiuto da sola.
-- Usa solo FATTI verificabili presenti nel testo.
+TONO OBBLIGATORIO:
+- neutro
+- professionale
+- rispettoso
+- italiano corretto e pulito
+- NESSUNA enfatizzazione
 
-SELEZIONE CARATTERISTICHE (1-3 max, in ordine di priorità):
-1. Ristrutturazione e qualità materiali/arredi
-2. Posizione/servizi/metro
-3. Piano, esposizione, luce
-4. Disposizione interna
-5. Contesto e qualità condominio
+BLOCCHI DI DIVIETO ASSOLUTI:
+- vietato usare parole da marketing: strategico, bellissimo, prestigioso, unico, comodissimo, opportunita, ideale, perfetto
+- vietato scrivere giudizi: vantaggio, comfort, valore, garantisce, ecc.
+- vietato inventare informazioni non presenti
+- vietato esprimere certezze commerciali
+- vietato tono emozionale
 
-REGOLE DI MIRRORING:
-- Riprendere parole e concetti del proprietario in modo riconoscibile, con piccole variazioni naturali
-- MAI usare virgolette per citare - fanno percepire testo incollato e meno umano
-- Trasformazioni ammesse:
-  * Leggere semplificazioni
-  * Ordine frasi più naturale
-  * Aggiunta di un breve commento umano
-- EVITARE:
-  * Citazioni testuali lunghe
-  * Virgolette o blocchi citati
-  * Linguaggio troppo tecnico o da brochure
+REGOLE DI STILE OBBLIGATORIE:
+- usa solo informazioni presenti nell'annuncio
+- preferisci indicativo presente
+- frasi brevi, chiare, sobrie
+- nessun tono pubblicitario
+- niente superlativi
 
-COMMENTI (max 2):
-Non solo ripetere, ma commentare come farebbe una persona che ha letto davvero.
-Pattern utili:
-- "si vede che..."
-- "si capisce che..."
-- "qui c'è stata cura vera..."
-- "questa è una cosa che oggi fa davvero la differenza..."
+STRUTTURA CONSIGLIATA (non obbligatoria ma preferibile):
+1) descrizione sintetica dello stato dell'immobile se citato (es: ristrutturazione, anno, arredamento)
+2) elementi strutturali: piano, esposizione, balconi, ascensore, lavori condominiali
+3) elementi di contesto: zona, servizi, trasporti SOLO se scritti
 
-TONO E STILE:
-- Tono: sobrio, professionale, realistico
-- Frasi brevi e dirette
-- Ritmo naturale
-- No elenchi infiniti
-- Evitare perfezione meccanica
-- Lunghezza: sintetica ma concreta
+FORMULAZIONI CONSIGLIATE:
+- "Dal suo annuncio emerge..."
+- "Sono indicati..."
+- "Risulta inoltre..."
+- "La vicinanza a ... rappresenta un elemento pratico per gli spostamenti"
+
+GESTIONE DEI CASI:
+- Se poche informazioni → scrivi poco
+- Se manca certezza → non scrivere
+
+ESEMPI POSITIVI:
+"Dal suo annuncio emerge un appartamento ristrutturato, con spazi organizzati e arredamento già presente. Sono indicati interventi recenti anche sullo stabile. La presenza della metropolitana nelle vicinanze rappresenta un elemento pratico per chi vive nella zona."
+
+"Il suo appartamento risulta ristrutturato negli ultimi anni e dotato di più elementi funzionali come balcone, ascensore e cantina. Viene segnalata anche una buona dotazione impiantistica."
 
 FORMATTAZIONE WHATSAPP:
-- Separa i concetti in PARAGRAFI distinti (riga vuota tra un paragrafo e l'altro)
-- Ogni paragrafo = 1-2 frasi al massimo
-- Testi brevi e ben spaziati si leggono meglio
-- Non fare un unico blocco di testo compatto
-
-EVITARE ASSOLUTAMENTE:
-- Più di 3 caratteristiche
-- Virgolette nel mirroring (fanno sembrare testo incollato)
-- Tono promozionale
-- Frasi lunghe e perfette
-- Linguaggio generico
-- Qualsiasi riferimento a IA
-- Espressioni come "un immobile di questo tipo", "queste caratteristiche", "questo appartamento"
-
-ESEMPI BUONI (nota: paragrafi separati, niente virgolette, niente indirizzo):
-
-Esempio 1:
-Il trilocale ristrutturato completamente nel 2022, con materiali di pregio.
-
-Si vede che qui c'è stata cura vera.
-
-La doppia esposizione oggi conta molto per chi cerca in zona.
-
-Esempio 2:
-L'appartamento al terzo piano con ascensore nuovo è stato pensato bene.
-
-La vicinanza alla M4 Gelsomini è una cosa che oggi fa la differenza.
-
-ESEMPI CATTIVI (NON FARE):
-- Splendido trilocale con terrazzo panoramico (inventa e usa tono da brochure)
-- Un'occasione imperdibile per chi cerca casa (generico, aggressivo)
-- Come scrive lei "ristrutturato nel 2022" (virgolette = testo incollato)
-- Un immobile di questo tipo è molto richiesto (generico)
-- Ha notato il suo immobile in via... (gia detto prima)
-
-SE L'ANNUNCIO È VAGO:
-Scrivi qualcosa di prudente e diretto:
-Un appartamento in zona Navigli, con la volontà di una trattativa diretta.
-
-È un'area oggi molto richiesta.
+- Paragrafi brevi separati da riga vuota
+- Max 1-2 frasi per paragrafo
+- Testo leggibile e ben spaziato
 
 RICORDA:
-- Meglio dire MENO ma SICURO, che di più ma sbagliato
-- Non citare esplicitamente "NO AGENZIE" ma rispetta il tono
-- Produci SOLO le 1–3 frasi di mirroring
+- Produci SOLO le 2–4 frasi di mirroring
 - Niente saluti, firme, presentazioni, domande o chiusure
-- Test finale: il proprietario deve riconoscere le sue parole e sentire che scrive una persona`;
+- Solo descrizione basata su dati reali del testo fornito`;
 
-// Mirroring configuration for structured calls
+// Mirroring configuration for structured calls - v2
 export const MIRRORING_CONFIG = {
-  temperature: 0.18,
-  max_tokens: 300
+  temperature: 0.15,
+  max_tokens: 350
 };
 
 // Follow-up configuration
