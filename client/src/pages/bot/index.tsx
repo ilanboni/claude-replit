@@ -53,6 +53,8 @@ export default function BotPage() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState("");
   const [selectedCampaign, setSelectedCampaign] = useState<WhatsappCampaign | null>(null);
+  const [aiChatMessages, setAiChatMessages] = useState<ChatMessage[]>([]);
+  const [aiInputMessage, setAiInputMessage] = useState("");
   const [propertyContext, setPropertyContext] = useState<PropertyContext>({
     titolo: "Trilocale luminoso zona Navigli",
     testoAnnuncio: `VENDESI TRILOCALE LUMINOSO ZONA NAVIGLI
@@ -110,6 +112,46 @@ Contatto: Mario Rossi - 333 1234567`,
       }]);
     }
   });
+
+  const aiChatMutation = useMutation({
+    mutationFn: async (data: { message: string; campaignContext: string; history: ChatMessage[] }) => {
+      const res = await apiRequest("POST", "/api/ai/campaign-assistant", data);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setAiChatMessages(prev => [...prev, {
+        role: "assistant",
+        content: data.message,
+        timestamp: new Date()
+      }]);
+    }
+  });
+
+  const handleAiSendMessage = () => {
+    if (!aiInputMessage.trim() || aiChatMutation.isPending || !selectedCampaign) return;
+
+    const userMessage: ChatMessage = {
+      role: "user",
+      content: aiInputMessage.trim(),
+      timestamp: new Date()
+    };
+
+    setAiChatMessages(prev => [...prev, userMessage]);
+    setAiInputMessage("");
+
+    const campaignContext = `
+CAMPAGNA: ${selectedCampaign.name}
+TEMPLATE MESSAGGIO: ${selectedCampaign.template}
+ISTRUZIONI: ${selectedCampaign.instructions || 'Nessuna'}
+GESTIONE OBIEZIONI: ${JSON.stringify(selectedCampaign.objectionHandling || {}, null, 2)}
+    `.trim();
+
+    aiChatMutation.mutate({
+      message: aiInputMessage.trim(),
+      campaignContext,
+      history: aiChatMessages
+    });
+  };
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -757,6 +799,77 @@ Assistente del Dott. Ilan Boni`,
                     </div>
                   </div>
                 )}
+
+                {/* Chat con AI per migliorare la campagna */}
+                <div className="space-y-2 border-t pt-4">
+                  <h3 className="font-semibold flex items-center gap-2">
+                    <Bot className="h-4 w-4" />
+                    Assistente AI - Migliora la Campagna
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    Chiedi suggerimenti per migliorare template, istruzioni o gestione obiezioni
+                  </p>
+                  
+                  {/* Chat messages */}
+                  <div className="bg-muted/50 rounded-lg p-3 min-h-[150px] max-h-[250px] overflow-y-auto space-y-3">
+                    {aiChatMessages.length === 0 ? (
+                      <div className="text-center py-4 text-muted-foreground text-sm">
+                        Scrivi una domanda per migliorare la campagna...
+                      </div>
+                    ) : (
+                      aiChatMessages.map((msg, idx) => (
+                        <div
+                          key={idx}
+                          className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                        >
+                          <div
+                            className={`max-w-[85%] p-3 rounded-lg text-sm ${
+                              msg.role === "user"
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-background border"
+                            }`}
+                          >
+                            <div className="whitespace-pre-wrap">{msg.content}</div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                    {aiChatMutation.isPending && (
+                      <div className="flex justify-start">
+                        <div className="bg-background border p-3 rounded-lg">
+                          <div className="flex items-center gap-2">
+                            <Bot className="h-4 w-4 animate-pulse" />
+                            <span className="text-sm text-muted-foreground">Sta pensando...</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Input */}
+                  <div className="flex gap-2">
+                    <Input
+                      value={aiInputMessage}
+                      onChange={(e) => setAiInputMessage(e.target.value)}
+                      placeholder="Es: Come posso migliorare il template? Aggiungi un'obiezione per..."
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          handleAiSendMessage();
+                        }
+                      }}
+                      data-testid="input-ai-campaign-chat"
+                    />
+                    <Button
+                      onClick={handleAiSendMessage}
+                      disabled={!aiInputMessage.trim() || aiChatMutation.isPending}
+                      size="icon"
+                      data-testid="button-send-ai-campaign"
+                    >
+                      <Send className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
               </div>
             </ScrollArea>
           )}

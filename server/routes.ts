@@ -1663,4 +1663,79 @@ STRUTTURA RISPOSTA:
       res.status(500).json({ error: "Errore nella simulazione", message: "Mi scusi, c'e stato un problema tecnico. Riprovi tra poco." });
     }
   });
+
+  // AI Campaign Assistant - Chat per migliorare le campagne
+  app.post("/api/ai/campaign-assistant", async (req, res) => {
+    try {
+      const { message, campaignContext, history } = req.body;
+      
+      if (!message) {
+        return res.status(400).json({ error: "Messaggio richiesto" });
+      }
+
+      const OpenAI = (await import("openai")).default;
+      const openai = new OpenAI({
+        baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+        apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY
+      });
+
+      const systemPrompt = `Sei un esperto di marketing immobiliare e copywriting per agenzie immobiliari italiane.
+Il tuo compito è aiutare a migliorare le campagne di acquisizione WhatsApp per contattare proprietari privati.
+
+CONTESTO CAMPAGNA ATTUALE:
+${campaignContext || "Nessun contesto fornito"}
+
+COMPETENZE:
+- Scrittura persuasiva per messaggi WhatsApp
+- Gestione obiezioni nel settore immobiliare
+- Tecniche di neuromarketing e rapport
+- Conoscenza del mercato immobiliare italiano
+- Best practice per acquisizione immobiliare
+
+COSA PUOI FARE:
+1. Migliorare i template dei messaggi per essere più efficaci
+2. Suggerire nuove obiezioni da gestire e relative risposte
+3. Ottimizzare le istruzioni per il bot
+4. Proporre A/B test per migliorare le conversioni
+5. Analizzare punti di forza e debolezza della campagna
+
+FORMATO RISPOSTE:
+- Rispondi in italiano
+- Sii pratico e concreto con esempi specifici
+- Quando suggerisci modifiche, mostra il testo esatto da usare
+- Usa formattazione chiara (punti elenco, titoli)`;
+
+      const messages: any[] = [
+        { role: "system", content: systemPrompt }
+      ];
+
+      // Add conversation history
+      if (history && Array.isArray(history)) {
+        for (const msg of history) {
+          messages.push({
+            role: msg.role,
+            content: msg.content
+          });
+        }
+      }
+
+      // Add current message
+      messages.push({ role: "user", content: message });
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages,
+        temperature: 0.7,
+        max_tokens: 1000
+      });
+
+      const aiMessage = completion.choices[0]?.message?.content?.trim() 
+        || "Mi scusi, non sono riuscito a elaborare la richiesta. Riprovi.";
+
+      res.json({ message: aiMessage });
+    } catch (error) {
+      console.error("AI Campaign Assistant error:", error);
+      res.status(500).json({ error: "Errore nella risposta AI" });
+    }
+  });
 }
