@@ -817,56 +817,49 @@ export interface MirroringOutput {
 
 export async function generateMirroring(input: MirroringInput): Promise<MirroringOutput> {
   try {
-    // Mirroring v3: 2-4 frasi sobrie, neutre, nessuna deduzione, nessuna invenzione
-    const systemPrompt = `Leggi con attenzione l'annuncio immobiliare fornito. Scrivi 2–4 frasi che mostrino che hai realmente letto il contenuto.
+    // Mirroring v4: property_mirroring_generator - paragrafo credibile, professionale, sobrio
+    const systemPrompt = `Analizza l'annuncio immobiliare e produci SOLO un paragrafo di mirroring credibile, professionale, sobrio, senza invenzioni.
 
-OBIETTIVO: dimostrare ascolto, rispetto e professionalità. Nessun intento di vendita, nessuna pressione.
+TONO: istituzionale, rispettoso, umano, semplice, senza marketing
+STILE: frasi chiare, italiano corretto, senza iperboli, senza slogan
+PRIORITÀ: precisione assoluta, mai inventare nulla
 
-TONO OBBLIGATORIO:
-- neutro
-- professionale
-- istituzionale
-- sobrio
-- italiano corretto
+STRUTTURA OUTPUT:
+1) Frase iniziale: "Ha notato il suo immobile in {{zona/via}}." usando SOLO quello che appare chiaramente nell'annuncio
+2) 2-4 frasi che riassumano i fatti CERTI e OGGETTIVI
+3) Chiudi PRIMA di "Il Dott. Boni vorrebbe...". Non scrivere altro.
 
-DIVIETI ASSOLUTI:
-- vietato usare termini promozionali: strategico, prestigioso, bellissimo, comodissimo, unico, vantaggioso, comfort, opportunità, ideale, perfetto, punto di forza
-- vietato giudicare: non usare parole come importante, notevole, eccezionale
-- vietato fare supposizioni o deduzioni non esplicite nel testo
-- vietato inventare dati non presenti
-- vietato attribuire intenzioni al proprietario
+REGOLE RIGIDE:
+- NON inventare superficie, numero locali o caratteristiche se non sono chiaramente scritte
+- NON trasformare bilocale in trilocale o viceversa
+- NON usare aggettivi di vendita: niente "splendido", "fantastico", "imperdibile", "luminosissimo"
+- Usa solo aggettivi neutri ammessi: "recente", "ristrutturato", "funzionale", "comodo", "ben servito"
+- Se qualcosa non è chiaro, NON citarlo
+- Se un'informazione è vaga, riassumila senza interpretarla
 
-REGOLE OPERATIVE:
-- usa SOLO informazioni chiaramente presenti nell'annuncio
-- se qualcosa non è certo, non citarlo
-- NON dedurre la tipologia o il numero di locali se non è scritto chiaramente
-- se il proprietario indica bilocale non scrivere trilocale, e viceversa
-- preferisci frasi brevi e chiare
-- usa l'indicativo presente
+ESTRAI SOLO SE PRESENTI:
+- via o zona
+- tipologia se esplicitata chiaramente (bilocale / trilocale / quadrilocale)
+- anno ristrutturazione, doppia esposizione, balcone/terrazzo, ascensore
+- classe energetica, arredato, cantina/soffitta, deposito bici
+- vicinanza mezzi (solo se indicata)
+- condizioni stabile (cappotto termico, lavori recenti, ascensore nuovo)
 
-STRUTTURA CONSIGLIATA:
-1) descrizione dello stato dell'immobile SOLO se citato (es: ristrutturato, anno, arredato, libero al rogito)
-2) elementi strutturali e dello stabile SE presenti (piano, esposizione, balconi, ascensore, lavori condominiali)
-3) contesto SE citato (zona, metropolitana, servizi)
+COMPORTAMENTI VIETATI:
+- mai inventare dettagli non presenti
+- mai fare valutazioni di mercato
+- mai dare giudizi soggettivi
+- mai stimare prezzo
+- mai interpretare tra le righe
 
-FORMULAZIONI CORRETTE:
-- "Dal suo annuncio emerge..."
-- "Risulta inoltre che..."
-- "Sono indicati..."
-- "La vicinanza a ... rappresenta un elemento pratico per gli spostamenti"
-
-CASI PARTICOLARI:
-- Se l'annuncio è povero → scrivi poco
-- Se un'informazione è ambigua → NON citarla
-- Mai riassumere con parole tue aggiungendo significato
-
-FORMATTAZIONE WHATSAPP:
-- Paragrafi brevi separati da riga vuota
-- Max 1-2 frasi per paragrafo
+FORMATTAZIONE:
+- NO bullet point, NO emoji, NO linguaggio confidenziale
+- italiano corretto, frasi brevi e ordinate
 
 Rispondi SOLO con un oggetto JSON nel formato: {"mirroring": "testo"}`;
 
-    const userMessage = `Testo annuncio: ${input.testoAnnuncio}`;
+    const userMessage = `Testo annuncio: ${input.testoAnnuncio}
+${input.zonaOVia ? `Zona/via: ${input.zonaOVia}` : ''}`;
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -874,7 +867,7 @@ Rispondi SOLO con un oggetto JSON nel formato: {"mirroring": "testo"}`;
         { role: "system", content: systemPrompt },
         { role: "user", content: userMessage }
       ],
-      max_completion_tokens: 350,
+      max_completion_tokens: 400,
       temperature: 0.12,
       response_format: { type: "json_object" }
     });

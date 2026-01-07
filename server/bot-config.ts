@@ -189,68 +189,67 @@ export function checkForObjection(message: string): { found: boolean; handler?: 
   return { found: false };
 }
 
-// Prompt per generare frasi di mirroring dall'annuncio - v3
-// Mirroring annuncio privato: 2-4 frasi sobrie, neutre, senza marketing, nessuna deduzione
-export const MIRRORING_PROMPT = `Leggi con attenzione l'annuncio immobiliare fornito. Scrivi 2–4 frasi che mostrino che hai realmente letto il contenuto.
+// Prompt per generare frasi di mirroring dall'annuncio - v4
+// property_mirroring_generator: paragrafo credibile, professionale, sobrio, senza invenzioni
+export const MIRRORING_PROMPT = `Analizza l'annuncio immobiliare e produci SOLO un paragrafo di mirroring credibile, professionale, sobrio, senza invenzioni.
 
-OBIETTIVO: dimostrare ascolto, rispetto e professionalità. Nessun intento di vendita, nessuna pressione.
+TONO: istituzionale, rispettoso, umano, semplice, senza marketing
+STILE: frasi chiare, italiano corretto, senza iperboli, senza slogan
+PRIORITÀ: precisione assoluta, mai inventare nulla
 
-TONO OBBLIGATORIO:
-- neutro
-- professionale
-- istituzionale
-- sobrio
-- italiano corretto
+STRUTTURA OUTPUT:
+1) Frase iniziale: "Ha notato il suo immobile in {{zona/via}}." usando SOLO quello che appare chiaramente nell'annuncio
+2) 2-4 frasi che riassumano i fatti CERTI e OGGETTIVI
+3) Chiudi PRIMA di "Il Dott. Boni vorrebbe...". Non scrivere altro.
 
-DIVIETI ASSOLUTI:
-- vietato usare termini promozionali: strategico, prestigioso, bellissimo, comodissimo, unico, vantaggioso, comfort, opportunità, ideale, perfetto, punto di forza
-- vietato giudicare: non usare parole come importante, notevole, eccezionale
-- vietato fare supposizioni o deduzioni non esplicite nel testo
-- vietato inventare dati non presenti
-- vietato attribuire intenzioni al proprietario
+REGOLE RIGIDE:
+- NON inventare superficie, numero locali o caratteristiche se non sono chiaramente scritte
+- NON trasformare bilocale in trilocale o viceversa
+- NON usare aggettivi di vendita: niente "splendido", "fantastico", "imperdibile", "luminosissimo"
+- Usa solo aggettivi neutri ammessi: "recente", "ristrutturato", "funzionale", "comodo", "ben servito"
+- Se qualcosa non è chiaro, NON citarlo
+- Se un'informazione è vaga, riassumila senza interpretarla
 
-REGOLE OPERATIVE:
-- usa SOLO informazioni chiaramente presenti nell'annuncio
-- se qualcosa non è certo, non citarlo
-- NON dedurre la tipologia o il numero di locali se non è scritto chiaramente
-- se il proprietario indica bilocale non scrivere trilocale, e viceversa
-- preferisci frasi brevi e chiare
-- usa l'indicativo presente
+ESTRAI SOLO SE PRESENTI:
+- via o zona
+- tipologia se esplicitata chiaramente (bilocale / trilocale / quadrilocale)
+- anno ristrutturazione
+- doppia esposizione
+- balcone / terrazzo
+- ascensore
+- classe energetica
+- arredato
+- cantina / soffitta
+- deposito bici
+- vicinanza mezzi (solo se indicata)
+- condizioni stabile (cappotto termico, lavori recenti, ascensore nuovo)
 
-STRUTTURA CONSIGLIATA:
-1) descrizione dello stato dell'immobile SOLO se citato (es: ristrutturato, anno, arredato, libero al rogito)
-2) elementi strutturali e dello stabile SE presenti (piano, esposizione, balconi, ascensore, lavori condominiali)
-3) contesto SE citato (zona, metropolitana, servizi)
+COMPORTAMENTI VIETATI:
+- mai inventare dettagli non presenti
+- mai fare valutazioni di mercato
+- mai dare giudizi soggettivi
+- mai stimare prezzo
+- mai interpretare tra le righe
 
-FORMULAZIONI CORRETTE:
-- "Dal suo annuncio emerge..."
-- "Risulta inoltre che..."
-- "Sono indicati..."
-- "La vicinanza a ... rappresenta un elemento pratico per gli spostamenti"
+FORMATTAZIONE:
+- NO bullet point
+- NO emoji
+- NO linguaggio confidenziale
+- italiano corretto, frasi brevi e ordinate
 
-CASI PARTICOLARI:
-- Se l'annuncio è povero → scrivi poco
-- Se un'informazione è ambigua → NON citarla
-- Mai riassumere con parole tue aggiungendo significato
+ESEMPIO BUONO:
+"Ha notato il suo immobile in zona Navigli. Dal suo annuncio emerge un bilocale ristrutturato nel 2017, venduto arredato e libero al rogito. L'appartamento ha esposizione interna e dispone di balcone e soffitta. Lo stabile risulta riqualificato di recente, con cappotto termico, ascensore nuovo e accesso disabili. La vicinanza alla M4 Gelsomini, a circa 300 metri, è indicata come un elemento comodo per gli spostamenti."
 
-ESEMPI CORRETTI:
-"Dal suo annuncio emerge un appartamento ristrutturato negli ultimi anni, con arredamento presente e libero al rogito. Sono indicati interventi recenti anche sullo stabile."
+ERRORI DA EVITARE:
+- Mai scrivere "trilocale luminoso" se nell'annuncio non è scritto così
+- Mai usare frasi di vendita o entusiaste
+- Mai aggiungere informazioni non presenti
+- Mai sbagliare il tono istituzionale`;
 
-"Risulta inoltre la presenza di ascensore e cantina. La vicinanza alla metropolitana rappresenta un elemento pratico per gli spostamenti."
-
-FORMATTAZIONE WHATSAPP:
-- Paragrafi brevi separati da riga vuota
-- Max 1-2 frasi per paragrafo
-
-RICORDA:
-- Produci SOLO le 2–4 frasi di mirroring
-- Niente saluti, firme, presentazioni, domande o chiusure
-- Solo fatti presenti nell'annuncio, nessuna deduzione`;
-
-// Mirroring configuration for structured calls - v3
+// Mirroring configuration for structured calls - v4
 export const MIRRORING_CONFIG = {
   temperature: 0.12,
-  max_tokens: 350
+  max_tokens: 400
 };
 
 // Follow-up configuration
