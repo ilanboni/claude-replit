@@ -139,54 +139,153 @@ function extractListingData() {
   };
 
   if (hostname.includes('immobiliare.it')) {
+    // Titolo dall'h1
     data.titolo = document.querySelector('h1')?.textContent?.trim() || '';
-    data.descrizione = document.querySelector('[data-testid="listing-description"]')?.textContent?.trim() ||
-                       document.querySelector('.in-description__text')?.textContent?.trim() || '';
     
-    const prezzoEl = document.querySelector('[class*="price"]') || 
-                     document.querySelector('.in-listingCardPrice');
-    if (prezzoEl) {
-      const prezzoText = prezzoEl.textContent.replace(/[^\d]/g, '');
-      data.prezzo = parseInt(prezzoText) || null;
+    // Descrizione - cerca nel contenuto principale
+    const descEl = document.querySelector('[data-testid="listing-description"]') ||
+                   document.querySelector('.in-description__text') ||
+                   document.querySelector('[class*="description"]');
+    if (descEl) {
+      data.descrizione = descEl.textContent?.trim() || '';
+    } else {
+      // Fallback: cerca il testo dopo "Descrizione"
+      const allText = document.body.innerText;
+      const descMatch = allText.match(/Descrizione[\s\S]*?riferimento[:\s]*([\s\S]*?)(?=Caratteristiche|Dettaglio|$)/i);
+      if (descMatch) {
+        data.descrizione = descMatch[0].replace(/^Descrizione\s*/i, '').trim().substring(0, 5000);
+      }
+    }
+    
+    // Prezzo - cerca il prezzo principale (non il prezzo al mq)
+    const prezzoSelectors = [
+      'h1 + div [class*="price"]',
+      '[class*="Price"]:not([class*="m²"]):not([class*="mq"])',
+      '.price'
+    ];
+    for (const sel of prezzoSelectors) {
+      const el = document.querySelector(sel);
+      if (el) {
+        const text = el.textContent || '';
+        // Cerca pattern €X.XXX.XXX o €XXX.XXX
+        const match = text.match(/€\s*([\d.]+)/);
+        if (match) {
+          const prezzoText = match[1].replace(/\./g, '');
+          const prezzo = parseInt(prezzoText);
+          if (prezzo > 10000) { // Solo prezzi realistici
+            data.prezzo = prezzo;
+            break;
+          }
+        }
+      }
+    }
+    
+    // Fallback prezzo dal body text
+    if (!data.prezzo) {
+      const bodyText = document.body.innerText;
+      const prezzoMatch = bodyText.match(/€\s*([\d.]+)(?:\s|$)/);
+      if (prezzoMatch) {
+        const prezzoText = prezzoMatch[1].replace(/\./g, '');
+        const prezzo = parseInt(prezzoText);
+        if (prezzo > 10000) data.prezzo = prezzo;
+      }
     }
 
-    const features = document.querySelectorAll('[class*="feature"], .in-features__item, .in-realEstateFeatures__title');
-    features.forEach(f => {
-      const text = f.textContent?.toLowerCase() || '';
-      if (text.includes('local') || text.includes('stanz')) {
-        const num = text.match(/\d+/);
-        if (num) data.locali = parseInt(num[0]);
-      }
-      if (text.includes('bagn')) {
-        const num = text.match(/\d+/);
-        if (num) data.bagni = parseInt(num[0]);
-      }
-      if (text.includes('m²') || text.includes('mq')) {
-        const num = text.match(/\d+/);
-        if (num) data.superficie = parseInt(num[0]);
-      }
-      if (text.includes('piano')) {
-        data.piano = text;
-      }
-    });
+    // Features principali - cerca nel testo visibile
+    const pageText = document.body.innerText.toLowerCase();
+    
+    // Locali
+    const localiMatch = pageText.match(/(\d+)\s*local/i);
+    if (localiMatch) data.locali = parseInt(localiMatch[1]);
+    
+    // Superficie
+    const mqMatch = pageText.match(/(\d+)\s*m[²q]/i);
+    if (mqMatch) data.superficie = parseInt(mqMatch[1]);
+    
+    // Bagni
+    const bagniMatch = pageText.match(/(\d+)\s*bagn/i);
+    if (bagniMatch) data.bagni = parseInt(bagniMatch[1]);
+    
+    // Piano
+    const pianoMatch = pageText.match(/piano\s*(\d+|terra|primo|secondo|terzo|quarto|quinto|sesto|settimo)/i);
+    if (pianoMatch) data.piano = pianoMatch[1];
+    
+    // Caratteristiche booleane
+    data.caratteristiche = {
+      ascensore: /ascensore\s*s[iì]/i.test(pageText) || pageText.includes('ascensore'),
+      balcone: /balcone\s*s[iì]/i.test(pageText) || pageText.includes('balcone'),
+      terrazzo: pageText.includes('terrazzo'),
+      box: pageText.includes('box') || pageText.includes('garage'),
+      cantina: pageText.includes('cantina'),
+      arredato: /arredato\s*s[iì]/i.test(pageText),
+      ristrutturato: pageText.includes('ristrutturato'),
+      portineria: pageText.includes('portineria') || pageText.includes('portinaio')
+    };
 
-    const locationEl = document.querySelector('[class*="location"], .in-location');
-    if (locationEl) {
-      const locText = locationEl.textContent?.trim() || '';
-      const parts = locText.split(',').map(s => s.trim());
-      data.zona = parts[0] || '';
-      data.citta = parts[parts.length - 1] || '';
+    // Zona e città dal titolo o breadcrumb
+    const titleParts = data.titolo.split(',').map(s => s.trim());
+    if (titleParts.length >= 2) {
+      data.zona = titleParts[1] || '';
+      data.citta = titleParts[titleParts.length - 1] || 'Milano';
+    }
+    
+    // Indirizzo completo
+    const viaMatch = data.titolo.match(/(via|viale|piazza|corso|piazzale)\s+[^,]+/i);
+    if (viaMatch) {
+      data.indirizzo = viaMatch[0].trim();
     }
 
-    const energyEl = document.querySelector('[class*="energy"], .in-energy');
-    if (energyEl) {
-      const match = energyEl.textContent?.match(/[A-G]\d?/i);
-      if (match) data.classeEnergetica = match[0].toUpperCase();
+    // Classe energetica
+    const energyMatch = pageText.match(/classe\s*energetica[:\s]*([A-G])/i) || 
+                        pageText.match(/([A-G])\s*(?:kWh|kwh)/i);
+    if (energyMatch) {
+      data.classeEnergetica = energyMatch[1].toUpperCase();
+    }
+    
+    // Spese condominiali
+    const speseMatch = pageText.match(/spese\s*(?:condominio|condominiali)[:\s]*€?\s*([\d.]+)/i);
+    if (speseMatch) {
+      data.spese = parseInt(speseMatch[1].replace(/\./g, ''));
+    }
+    
+    // Riscaldamento
+    if (pageText.includes('centralizzato')) data.riscaldamento = 'Centralizzato';
+    else if (pageText.includes('autonomo')) data.riscaldamento = 'Autonomo';
+    
+    // Stato immobile
+    if (pageText.includes('ristrutturato')) data.stato = 'Ristrutturato';
+    else if (pageText.includes('da ristrutturare')) data.stato = 'Da ristrutturare';
+    else if (pageText.includes('buono stato')) data.stato = 'Buono';
+    else if (pageText.includes('nuovo')) data.stato = 'Nuovo';
+    
+    // Tipologia
+    const tipMatch = pageText.match(/(trilocale|bilocale|monolocale|quadrilocale|attico|loft|villa|appartamento)/i);
+    if (tipMatch) data.tipologia = tipMatch[1].charAt(0).toUpperCase() + tipMatch[1].slice(1).toLowerCase();
+
+    // Telefono - prova a estrarre dall'immagine o dal testo
+    const telImg = document.querySelector('img[src*="tel_"]');
+    if (telImg) {
+      data.contatto.telefonoImmagine = telImg.src;
+      // Nota: il numero è nascosto in un'immagine
+      data.contatto.nota = "Telefono disponibile come immagine - clicca 'Mostra numero' sulla pagina";
+    }
+    
+    // Cerca numero di telefono nel testo visibile
+    const telMatch = pageText.match(/(?:tel|telefono|cell)[:\s]*([+\d\s\-\.]{8,})/i);
+    if (telMatch) {
+      data.contatto.telefono = telMatch[1].replace(/[\s\-\.]/g, '').trim();
+    }
+    
+    // Nome contatto
+    const privatoMatch = pageText.match(/privato/i);
+    if (privatoMatch) {
+      data.contatto.tipo = 'Privato';
     }
 
-    document.querySelectorAll('img[src*="immobiliare"]').forEach(img => {
-      if (img.src && !img.src.includes('logo') && !img.src.includes('icon')) {
-        data.immagini.push(img.src);
+    // Immagini
+    document.querySelectorAll('img[src*="pwm.im-cdn.it"], img[src*="pic.im-cdn.it"]').forEach(img => {
+      if (img.src && !img.src.includes('logo') && !img.src.includes('icon') && !img.src.includes('xxs-')) {
+        data.immagini.push(img.src.replace('/m-c.jpg', '/xl-c.jpg'));
       }
     });
 
