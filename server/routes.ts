@@ -2177,6 +2177,124 @@ FORMATO RISPOSTE:
     }
   });
 
+  // UltraMsg webhook for incoming messages and status updates
+  app.post("/api/webhook/ultramsg", async (req, res) => {
+    try {
+      console.log("UltraMsg Webhook received:", JSON.stringify(req.body, null, 2));
+      
+      const { event_type, data } = req.body;
+      
+      if (!data) {
+        return res.status(200).json({ status: "ignored", reason: "no data" });
+      }
+
+      // Handle message acknowledgment (delivery/read status)
+      if (data.ack !== undefined && data.ack !== "") {
+        const ackStatus = parseInt(data.ack);
+        let newStatus = "sent";
+        
+        // UltraMsg ack values: 1=sent, 2=delivered, 3=read
+        if (ackStatus === 2) {
+          newStatus = "delivered";
+        } else if (ackStatus === 3) {
+          newStatus = "read";
+        }
+
+        // Find message by whatsappMessageId and update status
+        if (data.id) {
+          const conversations = await storage.getWhatsappConversations();
+          for (const conv of conversations) {
+            const messages = await storage.getWhatsappMessages(conv.id);
+            const msg = messages.find(m => m.whatsappMessageId === data.id);
+            if (msg) {
+              await storage.updateWhatsappMessageStatus(msg.id, newStatus);
+              whatsappWS.notifyNewMessage(conv.id, { ...msg, status: newStatus, conversationId: conv.id });
+              break;
+            }
+          }
+        }
+        
+        return res.status(200).json({ status: "ok", action: "ack_updated" });
+      }
+
+      // Handle incoming message
+      if (data.fromMe === false && data.body) {
+        const phoneNumber = data.from?.replace("@c.us", "").replace(/\D/g, '') || "";
+        const body = data.body;
+        const profileName = data.pushname || null;
+        const messageId = data.id || null;
+
+        if (!phoneNumber) {
+          return res.status(200).json({ status: "ignored", reason: "no phone number" });
+        }
+
+        // Find or create conversation
+        let conversation = await storage.getWhatsappConversationByPhone(phoneNumber);
+        if (!conversation) {
+          const clienti = await storage.getClienti();
+          const matchingClient = clienti.find(c => 
+            c.telefono && c.telefono.replace(/\D/g, '').includes(phoneNumber.slice(-9))
+          );
+
+          conversation = await storage.createWhatsappConversation({
+            phoneNumber,
+            clienteId: matchingClient?.id || null,
+            immobileId: null,
+            nome: profileName,
+            ultimoMessaggio: body.substring(0, 100),
+            ultimoMessaggioData: new Date(),
+            nonLetti: 1,
+            stato: "attivo"
+          });
+        } else {
+          await storage.updateWhatsappConversation(conversation.id, {
+            ultimoMessaggio: body.substring(0, 100),
+            ultimoMessaggioData: new Date(),
+            nonLetti: (conversation.nonLetti || 0) + 1,
+            nome: profileName || conversation.nome
+          });
+        }
+
+        // Save message
+        const message = await storage.createWhatsappMessage({
+          conversationId: conversation.id,
+          whatsappMessageId: messageId,
+          direction: "inbound",
+          messageType: data.type || "text",
+          content: body,
+          mediaUrl: data.media || null,
+          status: "received"
+        });
+
+        // Create comunicazione
+        await storage.createComunicazione({
+          clienteId: conversation.clienteId,
+          immobileId: conversation.immobileId,
+          immobileEsternoId: null,
+          whatsappMessageId: message.id,
+          tipo: "risposta",
+          testo: body,
+          canale: "whatsapp",
+          creatoDA: "cliente",
+          esito: null
+        });
+
+        const updatedConversation = await storage.getWhatsappConversation(conversation.id);
+        whatsappWS.notifyNewMessage(conversation.id, { ...message, conversationId: conversation.id });
+        if (updatedConversation) {
+          whatsappWS.notifyConversationUpdate({ ...updatedConversation, conversationId: updatedConversation.id });
+        }
+
+        return res.status(200).json({ status: "ok", messageId: message.id });
+      }
+
+      res.status(200).json({ status: "ignored" });
+    } catch (error) {
+      console.error("UltraMsg webhook error:", error);
+      res.status(500).json({ error: "Webhook processing error" });
+    }
+  });
+
   // Webhook verification for Meta WhatsApp Business API
   app.get("/api/webhook/whatsapp", (req, res) => {
     const mode = req.query["hub.mode"];
