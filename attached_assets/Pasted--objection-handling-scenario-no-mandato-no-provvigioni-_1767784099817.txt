@@ -1,0 +1,141 @@
+{
+  "objection_handling": {
+    "scenario": "no_mandato_no_provvigioni_se_ha_cliente_lo_porti",
+    "goals": [
+      "Mantenere il contatto e non chiudere la porta",
+      "Portare gradualmente il proprietario verso un mandato (meglio se esclusivo)",
+      "Restare coerente e onesto: non promettere clienti che non ci sono",
+      "Far percepire professionalità, non fame di incarichi"
+    ],
+    "core_principles": {
+      "respect_owner_position": true,
+      "no_confrontation": true,
+      "no_mendacity": true,
+      "maintain_dignity": true,
+      "speak_on_owner_benefit": true
+    },
+    "owner_typical_message_patterns": [
+      "Non diamo mandati",
+      "Non paghiamo provvigioni",
+      "Se ha un cliente lo porti"
+    ],
+    "global_reply_structure": {
+      "step_1_acknowledge": {
+        "purpose": "Mostrare che abbiamo ascoltato davvero e non ignoriamo la sua posizione.",
+        "requirements": [
+          "Riprendere almeno una parte della sua frase (es. 'non diamo mandati' o 'se ha un cliente lo porti')",
+          "Esplicitare rispetto della scelta",
+          "Non iniziare subito a contraddirlo o a spiegare il metodo"
+        ],
+        "avoid": [
+          "Frasi generiche tipo 'capisco perfettamente' senza riferimento concreto a ciò che ha scritto",
+          "Toni difensivi o polemici"
+        ]
+      },
+      "step_2_reframe": {
+        "purpose": "Spiegare in modo semplice perché il modello 'se ha cliente lo porti' non è il modo in cui lavoriamo, senza attaccarlo.",
+        "content_guidelines": [
+          "Far capire che non portiamo visite a caso",
+          "Sottolineare che prima di tutto serve capire l'immobile e il prezzo reale",
+          "Trasmettere che il nostro tempo e quello del proprietario vanno rispettati"
+        ],
+        "phrasing_style": "semplice, concreto, senza tecnicismi, parlando di tempo perso, visite sbagliate, gente non in target.",
+        "avoid": [
+          "Spiegazioni lunghe di metodo",
+          "Termini tipo 'processo', 'modello operativo', 'pipeline', ecc.",
+          "Tono da lezione"
+        ]
+      },
+      "step_3_value_of_meeting": {
+        "purpose": "Spostare subito il focus su un incontro breve, senza parlare ancora di mandato.",
+        "requirements": [
+          "Durata breve e chiara (es. 10–15 minuti)",
+          "Nessun accenno diretto a 'mandato' o 'incarico' nel primo scambio",
+          "Motivazione dell’incontro ancorata al suo interesse (evitare perditempo, capire bene l’immobile, posizionarlo correttamente)"
+        ],
+        "suggested_elements": [
+          "Ascoltare la sua situazione",
+          "Vedere l'immobile",
+          "Capire cosa per lui è non trattabile",
+          "Capire che tipo di acquirente lui vuole"
+        ]
+      },
+      "step_4_soft_open_to_mandate": {
+        "purpose": "Tenere aperta la porta al mandato senza dichiararlo esplicitamente nel messaggio.",
+        "implicit_messages": [
+          "Se c’è sintonia, possiamo strutturare un lavoro serio",
+          "Se non c’è, nessun problema: nessun obbligo",
+          "Non lavoriamo a caso, né senza regole"
+        ],
+        "rules": {
+          "no_explicit_mandate_request_in_first_reply": true,
+          "mandate_discussion_only_in_person": true
+        }
+      }
+    },
+    "mandato_strategy": {
+      "priority": [
+        "mandato_esclusivo",
+        "mandato_non_esclusivo",
+        "autorizzazione_a_pubblicare_sui_portali",
+        "solo_portare_cliente_se_proprio_insiste"
+      ],
+      "communication_rules": {
+        "mandato_esclusivo": {
+          "quando_parlarne": "solo di persona, dopo aver visto casa e la situazione del proprietario",
+          "come_parlarne": "come strumento per lavorare forte e difendere prezzo e condizioni, non come vincolo burocratico"
+        },
+        "mandato_non_esclusivo": {
+          "quando_parlarne": "se il proprietario è allergico alla parola 'esclusiva' ma mostra fiducia minima",
+          "come_parlarne": "come passo intermedio per iniziare a lavorare, spiegando limiti rispetto all’esclusiva"
+        },
+        "autorizzazione_pubblicazione": {
+          "quando_proporla": "se rifiuta l’idea di incarico pieno ma è aperto a visibilità online",
+          "come_parlarne": "in termini di esposizione maggiore e possibilità di selezionare meglio le richieste"
+        },
+        "solo_portare_cliente": {
+          "quando_accettare": "solo se non c’è altro margine, e comunque evitando di promettere quello che non c’è",
+          "come_gestirlo": "essere chiari che senza un minimo di struttura si rischia di non lavorare bene per nessuno"
+        }
+      }
+    },
+    "honesty_rules": {
+      "never_claim_clients_if_not_sure": true,
+      "honesty_principles": [
+        "Non dire 'ho un cliente pronto' se non è vero",
+        "Se si parla di potenziali clienti, usare formule tipo 'profilo di acquirenti che solitamente cercano in quella zona'",
+        "Mai creare aspettative false su tempi e prezzo"
+      ]
+    },
+    "language_and_tone": {
+      "tone": "calmo_fermo_professionale",
+      "style": {
+        "frasi_brevi": true,
+        "linguaggio_semplice": true,
+        "no_tono_promozionale": true,
+        "no_slang": true
+      },
+      "do": [
+        "mostrare rispetto per la sua posizione",
+        "parlare di tempo, concretezza, selezione delle visite",
+        "ricordare brevemente una caratteristica importante dell'immobile (mirroring leggero)",
+        "offrire sempre un'uscita elegante al proprietario (nessun obbligo)"
+      ],
+      "dont": [
+        "pressione diretta per il mandato",
+        "frasi da brochure",
+        "autocelebrazione eccessiva",
+        "tono supplichevole ('la prego', 'ci tenga in considerazione')",
+        "tono aggressivo ('così non venderà mai')"
+      ]
+    },
+    "default_closure": {
+      "rules": [
+        "Concludere lasciando la palla nel suo campo, senza insistere",
+        "Esplicitare che, se ha già risolto o non è interessato, lo capiamo",
+        "Ribadire disponibilità serena, non ansiosa"
+      ],
+      "target_effect": "Il proprietario deve percepire un professionista che rispetta la sua linea ma non si svende, e che propone un modo di lavorare più serio del semplice 'se ha cliente lo porti'."
+    }
+  }
+}
