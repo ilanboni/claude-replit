@@ -109,7 +109,7 @@ export async function generateBotResponse(
     messages.push({ role: "user", content: userMessage });
 
     const intentCompletion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-4o",
       messages,
       temperature: 0.7,
       max_tokens: 200,
@@ -151,7 +151,7 @@ export async function generateBotResponse(
     }
 
     const textCompletion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-4o",
       messages,
       temperature: 0.7,
       max_tokens: 200
