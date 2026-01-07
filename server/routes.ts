@@ -1433,19 +1433,36 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
       // First, generate mirroring phrases from the listing
       const { MIRRORING_PROMPT } = await import("./bot-config");
       
-      let context = `Testo annuncio:\n"${immobile.descrizione || immobile.titolo || 'Nessun testo disponibile'}"`;
+      // Build mirroring context using the new schema
+      const testoAnnuncio = immobile.descrizione || immobile.titolo || 'Nessun testo disponibile';
       
+      // Determine tipo_unita from camere count
+      let tipoUnita: string | null = null;
+      if (immobile.camere) {
+        const camereNum = Number(immobile.camere);
+        if (camereNum === 1) tipoUnita = "monolocale";
+        else if (camereNum === 2) tipoUnita = "bilocale";
+        else if (camereNum === 3) tipoUnita = "trilocale";
+        else if (camereNum >= 4) tipoUnita = "quadrilocale";
+      }
+      
+      // Determine zona_o_via
+      const zonaOVia = immobile.zona || immobile.indirizzo || null;
+      
+      // Build context message for AI
+      let context = `Testo annuncio:\n"${testoAnnuncio}"`;
+      if (tipoUnita) context += `\n\nTipo unità: ${tipoUnita}`;
+      if (zonaOVia) context += `\nZona o via: ${zonaOVia}`;
+      
+      // Add additional extracted fields for richer context
       const campiEstratti: string[] = [];
-      if (immobile.titolo) campiEstratti.push(`titolo: ${immobile.titolo}`);
-      if (immobile.zona) campiEstratti.push(`zona: ${immobile.zona}`);
-      if (immobile.balcone) campiEstratti.push("ha_balcone: si");
-      if (immobile.terrazzo) campiEstratti.push("ha_terrazzo: si");
-      if (immobile.statoRistrutturato) campiEstratti.push("ristrutturato: si");
-      if (immobile.statoNuovo) campiEstratti.push("stato_nuovo: si");
-      if (immobile.classeEnergetica) campiEstratti.push(`classe_energetica: ${immobile.classeEnergetica}`);
-      if (immobile.ascensore) campiEstratti.push("presenza_ascensore: si");
-      if (immobile.mq) campiEstratti.push(`metratura: ${immobile.mq} mq`);
-      if (immobile.camere) campiEstratti.push(`camere: ${immobile.camere}`);
+      if (immobile.balcone) campiEstratti.push("balcone presente");
+      if (immobile.terrazzo) campiEstratti.push("terrazzo presente");
+      if (immobile.statoRistrutturato) campiEstratti.push("ristrutturato");
+      if (immobile.statoNuovo) campiEstratti.push("nuovo");
+      if (immobile.classeEnergetica) campiEstratti.push(`classe energetica ${immobile.classeEnergetica}`);
+      if (immobile.ascensore) campiEstratti.push("ascensore presente");
+      if (immobile.bagni) campiEstratti.push(`${immobile.bagni} bagni`);
       
       if (campiEstratti.length > 0) {
         context += `\n\nCampi già estratti:\n${campiEstratti.join("\n")}`;
@@ -1463,7 +1480,7 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
           { role: "system", content: MIRRORING_PROMPT },
           { role: "user", content: context }
         ],
-        temperature: 0.7,
+        temperature: 0.3,
         max_tokens: 300
       });
 
@@ -1521,7 +1538,7 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
           { role: "system", content: MIRRORING_PROMPT },
           { role: "user", content: context }
         ],
-        temperature: 0.7,
+        temperature: 0.3,
         max_tokens: 300
       });
 
@@ -1704,7 +1721,7 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
           { role: "system", content: MIRRORING_PROMPT },
           { role: "user", content: context }
         ],
-        temperature: 0.7,
+        temperature: 0.3,
         max_tokens: 300
       });
 
