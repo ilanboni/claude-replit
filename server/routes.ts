@@ -1438,6 +1438,61 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
     }
   });
 
+  // Generate mirroring phrases from property listing
+  app.post("/api/acquisizione/:id/generate-mirroring", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      
+      const immobile = await storage.getImmobileEsterno(id);
+      if (!immobile) {
+        return res.status(404).json({ error: "Immobile non trovato" });
+      }
+
+      const { MIRRORING_PROMPT } = await import("./bot-config");
+      
+      // Build context from immobile data
+      let context = `Testo annuncio:\n"${immobile.descrizione || immobile.titolo || 'Nessun testo disponibile'}"`;
+      
+      // Add extracted fields if available
+      const campiEstratti: string[] = [];
+      if (immobile.titolo) campiEstratti.push(`titolo: ${immobile.titolo}`);
+      if (immobile.zona) campiEstratti.push(`zona: ${immobile.zona}`);
+      if (immobile.balcone) campiEstratti.push("ha_balcone: si");
+      if (immobile.terrazzo) campiEstratti.push("ha_terrazzo: si");
+      if (immobile.statoRistrutturato) campiEstratti.push("ristrutturato: si");
+      if (immobile.statoNuovo) campiEstratti.push("stato_nuovo: si");
+      if (immobile.classeEnergetica) campiEstratti.push(`classe_energetica: ${immobile.classeEnergetica}`);
+      if (immobile.ascensore) campiEstratti.push("presenza_ascensore: si");
+      if (immobile.mq) campiEstratti.push(`metratura: ${immobile.mq} mq`);
+      if (immobile.camere) campiEstratti.push(`camere: ${immobile.camere}`);
+      
+      if (campiEstratti.length > 0) {
+        context += `\n\nCampi già estratti:\n${campiEstratti.join("\n")}`;
+      }
+
+      const OpenAI = (await import("openai")).default;
+      const openaiClient = new OpenAI({
+        apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+        baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+      });
+      const response = await openaiClient.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: MIRRORING_PROMPT },
+          { role: "user", content: context }
+        ],
+        temperature: 0.7,
+        max_tokens: 300
+      });
+
+      const mirroring = response.choices[0]?.message?.content?.trim() || "";
+      res.json({ mirroring });
+    } catch (error) {
+      console.error("Generate mirroring error:", error);
+      res.status(500).json({ error: "Errore nella generazione delle frasi di mirroring" });
+    }
+  });
+
   // Toggle preferito status
   app.post("/api/acquisizione/:id/toggle-preferito", async (req, res) => {
     try {
