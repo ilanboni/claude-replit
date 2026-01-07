@@ -1419,6 +1419,18 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
     }
   });
 
+  // Get comunicazioni for immobile esterno
+  app.get("/api/acquisizione/:id/comunicazioni", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const comunicazioni = await storage.getComunicazioniByImmobileEsterno(id);
+      res.json(comunicazioni);
+    } catch (error) {
+      console.error("Get comunicazioni by immobile esterno error:", error);
+      res.status(500).json({ error: "Errore nel recupero delle comunicazioni" });
+    }
+  });
+
   // Generate personalized acquisition message with automatic mirroring
   app.post("/api/acquisizione/:id/generate-message", async (req, res) => {
     try {

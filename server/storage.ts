@@ -92,6 +92,7 @@ export interface IStorage {
 
   // Comunicazioni per Immobile
   getComunicazioniByImmobile(immobileId: number): Promise<Comunicazione[]>;
+  getComunicazioniByImmobileEsterno(immobileEsternoId: number): Promise<Comunicazione[]>;
 
   // Appuntamenti per Immobile
   getAppuntamentiByImmobile(immobileId: number): Promise<Appuntamento[]>;
@@ -227,6 +228,10 @@ export class DatabaseStorage implements IStorage {
 
   async getComunicazioniByImmobile(immobileId: number): Promise<Comunicazione[]> {
     return db.select().from(comunicazioni).where(eq(comunicazioni.immobileId, immobileId)).orderBy(desc(comunicazioni.dataOra));
+  }
+
+  async getComunicazioniByImmobileEsterno(immobileEsternoId: number): Promise<Comunicazione[]> {
+    return db.select().from(comunicazioni).where(eq(comunicazioni.immobileEsternoId, immobileEsternoId)).orderBy(desc(comunicazioni.dataOra));
   }
 
   async updateComunicazione(id: number, data: Partial<InsertComunicazione>): Promise<Comunicazione | undefined> {
