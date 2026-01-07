@@ -9,6 +9,8 @@ import {
   Clock,
   CheckCircle2,
   AlertCircle,
+  MessageCircle,
+  Send,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,7 +29,7 @@ import {
   Bar,
   Legend
 } from "recharts";
-import type { Cliente, Immobile, Richiesta, Appuntamento, Matching } from "@shared/schema";
+import type { Cliente, Immobile, Richiesta, Appuntamento, Matching, WhatsappConversation } from "@shared/schema";
 
 interface TrendData {
   nome: string;
@@ -445,6 +447,128 @@ function TrendChartCard({ loading }: { loading?: boolean }) {
   );
 }
 
+function WhatsAppChatCard({ 
+  conversations, 
+  loading 
+}: { 
+  conversations: WhatsappConversation[];
+  loading?: boolean;
+}) {
+  if (loading) {
+    return (
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-6 w-40" />
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-14 w-full" />
+          ))}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const totalUnread = conversations.reduce((sum, c) => sum + (c.nonLetti || 0), 0);
+  const recentConversations = conversations.slice(0, 5);
+
+  const getInitials = (name: string) => {
+    const parts = name.split(' ');
+    if (parts.length >= 2) {
+      return parts[0][0] + parts[1][0];
+    }
+    return name.substring(0, 2);
+  };
+
+  const getAvatarColor = (id: number) => {
+    const colors = [
+      'bg-green-500', 'bg-blue-500', 'bg-purple-500', 
+      'bg-orange-500', 'bg-pink-500', 'bg-teal-500'
+    ];
+    return colors[id % colors.length];
+  };
+
+  const formatTime = (date: Date | string | null) => {
+    if (!date) return '';
+    const d = new Date(date);
+    const now = new Date();
+    const diff = now.getTime() - d.getTime();
+    const hours = diff / (1000 * 60 * 60);
+    
+    if (hours < 24) {
+      return d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+    } else if (hours < 48) {
+      return 'Ieri';
+    } else {
+      return d.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' });
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-4">
+        <CardTitle className="flex items-center gap-2">
+          <MessageCircle className="h-5 w-5 text-green-600" />
+          Chat WhatsApp
+          {totalUnread > 0 && (
+            <Badge variant="destructive" className="ml-2">
+              {totalUnread}
+            </Badge>
+          )}
+        </CardTitle>
+        <Link href="/whatsapp">
+          <Button variant="ghost" size="sm" data-testid="button-view-all-whatsapp">
+            Apri chat
+          </Button>
+        </Link>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {recentConversations.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <MessageCircle className="h-12 w-12 text-muted-foreground/50 mb-3" />
+            <p className="text-sm text-muted-foreground">Nessuna conversazione</p>
+            <Link href="/whatsapp">
+              <Button variant="outline" size="sm" className="mt-3" data-testid="button-start-whatsapp">
+                Inizia a chattare
+              </Button>
+            </Link>
+          </div>
+        ) : (
+          recentConversations.map((conv) => (
+            <Link key={conv.id} href="/whatsapp">
+              <div className="flex items-center gap-3 rounded-md p-2 hover-elevate cursor-pointer">
+                <div className={`flex h-10 w-10 items-center justify-center rounded-full text-white text-sm font-medium ${getAvatarColor(conv.id)}`}>
+                  {getInitials(conv.nome || conv.phoneNumber)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className={`text-sm truncate ${(conv.nonLetti ?? 0) > 0 ? 'font-semibold' : 'font-medium'}`}>
+                      {conv.nome || conv.phoneNumber}
+                    </p>
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">
+                      {formatTime(conv.ultimoMessaggioData)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs text-muted-foreground truncate">
+                      {conv.phoneNumber}
+                    </p>
+                    {(conv.nonLetti ?? 0) > 0 && (
+                      <Badge variant="default" className="bg-green-500 text-white min-w-[20px] h-5 flex items-center justify-center">
+                        {conv.nonLetti}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </Link>
+          ))
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function MatchingSuggestionsCard({ 
   matching, 
   loading 
@@ -543,6 +667,10 @@ export default function Dashboard() {
     queryKey: ["/api/matching"],
   });
 
+  const { data: whatsappConversations = [], isLoading: whatsappLoading } = useQuery<WhatsappConversation[]>({
+    queryKey: ["/api/whatsapp/conversations"],
+  });
+
   const loading = statsLoading || clientiLoading || immobiliLoading;
 
   return (
@@ -595,10 +723,14 @@ export default function Dashboard() {
         />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-3">
         <UpcomingAppointmentsCard 
           appuntamenti={appuntamenti} 
           loading={appuntamentiLoading} 
+        />
+        <WhatsAppChatCard 
+          conversations={whatsappConversations} 
+          loading={whatsappLoading} 
         />
         <MatchingSuggestionsCard 
           matching={matching} 
