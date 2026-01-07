@@ -10,6 +10,7 @@ import {
   Search,
   Settings,
   Bot,
+  Phone,
 } from "lucide-react";
 import {
   Sidebar,
@@ -34,6 +35,7 @@ const menuItems = [
   { title: "Matching", url: "/matching", icon: Sparkles },
   { title: "Acquisizione", url: "/acquisizione", icon: Search },
   { title: "Bot WhatsApp", url: "/bot", icon: Bot },
+  { title: "WhatsApp Chat", url: "/whatsapp", icon: Phone },
 ];
 
 export function AppSidebar() {
