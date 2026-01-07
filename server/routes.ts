@@ -1419,7 +1419,7 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
     }
   });
 
-  // Generate personalized acquisition message
+  // Generate personalized acquisition message with automatic mirroring
   app.post("/api/acquisizione/:id/generate-message", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
@@ -1430,7 +1430,47 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         return res.status(404).json({ error: "Immobile non trovato" });
       }
 
-      const message = await generateAcquisitionMessage(immobile, template);
+      // First, generate mirroring phrases from the listing
+      const { MIRRORING_PROMPT } = await import("./bot-config");
+      
+      let context = `Testo annuncio:\n"${immobile.descrizione || immobile.titolo || 'Nessun testo disponibile'}"`;
+      
+      const campiEstratti: string[] = [];
+      if (immobile.titolo) campiEstratti.push(`titolo: ${immobile.titolo}`);
+      if (immobile.zona) campiEstratti.push(`zona: ${immobile.zona}`);
+      if (immobile.balcone) campiEstratti.push("ha_balcone: si");
+      if (immobile.terrazzo) campiEstratti.push("ha_terrazzo: si");
+      if (immobile.statoRistrutturato) campiEstratti.push("ristrutturato: si");
+      if (immobile.statoNuovo) campiEstratti.push("stato_nuovo: si");
+      if (immobile.classeEnergetica) campiEstratti.push(`classe_energetica: ${immobile.classeEnergetica}`);
+      if (immobile.ascensore) campiEstratti.push("presenza_ascensore: si");
+      if (immobile.mq) campiEstratti.push(`metratura: ${immobile.mq} mq`);
+      if (immobile.camere) campiEstratti.push(`camere: ${immobile.camere}`);
+      
+      if (campiEstratti.length > 0) {
+        context += `\n\nCampi già estratti:\n${campiEstratti.join("\n")}`;
+      }
+
+      const OpenAI = (await import("openai")).default;
+      const openaiClient = new OpenAI({
+        apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+        baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+      });
+      
+      const mirroringResponse = await openaiClient.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: MIRRORING_PROMPT },
+          { role: "user", content: context }
+        ],
+        temperature: 0.7,
+        max_tokens: 300
+      });
+
+      const mirroringText = mirroringResponse.choices[0]?.message?.content?.trim() || "";
+
+      // Now generate the full message with mirroring included
+      const message = await generateAcquisitionMessage(immobile, template, mirroringText);
       res.json({ message });
     } catch (error) {
       console.error("Generate message error:", error);

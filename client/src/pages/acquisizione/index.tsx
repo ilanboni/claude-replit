@@ -1010,40 +1010,6 @@ export default function AcquisizionePage() {
     },
   });
 
-  const generateMirroringMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const res = await apiRequest("POST", `/api/acquisizione/${id}/generate-mirroring`, {});
-      return res.json();
-    },
-    onSuccess: (data: { mirroring: string }) => {
-      // Insert mirroring at cursor position or append to message
-      if (data.mirroring) {
-        setGeneratedMessage(prev => {
-          // Find placeholder or append after first paragraph
-          const placeholder = "{{caratteristiche}}";
-          if (prev.includes(placeholder)) {
-            return prev.replace(placeholder, data.mirroring);
-          }
-          // Insert after greeting line
-          const lines = prev.split("\n");
-          if (lines.length > 2) {
-            lines.splice(2, 0, "", data.mirroring);
-            return lines.join("\n");
-          }
-          return prev + "\n\n" + data.mirroring;
-        });
-        toast({ title: "Frasi di mirroring generate" });
-      }
-    },
-    onError: () => {
-      toast({
-        title: "Errore",
-        description: "Impossibile generare le frasi di mirroring",
-        variant: "destructive",
-      });
-    },
-  });
-
   const handleGenerateMessage = (id: number) => {
     setSelectedImmobileId(id);
     setGeneratedMessage("");
@@ -1175,28 +1141,13 @@ export default function AcquisizionePage() {
           {generateMessageMutation.isPending ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="ml-2 text-muted-foreground">Generazione messaggio con mirroring...</p>
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-sm text-muted-foreground">
-                  Puoi modificare il messaggio prima di copiarlo
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => selectedImmobileId && generateMirroringMutation.mutate(selectedImmobileId)}
-                  disabled={generateMirroringMutation.isPending || !selectedImmobileId}
-                  data-testid="button-generate-mirroring"
-                >
-                  {generateMirroringMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                  ) : (
-                    <Sparkles className="h-4 w-4 mr-1" />
-                  )}
-                  Aggiungi Mirroring
-                </Button>
-              </div>
+              <p className="text-sm text-muted-foreground">
+                Messaggio generato con frasi di mirroring dall'annuncio. Puoi modificarlo prima di copiarlo.
+              </p>
               <Textarea
                 value={generatedMessage}
                 onChange={(e) => setGeneratedMessage(e.target.value)}

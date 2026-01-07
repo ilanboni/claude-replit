@@ -757,25 +757,34 @@ Assistente del Dott. Ilan Boni`;
 
 export async function generateAcquisitionMessage(
   immobile: ImmobileEsterno,
-  template?: string
+  template?: string,
+  mirroringText?: string
 ): Promise<string> {
   try {
-    // Build characteristics string from immobile data
-    const caratteristiche: string[] = [];
-    if (immobile.mq) caratteristiche.push(`${immobile.mq} mq`);
-    if (immobile.camere) caratteristiche.push(`${immobile.camere} locali`);
-    if (immobile.piano) caratteristiche.push(`piano ${immobile.piano}`);
-    if (immobile.ascensore) caratteristiche.push("con ascensore");
-    if (immobile.balcone) caratteristiche.push("con balcone");
-    if (immobile.terrazzo) caratteristiche.push("con terrazzo");
-    if (immobile.box) caratteristiche.push("con box");
-    if (immobile.arredato) caratteristiche.push("arredato");
-    if (immobile.statoRistrutturato) caratteristiche.push("ristrutturato");
-    if (immobile.classeEnergetica) caratteristiche.push(`classe energetica ${immobile.classeEnergetica}`);
+    // Use mirroring text if provided, otherwise build from characteristics
+    let caratteristicheStr: string;
     
-    const caratteristicheStr = caratteristiche.length > 0 
-      ? caratteristiche.join(", ") 
-      : "le sue caratteristiche";
+    if (mirroringText && mirroringText.trim()) {
+      // Use the AI-generated mirroring phrases
+      caratteristicheStr = mirroringText;
+    } else {
+      // Fallback: Build characteristics string from immobile data
+      const caratteristiche: string[] = [];
+      if (immobile.mq) caratteristiche.push(`${immobile.mq} mq`);
+      if (immobile.camere) caratteristiche.push(`${immobile.camere} locali`);
+      if (immobile.piano) caratteristiche.push(`piano ${immobile.piano}`);
+      if (immobile.ascensore) caratteristiche.push("con ascensore");
+      if (immobile.balcone) caratteristiche.push("con balcone");
+      if (immobile.terrazzo) caratteristiche.push("con terrazzo");
+      if (immobile.box) caratteristiche.push("con box");
+      if (immobile.arredato) caratteristiche.push("arredato");
+      if (immobile.statoRistrutturato) caratteristiche.push("ristrutturato");
+      if (immobile.classeEnergetica) caratteristiche.push(`classe energetica ${immobile.classeEnergetica}`);
+      
+      caratteristicheStr = caratteristiche.length > 0 
+        ? caratteristiche.join(", ") 
+        : "le sue caratteristiche";
+    }
     
     const via = immobile.indirizzo || immobile.zona || "zona";
     
