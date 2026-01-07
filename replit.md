@@ -18,6 +18,12 @@ ImmoGest is a professional Italian real estate CRM (Customer Relationship Manage
 
 Preferred communication style: Simple, everyday language.
 
+**Automazioni richieste:**
+- Quando l'utente fornisce un nuovo JSON per il mirroring, aggiornare automaticamente:
+  1. `server/bot-config.ts` - MIRRORING_PROMPT e MIRRORING_CONFIG
+  2. `server/ai-service.ts` - funzione generateMirroring
+  3. `server/routes.ts` - endpoint generate-initial-message (se usa parametri diversi)
+
 ## System Architecture
 
 ### Frontend Architecture
