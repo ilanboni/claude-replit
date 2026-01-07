@@ -50,6 +50,27 @@ interface PropertyContext {
   proprietario: string;
 }
 
+interface ExtractedFacts {
+  tipo_unita?: string;
+  numero_camere?: number;
+  numero_bagni?: number;
+  piano?: string;
+  ascensore?: boolean;
+  balconi?: number;
+  terrazzo?: boolean;
+  cantina?: boolean;
+  arredato?: boolean;
+  posto_auto_o_bici?: boolean;
+  ristrutturato?: boolean;
+  classe_energetica?: string;
+  zona_testuale?: string;
+  portineria?: boolean;
+  doppia_esposizione?: boolean;
+  metro_trasporti?: string;
+  mq_principali?: number;
+  prezzo?: number;
+}
+
 export default function BotPage() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("acquisizione");
@@ -81,6 +102,7 @@ Contatto: Mario Rossi - 333 1234567`,
   const [showNewCampaignDialog, setShowNewCampaignDialog] = useState(false);
   const [newCampaignName, setNewCampaignName] = useState("");
   const [selectedProperties, setSelectedProperties] = useState<number[]>([]);
+  const [extractedFacts, setExtractedFacts] = useState<ExtractedFacts | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const { data: campaigns = [], isLoading: loadingCampaigns } = useQuery<WhatsappCampaign[]>({
@@ -215,6 +237,27 @@ Contatto: Mario Rossi - 333 1234567`,
         content: data.message,
         timestamp: new Date()
       }]);
+    }
+  });
+
+  const extractFactsMutation = useMutation({
+    mutationFn: async (data: { testoAnnuncio: string }) => {
+      const res = await apiRequest("POST", "/api/bot/extract-facts", data);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setExtractedFacts(data.facts);
+      toast({
+        title: "Fatti estratti",
+        description: `Trovati ${Object.keys(data.facts || {}).filter(k => data.facts[k] !== null).length} attributi`
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Errore",
+        description: "Impossibile estrarre i fatti dall'annuncio",
+        variant: "destructive"
+      });
     }
   });
 
@@ -641,13 +684,90 @@ GESTIONE OBIEZIONI: ${JSON.stringify(selectedCampaign.objectionHandling || {}, n
                     value={propertyContext.testoAnnuncio}
                     onChange={(e) => setPropertyContext(prev => ({ ...prev, testoAnnuncio: e.target.value }))}
                     placeholder="Incolla qui il testo completo dell'annuncio del proprietario..."
-                    className="min-h-[200px] text-sm"
+                    className="min-h-[150px] text-sm"
                     data-testid="input-testo-annuncio-simulazione"
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Il bot usera questo testo per fare mirroring delle parole del proprietario
-                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => extractFactsMutation.mutate({ testoAnnuncio: propertyContext.testoAnnuncio })}
+                      disabled={extractFactsMutation.isPending || !propertyContext.testoAnnuncio.trim()}
+                      data-testid="button-estrai-fatti"
+                    >
+                      {extractFactsMutation.isPending ? (
+                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                      ) : (
+                        <FileText className="h-3 w-3 mr-1" />
+                      )}
+                      Estrai Fatti
+                    </Button>
+                  </div>
                 </div>
+
+                {/* Mostra fatti estratti */}
+                {extractedFacts && (
+                  <div className="space-y-2 p-3 bg-muted/50 rounded-lg">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium flex items-center gap-1">
+                        <Target className="h-3 w-3" />
+                        Fatti Estratti
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setExtractedFacts(null)}
+                        className="h-6 w-6 p-0"
+                        data-testid="button-chiudi-fatti"
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                      {extractedFacts.tipo_unita && (
+                        <div><span className="text-muted-foreground">Tipo:</span> {extractedFacts.tipo_unita}</div>
+                      )}
+                      {extractedFacts.mq_principali && (
+                        <div><span className="text-muted-foreground">Mq:</span> {extractedFacts.mq_principali}</div>
+                      )}
+                      {extractedFacts.numero_camere !== undefined && extractedFacts.numero_camere !== null && (
+                        <div><span className="text-muted-foreground">Camere:</span> {extractedFacts.numero_camere}</div>
+                      )}
+                      {extractedFacts.numero_bagni !== undefined && extractedFacts.numero_bagni !== null && (
+                        <div><span className="text-muted-foreground">Bagni:</span> {extractedFacts.numero_bagni}</div>
+                      )}
+                      {extractedFacts.piano && (
+                        <div><span className="text-muted-foreground">Piano:</span> {extractedFacts.piano}</div>
+                      )}
+                      {extractedFacts.prezzo && (
+                        <div><span className="text-muted-foreground">Prezzo:</span> {extractedFacts.prezzo.toLocaleString('it-IT')}</div>
+                      )}
+                      {extractedFacts.classe_energetica && (
+                        <div><span className="text-muted-foreground">Classe:</span> {extractedFacts.classe_energetica}</div>
+                      )}
+                      {extractedFacts.zona_testuale && (
+                        <div className="col-span-2"><span className="text-muted-foreground">Zona:</span> {extractedFacts.zona_testuale}</div>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1 pt-1">
+                      {extractedFacts.ascensore && <Badge variant="secondary" className="text-xs">Ascensore</Badge>}
+                      {extractedFacts.balconi && extractedFacts.balconi > 0 && <Badge variant="secondary" className="text-xs">Balcone</Badge>}
+                      {extractedFacts.terrazzo && <Badge variant="secondary" className="text-xs">Terrazzo</Badge>}
+                      {extractedFacts.cantina && <Badge variant="secondary" className="text-xs">Cantina</Badge>}
+                      {extractedFacts.arredato && <Badge variant="secondary" className="text-xs">Arredato</Badge>}
+                      {extractedFacts.posto_auto_o_bici && <Badge variant="secondary" className="text-xs">Box/Posto</Badge>}
+                      {extractedFacts.ristrutturato && <Badge variant="secondary" className="text-xs">Ristrutturato</Badge>}
+                      {extractedFacts.doppia_esposizione && <Badge variant="secondary" className="text-xs">Doppia Esp.</Badge>}
+                      {extractedFacts.portineria && <Badge variant="secondary" className="text-xs">Portineria</Badge>}
+                    </div>
+                    {extractedFacts.metro_trasporti && (
+                      <div className="text-xs pt-1">
+                        <span className="text-muted-foreground">Trasporti:</span> {extractedFacts.metro_trasporti}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="flex gap-2 pt-2">
                   {!isSimulating ? (
                     <Button 
