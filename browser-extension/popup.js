@@ -292,13 +292,57 @@ function extractListingData() {
       }
     }
     
-    // NON estraiamo numeri di telefono automaticamente dal testo della pagina
-    // perché è troppo impreciso e cattura numeri errati (riferimenti annuncio, CAP, ecc.)
-    // Il telefono deve essere:
-    // 1. Presente nel JSON __NEXT_DATA__ (raro per privati)
-    // 2. Inserito manualmente dall'utente
+    // Estrai telefono SOLO dalla sezione contatti (più preciso)
+    // Cerca elementi specifici che contengono il numero di telefono
+    const contactSelectors = [
+      '[data-cy="phone-number"]',
+      '[class*="ContactButton"] a[href^="tel:"]',
+      'a[href^="tel:"]',
+      '[class*="phone"]',
+      '[class*="Phone"]',
+      '[class*="telefono"]',
+      '.nd-mediaObject__content a[href^="tel:"]'
+    ];
     
-    // Controlla se c'è l'immagine del telefono (per segnalare che esiste ma è nascosto)
+    for (const selector of contactSelectors) {
+      const el = document.querySelector(selector);
+      if (el) {
+        // Se è un link tel:, estrai il numero dall'href
+        const href = el.getAttribute('href');
+        if (href && href.startsWith('tel:')) {
+          const phone = href.replace('tel:', '').replace(/[\s\-+]/g, '');
+          if (phone.length >= 9 && phone.length <= 13) {
+            data.contatto.telefono = phone;
+            break;
+          }
+        }
+        // Altrimenti estrai dal testo
+        const text = el.textContent?.replace(/[\s\-]/g, '') || '';
+        const phoneMatch = text.match(/(\d{9,13})/);
+        if (phoneMatch) {
+          data.contatto.telefono = phoneMatch[1];
+          break;
+        }
+      }
+    }
+    
+    // Se non trovato, cerca nel box contatti visibile (sezione laterale)
+    if (!data.contatto.telefono) {
+      const contactBox = document.querySelector('[class*="ContactBox"], [class*="contact-box"], [data-testid="contact-box"]');
+      if (contactBox) {
+        const boxText = contactBox.textContent || '';
+        // Cerca pattern telefono italiano nel box contatti
+        const phoneMatch = boxText.match(/(?:chiama|telefono|tel\.?:?\s*)(\d[\d\s\-]{8,14}\d)/i);
+        if (phoneMatch) {
+          const cleaned = phoneMatch[1].replace(/[\s\-]/g, '');
+          if (cleaned.length >= 9 && cleaned.length <= 13) {
+            data.contatto.telefono = cleaned;
+          }
+        }
+      }
+    }
+    
+    // Controlla se c'è l'immagine del telefono (numero nascosto come immagine)
     const telImg = document.querySelector('img[src*="tel_"]');
     if (telImg && !data.contatto.telefono) {
       data.contatto.telefonoImmagine = telImg.src;
