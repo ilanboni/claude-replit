@@ -200,6 +200,19 @@ export const attivitaImmobile = pgTable("attivita_immobile", {
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
+// ATTIVITA CLIENTE - Client tasks/todos
+export const attivitaCliente = pgTable("attivita_cliente", {
+  id: serial("id").primaryKey(),
+  clienteId: integer("cliente_id").notNull().references(() => clienti.id, { onDelete: "cascade" }),
+  immobileId: integer("immobile_id").references(() => immobili.id, { onDelete: "set null" }),
+  titolo: text("titolo").notNull(),
+  descrizione: text("descrizione"),
+  fonte: text("fonte"), // immobiliare.it, idealista, email, telefono
+  scadenza: timestamp("scadenza"),
+  stato: text("stato").default("da_fare"), // da_fare, in_corso, fatto
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
 // DOCUMENTI IMMOBILE - Property documents
 export const documentiImmobile = pgTable("documenti_immobile", {
   id: serial("id").primaryKey(),
@@ -533,6 +546,11 @@ export const insertAttivitaImmobileSchema = createInsertSchema(attivitaImmobile)
   createdAt: true,
 });
 
+export const insertAttivitaClienteSchema = createInsertSchema(attivitaCliente).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const insertDocumentoImmobileSchema = createInsertSchema(documentiImmobile).omit({
   id: true,
   createdAt: true,
@@ -586,6 +604,9 @@ export type InsertImmobileEsterno = z.infer<typeof insertImmobileEsternoSchema>;
 
 export type AttivitaImmobile = typeof attivitaImmobile.$inferSelect;
 export type InsertAttivitaImmobile = z.infer<typeof insertAttivitaImmobileSchema>;
+
+export type AttivitaCliente = typeof attivitaCliente.$inferSelect;
+export type InsertAttivitaCliente = z.infer<typeof insertAttivitaClienteSchema>;
 
 export type DocumentoImmobile = typeof documentiImmobile.$inferSelect;
 export type InsertDocumentoImmobile = z.infer<typeof insertDocumentoImmobileSchema>;

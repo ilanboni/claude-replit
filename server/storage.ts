@@ -1,6 +1,6 @@
 import { 
   clienti, richieste, immobili, comunicazioni, appuntamenti, matching, immobiliEsterni,
-  attivitaImmobile, documentiImmobile, portaliImmobile, storicoPrezzo,
+  attivitaImmobile, attivitaCliente, documentiImmobile, portaliImmobile, storicoPrezzo,
   whatsappCampaigns, campaignMessages, botConversationLogs,
   whatsappConversations, whatsappMessages,
   type Cliente, type InsertCliente,
@@ -11,6 +11,7 @@ import {
   type Matching, type InsertMatching,
   type ImmobileEsterno, type InsertImmobileEsterno,
   type AttivitaImmobile, type InsertAttivitaImmobile,
+  type AttivitaCliente, type InsertAttivitaCliente,
   type DocumentoImmobile, type InsertDocumentoImmobile,
   type PortaleImmobile, type InsertPortaleImmobile,
   type StoricoPrezzo, type InsertStoricoPrezzo,
@@ -75,9 +76,17 @@ export interface IStorage {
 
   // Attività Immobile
   getAttivitaImmobile(immobileId: number): Promise<AttivitaImmobile[]>;
+  getAllAttivitaImmobile(stato?: string): Promise<AttivitaImmobile[]>;
   createAttivitaImmobile(data: InsertAttivitaImmobile): Promise<AttivitaImmobile>;
   updateAttivitaImmobile(id: number, data: Partial<InsertAttivitaImmobile>): Promise<AttivitaImmobile | undefined>;
   deleteAttivitaImmobile(id: number): Promise<boolean>;
+
+  // Attività Cliente
+  getAttivitaCliente(clienteId: number): Promise<AttivitaCliente[]>;
+  getAllAttivitaCliente(stato?: string): Promise<AttivitaCliente[]>;
+  createAttivitaCliente(data: InsertAttivitaCliente): Promise<AttivitaCliente>;
+  updateAttivitaCliente(id: number, data: Partial<InsertAttivitaCliente>): Promise<AttivitaCliente | undefined>;
+  deleteAttivitaCliente(id: number): Promise<boolean>;
 
   // Documenti Immobile
   getDocumentiImmobile(immobileId: number): Promise<DocumentoImmobile[]>;
@@ -371,6 +380,13 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(attivitaImmobile).where(eq(attivitaImmobile.immobileId, immobileId)).orderBy(desc(attivitaImmobile.createdAt));
   }
 
+  async getAllAttivitaImmobile(stato?: string): Promise<AttivitaImmobile[]> {
+    if (stato) {
+      return db.select().from(attivitaImmobile).where(eq(attivitaImmobile.stato, stato)).orderBy(desc(attivitaImmobile.createdAt));
+    }
+    return db.select().from(attivitaImmobile).orderBy(desc(attivitaImmobile.createdAt));
+  }
+
   async createAttivitaImmobile(data: InsertAttivitaImmobile): Promise<AttivitaImmobile> {
     const [attivita] = await db.insert(attivitaImmobile).values(data).returning();
     return attivita;
@@ -383,6 +399,33 @@ export class DatabaseStorage implements IStorage {
 
   async deleteAttivitaImmobile(id: number): Promise<boolean> {
     await db.delete(attivitaImmobile).where(eq(attivitaImmobile.id, id));
+    return true;
+  }
+
+  // Attività Cliente
+  async getAttivitaCliente(clienteId: number): Promise<AttivitaCliente[]> {
+    return db.select().from(attivitaCliente).where(eq(attivitaCliente.clienteId, clienteId)).orderBy(desc(attivitaCliente.createdAt));
+  }
+
+  async getAllAttivitaCliente(stato?: string): Promise<AttivitaCliente[]> {
+    if (stato) {
+      return db.select().from(attivitaCliente).where(eq(attivitaCliente.stato, stato)).orderBy(desc(attivitaCliente.createdAt));
+    }
+    return db.select().from(attivitaCliente).orderBy(desc(attivitaCliente.createdAt));
+  }
+
+  async createAttivitaCliente(data: InsertAttivitaCliente): Promise<AttivitaCliente> {
+    const [attivita] = await db.insert(attivitaCliente).values(data).returning();
+    return attivita;
+  }
+
+  async updateAttivitaCliente(id: number, data: Partial<InsertAttivitaCliente>): Promise<AttivitaCliente | undefined> {
+    const [attivita] = await db.update(attivitaCliente).set(data).where(eq(attivitaCliente.id, id)).returning();
+    return attivita;
+  }
+
+  async deleteAttivitaCliente(id: number): Promise<boolean> {
+    await db.delete(attivitaCliente).where(eq(attivitaCliente.id, id));
     return true;
   }
 
