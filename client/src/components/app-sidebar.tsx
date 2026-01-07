@@ -11,6 +11,7 @@ import {
   Settings,
   Bot,
   Phone,
+  ClipboardList,
 } from "lucide-react";
 import {
   Sidebar,
@@ -32,6 +33,7 @@ const menuItems = [
   { title: "Richieste", url: "/richieste", icon: FileText },
   { title: "Comunicazioni", url: "/comunicazioni", icon: MessageSquare },
   { title: "Appuntamenti", url: "/appuntamenti", icon: Calendar },
+  { title: "Attività", url: "/attivita", icon: ClipboardList },
   { title: "Matching", url: "/matching", icon: Sparkles },
   { title: "Acquisizione", url: "/acquisizione", icon: Search },
   { title: "Bot WhatsApp", url: "/bot", icon: Bot },

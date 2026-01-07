@@ -1732,7 +1732,8 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         tipo: "proposta",
         testo: message,
         canale: "whatsapp",
-        dataOra: new Date(),
+        creatoDA: "agente",
+        esito: null,
       });
 
       res.json({ 

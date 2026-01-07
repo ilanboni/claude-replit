@@ -23,6 +23,7 @@ import AcquisizionePage from "@/pages/acquisizione";
 import AcquisizioneDetailPage from "@/pages/acquisizione/detail";
 import BotPage from "@/pages/bot";
 import WhatsAppPage from "@/pages/whatsapp";
+import AttivitaPage from "@/pages/attivita";
 
 function Router() {
   return (
@@ -40,6 +41,7 @@ function Router() {
       <Route path="/acquisizione/:id" component={AcquisizioneDetailPage} />
       <Route path="/bot" component={BotPage} />
       <Route path="/whatsapp" component={WhatsAppPage} />
+      <Route path="/attivita" component={AttivitaPage} />
       <Route component={NotFound} />
     </Switch>
   );
