@@ -924,7 +924,7 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
     return result;
   }
 
-  // Parse PDF with text extraction + AI
+  // Parse PDF with text extraction + AI + Vision for images
   app.post("/api/acquisizione/parse-pdf", async (req, res) => {
     try {
       const { pdfBase64, pdfText } = req.body;
@@ -932,7 +932,19 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
       // If frontend already extracted text (preferred)
       if (pdfText && typeof pdfText === "string" && pdfText.trim().length > 50) {
         const parsed = await parsePropertyListingWithAI(pdfText);
-        return res.json(flattenAIResponse(parsed));
+        let result = flattenAIResponse(parsed);
+        
+        // If no phone found and we have pdfBase64, try extracting from PDF images
+        if (!result.contattoTelefono && pdfBase64) {
+          console.log("[PDF] No phone in text, trying image extraction...");
+          const phoneFromImages = await extractPhoneFromPdfImages(pdfBase64);
+          if (phoneFromImages) {
+            console.log(`[PDF] Phone found in PDF image: ${phoneFromImages}`);
+            result.contattoTelefono = phoneFromImages;
+          }
+        }
+        
+        return res.json(result);
       }
       
       // Fallback: try to extract text from PDF using pdftotext CLI
@@ -959,7 +971,19 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         }
         
         const parsed = await parsePropertyListingWithAI(extractedText);
-        res.json(flattenAIResponse(parsed));
+        let result = flattenAIResponse(parsed);
+        
+        // If no phone found, try extracting from PDF images
+        if (!result.contattoTelefono) {
+          console.log("[PDF] No phone in text, trying image extraction...");
+          const phoneFromImages = await extractPhoneFromPdfImages(pdfBase64);
+          if (phoneFromImages) {
+            console.log(`[PDF] Phone found in PDF image: ${phoneFromImages}`);
+            result.contattoTelefono = phoneFromImages;
+          }
+        }
+        
+        res.json(result);
       } catch (execError) {
         // Clean up temp files on error
         try { fs.unlinkSync(tempPdfPath); } catch {}
@@ -972,6 +996,99 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
       res.status(500).json({ error: "Errore nell'analisi del PDF" });
     }
   });
+  
+  // Helper function to extract phone from PDF using Vision AI on rendered pages
+  async function extractPhoneFromPdfImages(pdfBase64: string): Promise<string | null> {
+    const tempDir = os.tmpdir();
+    const timestamp = Date.now();
+    const tempPdfPath = path.join(tempDir, `pdf_${timestamp}.pdf`);
+    const pagePrefix = path.join(tempDir, `page_${timestamp}`);
+    
+    try {
+      // Write PDF to temp file
+      const buffer = Buffer.from(pdfBase64, "base64");
+      fs.writeFileSync(tempPdfPath, buffer);
+      
+      // Convert PDF pages to images (better than pdfimages for text in graphics)
+      console.log("[PDF] Converting PDF pages to images with pdftoppm...");
+      await execAsync(`pdftoppm -png -r 150 "${tempPdfPath}" "${pagePrefix}"`);
+      
+      // Find rendered page images
+      const files = fs.readdirSync(tempDir);
+      const pageFiles = files
+        .filter(f => f.startsWith(`page_${timestamp}`) && f.endsWith('.png'))
+        .map(f => path.join(tempDir, f))
+        .slice(0, 3); // Limit to first 3 pages
+      
+      console.log(`[PDF] Rendered ${pageFiles.length} page(s) from PDF`);
+      
+      // Analyze each page with Vision AI looking for phone numbers
+      for (const pagePath of pageFiles) {
+        try {
+          const imageData = fs.readFileSync(pagePath);
+          const base64 = imageData.toString('base64');
+          
+          // Use parsePropertyImageWithAI to analyze the full page
+          const parsed = await parsePropertyImageWithAI(base64, "image/png");
+          
+          if (parsed.contattoTelefono) {
+            console.log(`[PDF] Phone found in page: ${parsed.contattoTelefono}`);
+            // Clean up all temp files
+            cleanupTempFiles(tempPdfPath, pagePrefix, timestamp, tempDir);
+            return parsed.contattoTelefono;
+          }
+        } catch (imgErr) {
+          console.log(`[PDF] Page analysis failed for ${pagePath}`);
+        }
+      }
+      
+      // Fallback: also try extracting embedded images
+      console.log("[PDF] No phone in pages, trying embedded images...");
+      const imgPrefix = path.join(tempDir, `img_${timestamp}`);
+      try {
+        await execAsync(`pdfimages -png "${tempPdfPath}" "${imgPrefix}"`);
+        const imgFiles = fs.readdirSync(tempDir)
+          .filter(f => f.startsWith(`img_${timestamp}`) && f.endsWith('.png'))
+          .map(f => path.join(tempDir, f))
+          .slice(0, 5);
+        
+        for (const imgPath of imgFiles) {
+          try {
+            const imageData = fs.readFileSync(imgPath);
+            const base64 = imageData.toString('base64');
+            const parsed = await parsePropertyImageWithAI(base64, "image/png");
+            if (parsed.contattoTelefono) {
+              cleanupTempFiles(tempPdfPath, pagePrefix, timestamp, tempDir);
+              cleanupTempFiles(tempPdfPath, imgPrefix, timestamp, tempDir);
+              return parsed.contattoTelefono;
+            }
+          } catch {}
+        }
+        cleanupTempFiles(tempPdfPath, imgPrefix, timestamp, tempDir);
+      } catch {}
+      
+      // Clean up temp files
+      cleanupTempFiles(tempPdfPath, pagePrefix, timestamp, tempDir);
+      return null;
+    } catch (err) {
+      console.error("[PDF] PDF processing error:", err);
+      cleanupTempFiles(tempPdfPath, pagePrefix, timestamp, tempDir);
+      return null;
+    }
+  }
+  
+  // Helper to clean up temp files
+  function cleanupTempFiles(pdfPath: string, prefix: string, timestamp: number, tempDir: string) {
+    try { fs.unlinkSync(pdfPath); } catch {}
+    try {
+      const files = fs.readdirSync(tempDir);
+      for (const f of files) {
+        if (f.includes(`${timestamp}`)) {
+          try { fs.unlinkSync(path.join(tempDir, f)); } catch {}
+        }
+      }
+    } catch {}
+  }
 
   // Parse PDF with Vision AI (for PDFs with images/scanned content)
   app.post("/api/acquisizione/parse-pdf-vision", async (req, res) => {
