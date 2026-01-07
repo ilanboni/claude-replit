@@ -1481,10 +1481,15 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
 
 CONTESTO IMMOBILE:
 - Titolo: ${property.titolo || "Non specificato"}
-- Indirizzo: ${property.indirizzo || "Non specificato"}
-- Prezzo: EUR ${property.prezzo?.toLocaleString("it-IT") || "Da definire"}
-- Superficie: ${property.mq || "Non specificata"} mq
 - Proprietario: Sig. ${property.proprietario || "Proprietario"}
+
+ANNUNCIO ORIGINALE DEL PROPRIETARIO:
+"""
+${property.testoAnnuncio || "Nessun testo disponibile"}
+"""
+
+TECNICA DI MIRRORING:
+Quando rispondi, riprendi alcune parole o frasi che il proprietario ha usato nel suo annuncio. Questo crea rapport e fiducia. Per esempio, se il proprietario scrive "splendido appartamento luminoso", puoi dire "Ho visto che il Suo splendido appartamento e davvero luminoso...".
 
 REGOLE COMUNICAZIONE:
 1. Dai SEMPRE del Lei

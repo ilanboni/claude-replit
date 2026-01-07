@@ -33,9 +33,7 @@ interface ChatMessage {
 
 interface PropertyContext {
   titolo: string;
-  indirizzo: string;
-  prezzo: number;
-  mq: number;
+  testoAnnuncio: string;
   proprietario: string;
 }
 
@@ -45,9 +43,21 @@ export default function BotPage() {
   const [inputMessage, setInputMessage] = useState("");
   const [propertyContext, setPropertyContext] = useState<PropertyContext>({
     titolo: "Trilocale luminoso zona Navigli",
-    indirizzo: "Via Corsico 15, Milano",
-    prezzo: 320000,
-    mq: 85,
+    testoAnnuncio: `VENDESI TRILOCALE LUMINOSO ZONA NAVIGLI
+
+Splendido appartamento di 85 mq in via Corsico 15, a due passi dai Navigli. L'immobile, posto al terzo piano con ascensore, è composto da: ingresso, soggiorno con cucina a vista, due camere da letto, bagno finestrato e ripostiglio.
+
+Caratteristiche principali:
+- Doppia esposizione est/ovest
+- Parquet in tutte le stanze
+- Aria condizionata
+- Cantina di pertinenza
+- Classe energetica C
+
+L'appartamento è stato ristrutturato nel 2019 con materiali di pregio. Ideale per giovani coppie o piccole famiglie. NO AGENZIE.
+
+Prezzo: EUR 320.000 trattabili
+Contatto: Mario Rossi - 333 1234567`,
     proprietario: "Mario Rossi"
   });
   const [isSimulating, setIsSimulating] = useState(false);
@@ -119,9 +129,10 @@ export default function BotPage() {
 
   const handleStartSimulation = () => {
     setIsSimulating(true);
+    const cognome = propertyContext.proprietario.split(" ").pop() || "Proprietario";
     const initialMessage: ChatMessage = {
       role: "assistant",
-      content: `Buongiorno Sig. ${propertyContext.proprietario.split(" ").pop()}, sono l'assistente del Dott. Ilan Boni, agente immobiliare con oltre trent'anni di esperienza. Ho visto il Suo annuncio per "${propertyContext.titolo}" in ${propertyContext.indirizzo}. L'immobile sembra interessante. Posso chiederLe se sta gia lavorando con un'agenzia o sta gestendo la vendita da privato?`,
+      content: `Buongiorno Sig. ${cognome}, sono l'assistente del Dott. Ilan Boni, agente immobiliare con oltre trent'anni di esperienza a Milano. Ho visto il Suo annuncio "${propertyContext.titolo}" e l'immobile mi sembra davvero interessante. Posso chiederLe se sta già lavorando con un'agenzia o sta gestendo la vendita da privato?`,
       timestamp: new Date()
     };
     setChatMessages([initialMessage]);
@@ -442,37 +453,6 @@ export default function BotPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Indirizzo</label>
-                  <Input
-                    value={propertyContext.indirizzo}
-                    onChange={(e) => setPropertyContext(prev => ({ ...prev, indirizzo: e.target.value }))}
-                    placeholder="es. Via Corsico 15, Milano"
-                    data-testid="input-indirizzo-simulazione"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Prezzo</label>
-                    <Input
-                      type="number"
-                      value={propertyContext.prezzo}
-                      onChange={(e) => setPropertyContext(prev => ({ ...prev, prezzo: parseInt(e.target.value) || 0 }))}
-                      placeholder="320000"
-                      data-testid="input-prezzo-simulazione"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">MQ</label>
-                    <Input
-                      type="number"
-                      value={propertyContext.mq}
-                      onChange={(e) => setPropertyContext(prev => ({ ...prev, mq: parseInt(e.target.value) || 0 }))}
-                      placeholder="85"
-                      data-testid="input-mq-simulazione"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
                   <label className="text-sm font-medium">Nome Proprietario</label>
                   <Input
                     value={propertyContext.proprietario}
@@ -480,6 +460,19 @@ export default function BotPage() {
                     placeholder="es. Mario Rossi"
                     data-testid="input-proprietario-simulazione"
                   />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Testo Completo Annuncio</label>
+                  <Textarea
+                    value={propertyContext.testoAnnuncio}
+                    onChange={(e) => setPropertyContext(prev => ({ ...prev, testoAnnuncio: e.target.value }))}
+                    placeholder="Incolla qui il testo completo dell'annuncio del proprietario..."
+                    className="min-h-[200px] text-sm"
+                    data-testid="input-testo-annuncio-simulazione"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Il bot usera questo testo per fare mirroring delle parole del proprietario
+                  </p>
                 </div>
                 <div className="flex gap-2 pt-2">
                   {!isSimulating ? (
