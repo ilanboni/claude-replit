@@ -8,6 +8,7 @@ import {
 } from "@shared/schema";
 import { parseRequestWithAI, calculateMatchScore, generateAICoachMessage, parsePropertyListingWithAI, parsePropertyImageWithAI, generateAcquisitionMessage } from "./ai-service";
 import { whatsappWS } from "./websocket";
+import { sendWhatsAppMessage, isUltraMsgConfigured } from "./ultramsg";
 import { exec } from "child_process";
 import { promisify } from "util";
 import * as fs from "fs";
@@ -2045,9 +2046,23 @@ FORMATO RISPOSTE:
         esito: null
       });
 
-      // TODO: Integrate with actual WhatsApp Business API here
-      // For now, just mark as sent
-      await storage.updateWhatsappMessageStatus(message.id, "sent");
+      // Send via UltraMsg API
+      if (isUltraMsgConfigured()) {
+        const sendResult = await sendWhatsAppMessage(normalizedPhone, content);
+        if (sendResult.success) {
+          await storage.updateWhatsappMessageStatus(message.id, "sent");
+          if (sendResult.messageId) {
+            await storage.updateWhatsappMessage(message.id, { whatsappMessageId: sendResult.messageId });
+          }
+        } else {
+          await storage.updateWhatsappMessageStatus(message.id, "failed");
+          console.error("WhatsApp send failed:", sendResult.error);
+        }
+      } else {
+        // UltraMsg not configured, just mark as sent for demo
+        console.log("UltraMsg not configured, simulating send");
+        await storage.updateWhatsappMessageStatus(message.id, "sent");
+      }
 
       // Fetch updated conversation with correct state
       const updatedConversation = await storage.getWhatsappConversation(conversation.id);
