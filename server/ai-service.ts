@@ -821,13 +821,14 @@ export async function generateMirroring(input: MirroringInput): Promise<Mirrorin
 
 ATTENZIONE: il testo che generi verra inserito subito dopo la frase "Ha notato il suo immobile in ..." e prima del resto del messaggio standard. Quindi:
 - NON ripetere l'indirizzo.
-- NON iniziare con "Ha notato..." o simili.
-- NON inserire saluti (niente "Gentile Proprietario" ecc.).
-- NON nominare Ilan Boni o l'agenzia.
+- NON iniziare con saluti o frasi introduttive.
+- NON nominare Ilan, Sara, l'agenzia o acquirenti.
+- NON chiudere il testo con frasi di chiusura o saluti.
 - NON fare domande.
 - NON fare complimenti esagerati o promesse.
+- NON usare espressioni come "un immobile di questo tipo" o "queste caratteristiche".
 
-Usa un tono sobrio, professionale e realistico.
+Usa un tono sobrio, professionale e realistico. Scrivi frasi dirette che descrivano l'immobile.
 Puoi menzionare: tipologia (bilocale, trilocale...), metratura, piano, esposizione, caratteristiche distintive (terrazzo, doppi servizi, cantina, box...), stato dell'immobile, luminosita, posizione rispetto a servizi o mezzi, anno di costruzione se citato.
 Se l'annuncio e molto scarno, limita il mirroring a una sola frase generica ma pertinente.
 
@@ -844,7 +845,7 @@ ${input.zonaOVia ? `Zona/via: ${input.zonaOVia}` : ''}`;
         { role: "user", content: userMessage }
       ],
       max_completion_tokens: 300,
-      temperature: 0.3,
+      temperature: 0.25,
       response_format: { type: "json_object" }
     });
 
