@@ -1674,6 +1674,76 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
 
   // ==================== BOT SIMULATION ====================
 
+  // Generate initial message with AI mirroring for simulation
+  app.post("/api/bot/generate-initial-message", async (req, res) => {
+    try {
+      const { testoAnnuncio, titolo } = req.body;
+      
+      if (!testoAnnuncio) {
+        return res.status(400).json({ error: "Testo annuncio richiesto" });
+      }
+
+      const { MIRRORING_PROMPT } = await import("./bot-config");
+      
+      // Build context for mirroring
+      let context = `Testo annuncio:\n"${testoAnnuncio}"`;
+      if (titolo) {
+        context += `\n\nTitolo: ${titolo}`;
+      }
+
+      const OpenAI = (await import("openai")).default;
+      const openaiClient = new OpenAI({
+        apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+        baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+      });
+      
+      // Generate mirroring phrases
+      const mirroringResponse = await openaiClient.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: MIRRORING_PROMPT },
+          { role: "user", content: context }
+        ],
+        temperature: 0.7,
+        max_tokens: 300
+      });
+
+      const mirroringText = mirroringResponse.choices[0]?.message?.content?.trim() || "";
+
+      // Extract address from testoAnnuncio
+      const viaMatch = testoAnnuncio.match(/(?:via|viale|piazza|corso)\s+[A-Za-zÀ-ÿ\s]+(?:\d+)?/i);
+      const via = viaMatch ? viaMatch[0].trim() : titolo || "zona";
+
+      // Build the complete message with mirroring
+      const message = `Gentile Proprietario,
+sono l'assistente del Dott. Ilan Boni.
+
+Il Dott. Boni è agente immobiliare da oltre trent'anni, proprietario di due agenzie a Milano e Vicepresidente della Comunità Ebraica di Milano. La sua attività lo porta ogni giorno a confrontarsi con investitori italiani e stranieri che guardano a Milano come a un'opportunità concreta, spesso legata alla flat tax.
+
+Ha notato il suo immobile in ${via}.
+${mirroringText}
+
+Il Dott. Boni vorrebbe capire se il suo immobile può inserirsi in un percorso di lavoro molto preciso.
+Nel 2025 ha concluso 14 vendite e, negli ultimi anni, il suo metodo gli ha permesso di chiudere positivamente il 94% dei mandati affidati, mettendo gli acquirenti in concorrenza tra loro e non al ribasso contro il proprietario.
+
+Se per Lei può essere utile, il Dott. Boni è disponibile per un breve incontro direttamente presso l'immobile: una decina di minuti per ascoltare la sua situazione, vedere l'appartamento e mostrarle la domanda reale sulla zona.
+
+Nel frattempo può trovare informazioni sulla sua attività immobiliare e istituzionale anche online.
+
+Può rispondere direttamente a questo messaggio, oppure contattarci allo 02 35981509 o a info@cavourimmobiliare.it.
+
+Un cordiale saluto,
+
+Sara
+Assistente del Dott. Ilan Boni`;
+
+      res.json({ message });
+    } catch (error) {
+      console.error("Generate initial message error:", error);
+      res.status(500).json({ error: "Errore nella generazione del messaggio" });
+    }
+  });
+
   // Simulate bot response
   app.post("/api/bot/simulate", async (req, res) => {
     try {
@@ -1743,7 +1813,7 @@ STRUTTURA RISPOSTA:
       messages.push({ role: "user", content: message });
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-4o",
         messages,
         temperature: 0.7,
         max_tokens: 200

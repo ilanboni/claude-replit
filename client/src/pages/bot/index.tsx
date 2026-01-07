@@ -31,7 +31,8 @@ import {
   X,
   FileText,
   Target,
-  Settings
+  Settings,
+  Loader2
 } from "lucide-react";
 import type { WhatsappCampaign, CampaignMessage, ImmobileEsterno } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
@@ -113,6 +114,21 @@ Contatto: Mario Rossi - 333 1234567`,
     }
   });
 
+  const generateInitialMessageMutation = useMutation({
+    mutationFn: async (data: { testoAnnuncio: string; titolo: string }) => {
+      const res = await apiRequest("POST", "/api/bot/generate-initial-message", data);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setIsSimulating(true);
+      setChatMessages([{
+        role: "assistant",
+        content: data.message,
+        timestamp: new Date()
+      }]);
+    }
+  });
+
   const aiChatMutation = useMutation({
     mutationFn: async (data: { message: string; campaignContext: string; history: ChatMessage[] }) => {
       const res = await apiRequest("POST", "/api/ai/campaign-assistant", data);
@@ -182,66 +198,11 @@ GESTIONE OBIEZIONI: ${JSON.stringify(selectedCampaign.objectionHandling || {}, n
   };
 
   const handleStartSimulation = () => {
-    setIsSimulating(true);
-    
-    // Extract characteristics from testoAnnuncio
-    const testo = propertyContext.testoAnnuncio.toLowerCase();
-    const caratteristiche: string[] = [];
-    
-    // Extract mq
-    const mqMatch = testo.match(/(\d+)\s*(?:mq|m²|metri)/);
-    if (mqMatch) caratteristiche.push(`${mqMatch[1]} mq`);
-    
-    // Extract locali
-    const localiMatch = testo.match(/(\d+)\s*(?:locali|vani)/);
-    if (localiMatch) caratteristiche.push(`${localiMatch[1]} locali`);
-    
-    // Extract piano
-    const pianoMatch = testo.match(/(?:piano|p\.)\s*(\d+|terra|primo|secondo|terzo|quarto|quinto)/i);
-    if (pianoMatch) caratteristiche.push(`piano ${pianoMatch[1]}`);
-    
-    // Extract features from text
-    if (testo.includes("ascensore")) caratteristiche.push("con ascensore");
-    if (testo.includes("balcon")) caratteristiche.push("con balcone");
-    if (testo.includes("terrazzo") || testo.includes("terrazza")) caratteristiche.push("con terrazzo");
-    if (testo.includes("box") || testo.includes("garage") || testo.includes("posto auto")) caratteristiche.push("con box");
-    if (testo.includes("arredato")) caratteristiche.push("arredato");
-    if (testo.includes("ristrutturato")) caratteristiche.push("ristrutturato");
-    
-    const caratteristicheStr = caratteristiche.length > 0 
-      ? caratteristiche.join(", ") 
-      : "le sue caratteristiche";
-    
-    // Extract address from testoAnnuncio or use titolo
-    const viaMatch = propertyContext.testoAnnuncio.match(/(?:via|viale|piazza|corso)\s+[A-Za-zÀ-ÿ\s]+(?:\d+)?/i);
-    const via = viaMatch ? viaMatch[0].trim() : propertyContext.titolo;
-    
-    const initialMessage: ChatMessage = {
-      role: "assistant",
-      content: `Gentile Proprietario,
-sono l'assistente del Dott. Ilan Boni.
-
-Il Dott. Boni è agente immobiliare da oltre trent'anni, proprietario di due agenzie a Milano e Vicepresidente della Comunità Ebraica di Milano. La sua attività lo porta ogni giorno a confrontarsi con investitori italiani e stranieri che guardano a Milano come a un'opportunità concreta, spesso legata alla flat tax.
-
-Ha notato il suo immobile in ${via}.
-Caratteristiche come ${caratteristicheStr} sono oggi molto richieste da chi cerca immobili con potenzialità immediate, sia in termini di rendimento sia di stabilità del valore nel tempo.
-
-Il Dott. Boni vorrebbe capire se il suo immobile può inserirsi in un percorso di lavoro molto preciso.
-Nel 2025 ha concluso 14 vendite e, negli ultimi anni, il suo metodo gli ha permesso di chiudere positivamente il 94% dei mandati affidati, mettendo gli acquirenti in concorrenza tra loro e non al ribasso contro il proprietario.
-
-Se per Lei può essere utile, il Dott. Boni è disponibile per un breve incontro direttamente presso l'immobile: una decina di minuti per ascoltare la sua situazione, vedere l'appartamento e mostrarle la domanda reale sulla zona.
-
-Nel frattempo può trovare informazioni sulla sua attività immobiliare e istituzionale anche online.
-
-Può rispondere direttamente a questo messaggio, oppure contattarci allo 02 35981509 o a info@cavourimmobiliare.it.
-
-Un cordiale saluto,
-
-Sara
-Assistente del Dott. Ilan Boni`,
-      timestamp: new Date()
-    };
-    setChatMessages([initialMessage]);
+    // Generate initial message with AI mirroring
+    generateInitialMessageMutation.mutate({
+      testoAnnuncio: propertyContext.testoAnnuncio,
+      titolo: propertyContext.titolo
+    });
   };
 
   const handleResetSimulation = () => {
@@ -587,9 +548,23 @@ Assistente del Dott. Ilan Boni`,
                 </div>
                 <div className="flex gap-2 pt-2">
                   {!isSimulating ? (
-                    <Button onClick={handleStartSimulation} className="flex-1" data-testid="button-avvia-simulazione">
-                      <Play className="h-4 w-4 mr-2" />
-                      Avvia Simulazione
+                    <Button 
+                      onClick={handleStartSimulation} 
+                      className="flex-1" 
+                      disabled={generateInitialMessageMutation.isPending}
+                      data-testid="button-avvia-simulazione"
+                    >
+                      {generateInitialMessageMutation.isPending ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Generazione mirroring...
+                        </>
+                      ) : (
+                        <>
+                          <Play className="h-4 w-4 mr-2" />
+                          Avvia Simulazione
+                        </>
+                      )}
                     </Button>
                   ) : (
                     <Button onClick={handleResetSimulation} variant="outline" className="flex-1" data-testid="button-reset-simulazione">
