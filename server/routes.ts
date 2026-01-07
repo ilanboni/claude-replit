@@ -2188,48 +2188,8 @@ FORMATO RISPOSTE:
         return res.status(200).json({ status: "ignored", reason: "no data" });
       }
 
-      // Handle message acknowledgment (delivery/read status)
-      if (data.ack !== undefined && data.ack !== "") {
-        let newStatus = "sent";
-        
-        // UltraMsg ack string values: "server"=sent, "device"=delivered, "read"=read
-        const ackValue = String(data.ack).toLowerCase();
-        if (ackValue === "device" || ackValue === "2") {
-          newStatus = "delivered";
-        } else if (ackValue === "read" || ackValue === "3") {
-          newStatus = "read";
-        } else if (ackValue === "server" || ackValue === "1") {
-          newStatus = "sent";
-        }
-
-        // Find message by whatsappMessageId and update status
-        // UltraMsg sends 'id' in the root object (e.g., 658) and 'data.id' as full WhatsApp ID
-        const messageIdToFind = String(req.body.id || data.sid || "");
-        
-        if (messageIdToFind) {
-          const conversations = await storage.getWhatsappConversations();
-          let found = false;
-          for (const conv of conversations) {
-            const messages = await storage.getWhatsappMessages(conv.id);
-            const msg = messages.find(m => m.whatsappMessageId === messageIdToFind);
-            if (msg) {
-              await storage.updateWhatsappMessageStatus(msg.id, newStatus);
-              whatsappWS.notifyNewMessage(conv.id, { ...msg, status: newStatus, conversationId: conv.id });
-              found = true;
-              console.log(`Updated message ${msg.id} status to ${newStatus}`);
-              break;
-            }
-          }
-          if (!found) {
-            console.log(`Message not found for ID: ${messageIdToFind}`);
-          }
-        }
-        
-        return res.status(200).json({ status: "ok", action: "ack_updated" });
-      }
-
-      // Handle incoming message (from others) or outgoing message sent from phone
-      if (data.body) {
+      // Handle new messages first (message_create event)
+      if (event_type === "message_create" && data.body) {
         const isFromMe = data.fromMe === true;
         // For outgoing messages, use "to" as the conversation phone; for incoming use "from"
         const rawPhone = isFromMe 
@@ -2238,13 +2198,13 @@ FORMATO RISPOSTE:
         const phoneNumber = rawPhone.replace(/\D/g, '');
         const body = data.body;
         const profileName = data.pushname || null;
-        const messageId = req.body.id ? String(req.body.id) : (data.sid || null);
+        const messageId = data.sid || null;
 
         if (!phoneNumber) {
           return res.status(200).json({ status: "ignored", reason: "no phone number" });
         }
         
-        // Check if this message already exists (avoid duplicates from app-sent messages)
+        // Check if this message already exists (avoid duplicates)
         const existingConv = await storage.getWhatsappConversationByPhone(phoneNumber);
         if (existingConv && messageId) {
           const existingMessages = await storage.getWhatsappMessages(existingConv.id);
@@ -2311,7 +2271,48 @@ FORMATO RISPOSTE:
           whatsappWS.notifyConversationUpdate({ ...updatedConversation, conversationId: updatedConversation.id });
         }
 
-        return res.status(200).json({ status: "ok", messageId: message.id });
+        console.log(`Created ${isFromMe ? 'outbound' : 'inbound'} message from ${isFromMe ? 'phone' : 'contact'}: ${messageId}`);
+        return res.status(200).json({ status: "ok", action: "message_created", messageId: message.id });
+      }
+
+      // Handle message acknowledgment (delivery/read status) - only for message_ack events
+      if (event_type === "message_ack" && data.ack !== undefined && data.ack !== "") {
+        let newStatus = "sent";
+        
+        // UltraMsg ack string values: "server"=sent, "device"=delivered, "read"=read
+        const ackValue = String(data.ack).toLowerCase();
+        if (ackValue === "device" || ackValue === "2") {
+          newStatus = "delivered";
+        } else if (ackValue === "read" || ackValue === "3") {
+          newStatus = "read";
+        } else if (ackValue === "server" || ackValue === "1") {
+          newStatus = "sent";
+        }
+
+        // Find message by whatsappMessageId and update status
+        // UltraMsg sends 'id' in the root object (e.g., 658) and 'data.id' as full WhatsApp ID
+        const messageIdToFind = String(req.body.id || data.sid || "");
+        
+        if (messageIdToFind) {
+          const conversations = await storage.getWhatsappConversations();
+          let found = false;
+          for (const conv of conversations) {
+            const messages = await storage.getWhatsappMessages(conv.id);
+            const msg = messages.find(m => m.whatsappMessageId === messageIdToFind);
+            if (msg) {
+              await storage.updateWhatsappMessageStatus(msg.id, newStatus);
+              whatsappWS.notifyNewMessage(conv.id, { ...msg, status: newStatus, conversationId: conv.id });
+              found = true;
+              console.log(`Updated message ${msg.id} status to ${newStatus}`);
+              break;
+            }
+          }
+          if (!found) {
+            console.log(`Message not found for ID: ${messageIdToFind}`);
+          }
+        }
+        
+        return res.status(200).json({ status: "ok", action: "ack_updated" });
       }
 
       res.status(200).json({ status: "ignored" });
