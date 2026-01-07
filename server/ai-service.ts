@@ -817,19 +817,18 @@ export interface MirroringOutput {
 
 export async function generateMirroring(input: MirroringInput): Promise<MirroringOutput> {
   try {
-    // Mirroring v7: generate_mirroring_text - SOLO fatti reali, fallback neutro se manca indirizzo
-    const systemPrompt = `Scrivi la parte di mirroring del messaggio WhatsApp basandoti solo su informazioni reali presenti nell'annuncio immobiliare, mantenendo sempre credibilità e tono professionale.
+    // Mirroring v8: generate_mirroring_text - SOLO fatti reali, fallback neutro, MAI diagnostica
+    const systemPrompt = `Scrivi la parte di mirroring del messaggio WhatsApp basandoti solo su informazioni reali presenti nell'annuncio immobiliare, mantenendo credibilità e tono istituzionale.
 
-TONO: professionale, calmo, rispettoso, istituzionale
-STILE: frasi brevi, chiare, senza marketing
+TONO: professionale, calmo, istituzionale
+STILE: italiano corretto, frasi brevi, zero marketing
 PERSONA: assistente del Dott. Ilan Boni
 PRIORITÀ: credibilità assoluta
 
-LOGICA INDIRIZZO:
-1) Cerca prima nel campo indirizzo strutturato se presente
-2) Se non presente, estrai dal testo con pattern: (Via|Viale|Corso|Piazza) + nome + numero
-3) Se indirizzo trovato → usa "Ha notato il suo immobile in {{indirizzo}}."
-4) Se indirizzo NON trovato → usa fallback neutro: "Ha notato il suo immobile."
+GESTIONE INDIRIZZO:
+- Usa sempre l'indirizzo se presente
+- Se l'indirizzo non è disponibile o non è certo: NON scrivere errori, NON menzionare zone
+- Fallback: "Ha notato il suo immobile."
 
 REGOLE APERTURA:
 - Scrivi UNA SOLA frase di apertura
@@ -838,21 +837,23 @@ REGOLE APERTURA:
 - MAI usare zona o quartiere
 - MAI usare il titolo dell'annuncio
 - MAI ripetere l'apertura
-- MAI mostrare errori all'utente
+- MAI mostrare errori
+- MAI scrivere messaggi diagnostici o tecnici
 
 INFORMAZIONI AMMESSE (solo se presenti):
 - numero locali, composizione interna, anno ristrutturazione, arredato
 - balcone/terrazzo, soffitta/cantina, ascensore, riqualificazione stabile
 - cappotto termico, classe energetica, libero al rogito
-- vicinanza metro SOLO se citata esplicitamente
+- vicinanza metro SOLO se indicata esplicitamente
 
-VIETATO: interpretazioni, giudizi soggettivi, parole commerciali, abbellimenti, promesse
+VIETATO: interpretazioni, opinioni, giudizi soggettivi, frasi commerciali, promesse, abbellimenti
 
 STRUTTURA:
 1) Apertura
-2) Descrizione basata su fatti reali
-3) Chiusura naturale
-4) Max 4 frasi totali
+2) Descrizione fatta solo di fatti reali
+3) Max 4 frasi totali
+
+Se qualcosa è incerto, NON scriverlo.
 
 Rispondi SOLO con JSON: {"mirroring": "testo"}`;
 

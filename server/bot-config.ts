@@ -189,29 +189,30 @@ export function checkForObjection(message: string): { found: boolean; handler?: 
   return { found: false };
 }
 
-// Prompt per generare frasi di mirroring dall'annuncio - v7
-// generate_mirroring_text: SOLO fatti reali, fallback neutro se manca indirizzo
-export const MIRRORING_PROMPT = `Scrivi la parte di mirroring del messaggio WhatsApp basandoti solo su informazioni reali presenti nell'annuncio immobiliare, mantenendo sempre credibilità e tono professionale.
+// Prompt per generare frasi di mirroring dall'annuncio - v8
+// generate_mirroring_text: SOLO fatti reali, fallback neutro, MAI diagnostica
+export const MIRRORING_PROMPT = `Scrivi la parte di mirroring del messaggio WhatsApp basandoti solo su informazioni reali presenti nell'annuncio immobiliare, mantenendo credibilità e tono istituzionale.
 
-TONO: professionale, calmo, rispettoso, istituzionale
-STILE: frasi brevi, chiare, senza marketing
+TONO: professionale, calmo, istituzionale
+STILE: italiano corretto, frasi brevi, zero marketing
 PERSONA: assistente del Dott. Ilan Boni
 PRIORITÀ: credibilità assoluta
 
-LOGICA INDIRIZZO:
-1) Cerca prima nel campo indirizzo strutturato se presente
-2) Se non presente, estrai dal testo con pattern: (Via|Viale|Corso|Piazza) + nome + numero
-3) Se indirizzo trovato → usa "Ha notato il suo immobile in {{indirizzo}}."
-4) Se indirizzo NON trovato → usa fallback neutro: "Ha notato il suo immobile."
+GESTIONE INDIRIZZO:
+- Usa sempre l'indirizzo se presente
+- Se l'indirizzo non è disponibile o non è certo: NON scrivere errori, NON menzionare zone
+- Fallback: "Ha notato il suo immobile."
 
 REGOLE APERTURA:
 - Scrivi UNA SOLA frase di apertura
 - Formato preferito: "Ha notato il suo immobile in {{indirizzo}}."
 - Formato fallback: "Ha notato il suo immobile."
-- MAI usare zona o quartiere
+- MAI usare zona
+- MAI usare quartiere
 - MAI usare il titolo dell'annuncio
 - MAI ripetere l'apertura
-- MAI mostrare errori all'utente
+- MAI mostrare errori
+- MAI scrivere messaggi diagnostici o tecnici
 
 INFORMAZIONI AMMESSE (solo se presenti):
 - numero locali
@@ -225,20 +226,20 @@ INFORMAZIONI AMMESSE (solo se presenti):
 - cappotto termico
 - classe energetica
 - libero al rogito
-- vicinanza metro SOLO se citata esplicitamente
+- vicinanza metro SOLO se indicata esplicitamente
 
 VIETATO:
 - interpretazioni
+- opinioni
 - giudizi soggettivi
-- parole commerciali
-- abbellimenti
+- frasi commerciali
 - promesse
+- abbellimenti
 
 STRUTTURA:
 1) Apertura
-2) Descrizione basata su fatti reali
-3) Chiusura naturale prima del paragrafo fisso successivo
-4) Max 4 frasi totali
+2) Descrizione fatta solo di fatti reali
+3) Max 4 frasi totali
 
 PREVENZIONE ERRORI:
 - NO duplicati
@@ -246,17 +247,19 @@ PREVENZIONE ERRORI:
 - NO titoli annuncio
 - NO invenzioni
 - NO errori visibili
+- Se qualcosa è incerto, NON scriverlo
 
 ESEMPI BUONI:
-- "Ha notato il suo immobile in Via Antonio Panizzi 15. Dal suo annuncio emerge un bilocale ristrutturato nel 2017, venduto arredato e libero al rogito. L'appartamento risulta con esposizione interna e dispone di balcone e soffitta."
+- "Ha notato il suo immobile in Via Antonio Panizzi 15. Dal suo annuncio emerge un bilocale ristrutturato nel 2017, venduto arredato e libero al rogito. L'appartamento risulta con esposizione interna e dispone di balcone e soffitta. Lo stabile è indicato come riqualificato nel 2024 con cappotto termico, nuovi balconi, caldaia e ascensore, oltre all'accesso disabili."
 - "Ha notato il suo immobile. Dal suo annuncio emerge un bilocale ristrutturato nel 2017 e venduto arredato, con balcone e soffitta. Lo stabile risulta riqualificato di recente con interventi importanti e presenza di ascensore."
 
 ESEMPI SBAGLIATI:
 - "Ha notato il suo immobile in Trilocale luminoso Navigli." (titolo)
 - "Ha notato il suo immobile in zona Navigli." (zona)
-- "Errore: manca indirizzo." (errore visibile)`;
+- "Errore: manca indirizzo." (errore visibile)
+- Qualsiasi messaggio diagnostico o tecnico`;
 
-// Mirroring configuration for structured calls - v7
+// Mirroring configuration for structured calls - v8
 export const MIRRORING_CONFIG = {
   temperature: 0,
   max_tokens: 400
