@@ -786,9 +786,16 @@ function ImmobileEsternoCard({
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
-            <h3 className="font-medium line-clamp-2" data-testid={`text-property-title-${immobile.id}`}>
-              {immobile.titolo}
-            </h3>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="font-medium line-clamp-2" data-testid={`text-property-title-${immobile.id}`}>
+                {immobile.titolo}
+              </h3>
+              {immobile.idWeb && (
+                <Badge variant="outline" className="text-xs font-mono" data-testid={`badge-id-web-${immobile.id}`}>
+                  {immobile.idWeb}
+                </Badge>
+              )}
+            </div>
             {(immobile.zona || immobile.citta || immobile.indirizzo) && (
               <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
                 <MapPin className="h-3 w-3 flex-shrink-0" />

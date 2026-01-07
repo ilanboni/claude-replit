@@ -214,7 +214,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createImmobile(data: InsertImmobile): Promise<Immobile> {
-    const [immobile] = await db.insert(immobili).values(data).returning();
+    // Generate unique idWeb automatically
+    const idWeb = `IMM-${Date.now().toString(36).toUpperCase()}`;
+    const [immobile] = await db.insert(immobili).values({ ...data, idWeb }).returning();
     return immobile;
   }
 
@@ -344,7 +346,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createImmobileEsterno(data: InsertImmobileEsterno): Promise<ImmobileEsterno> {
-    const [immobile] = await db.insert(immobiliEsterni).values(data).returning();
+    // Generate unique idWeb automatically
+    const idWeb = `ACQ-${Date.now().toString(36).toUpperCase()}`;
+    const [immobile] = await db.insert(immobiliEsterni).values({ ...data, idWeb }).returning();
     return immobile;
   }
 

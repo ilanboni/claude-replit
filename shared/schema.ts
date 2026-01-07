@@ -70,6 +70,7 @@ export const richieste = pgTable("richieste", {
 // IMMOBILI - Properties (unificato: mandato + acquisizione)
 export const immobili = pgTable("immobili", {
   id: serial("id").primaryKey(),
+  idWeb: text("id_web").unique(), // ID univoco per identificazione via email/web
   proprietarioId: integer("proprietario_id").references(() => clienti.id, { onDelete: "set null" }),
   titolo: text("titolo").notNull(),
   descrizione: text("descrizione"),
@@ -233,6 +234,7 @@ export const storicoPrezzo = pgTable("storico_prezzo", {
 // IMMOBILI ESTERNI - External properties (scraped/manual from portals)
 export const immobiliEsterni = pgTable("immobili_esterni", {
   id: serial("id").primaryKey(),
+  idWeb: text("id_web").unique(), // ID univoco per identificazione via email/web
   clienteId: integer("cliente_id").references(() => clienti.id, { onDelete: "set null" }),
   titolo: text("titolo").notNull(),
   descrizione: text("descrizione"),
@@ -467,6 +469,7 @@ export const insertRichiestaSchema = createInsertSchema(richieste).omit({
 
 export const insertImmobileSchema = createInsertSchema(immobili).omit({
   id: true,
+  idWeb: true,
   createdAt: true,
   updatedAt: true,
 }).extend({
@@ -501,6 +504,7 @@ export const insertMatchingSchema = createInsertSchema(matching).omit({
 
 export const insertImmobileEsternoSchema = createInsertSchema(immobiliEsterni).omit({
   id: true,
+  idWeb: true,
   createdAt: true,
   updatedAt: true,
 }).extend({
