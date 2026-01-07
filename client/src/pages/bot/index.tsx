@@ -174,29 +174,27 @@ Contatto: Mario Rossi - 333 1234567`,
     }
   });
 
-  const addRecipientsMutation = useMutation({
-    mutationFn: async (data: { campaignId: number; propertyIds: number[] }) => {
-      const res = await apiRequest("POST", `/api/whatsapp-campaigns/${data.campaignId}/add-from-properties`, {
-        propertyIds: data.propertyIds
-      });
+  const sendAutomaticMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/whatsapp-campaigns/send-automatic", {});
       const result = await res.json();
       if (!res.ok) {
-        throw new Error(result.error || "Errore nell'aggiunta dei destinatari");
+        throw new Error(result.error || "Errore nell'invio automatico");
       }
       return result;
     },
     onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/acquisizione"] });
       queryClient.invalidateQueries({ queryKey: ["/api/whatsapp-campaigns"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/campaign-messages"] });
       toast({
-        title: "Destinatari aggiunti",
-        description: `${data.added} nuovi destinatari aggiunti alla campagna`
+        title: "Messaggi inviati",
+        description: `Inviati ${data.sent} messaggi su ${data.total}${data.failed > 0 ? ` (${data.failed} falliti)` : ""}`
       });
     },
     onError: (error: Error) => {
       toast({
         title: "Errore",
-        description: error.message || "Impossibile aggiungere i destinatari",
+        description: error.message || "Impossibile inviare i messaggi",
         variant: "destructive"
       });
     }
@@ -262,6 +260,7 @@ GESTIONE OBIEZIONI: ${JSON.stringify(selectedCampaign.objectionHandling || {}, n
   }, [chatMessages]);
 
   const propertiesWithPhone = properties.filter(p => p.contattoTelefono && p.contattoTelefono !== "non disponibile");
+  const propertiesToContact = propertiesWithPhone.filter(p => p.statoContatto !== "contattato");
 
   const activeCampaigns = campaigns.filter(c => c.status === "active");
   const activeConversations = conversations.filter(c => c.conversationActive);
@@ -396,141 +395,138 @@ GESTIONE OBIEZIONI: ${JSON.stringify(selectedCampaign.objectionHandling || {}, n
         </TabsList>
 
         <TabsContent value="acquisizione" className="space-y-4">
+          {/* Main Action Card - Automatic Campaign */}
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between gap-4">
-              <div>
-                <CardTitle>Campagne di Acquisizione</CardTitle>
-                <CardDescription>
-                  Invia messaggi automatici ai proprietari privati per acquisire immobili
-                </CardDescription>
-              </div>
-              <Button 
-                onClick={() => setShowNewCampaignDialog(true)}
-                data-testid="button-nuova-campagna"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Nuova Campagna
-              </Button>
+            <CardHeader>
+              <CardTitle>Invia Messaggi Acquisizione</CardTitle>
+              <CardDescription>
+                Invia automaticamente messaggi personalizzati a tutti i proprietari con telefono dalla sezione Acquisizione
+              </CardDescription>
             </CardHeader>
-            <CardContent>
-              {loadingCampaigns ? (
-                <div className="text-center py-8 text-muted-foreground">Caricamento...</div>
-              ) : campaigns.length === 0 ? (
-                <div className="text-center py-12 space-y-4">
-                  <Bot className="h-12 w-12 mx-auto text-muted-foreground" />
-                  <div>
-                    <p className="font-medium">Nessuna campagna ancora</p>
-                    <p className="text-sm text-muted-foreground">
-                      Crea una nuova campagna per iniziare a contattare i proprietari privati
-                    </p>
-                  </div>
-                  <Button 
-                    onClick={() => setShowNewCampaignDialog(true)}
-                    data-testid="button-crea-prima-campagna"
+            <CardContent className="space-y-4">
+              {/* Summary */}
+              <div className="grid grid-cols-3 gap-4 p-4 bg-muted/50 rounded-lg">
+                <div className="text-center">
+                  <div className="text-2xl font-bold">{propertiesWithPhone.length}</div>
+                  <div className="text-sm text-muted-foreground">Totale con telefono</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-600">{propertiesToContact.length}</div>
+                  <div className="text-sm text-muted-foreground">Da contattare</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-600">{propertiesWithPhone.length - propertiesToContact.length}</div>
+                  <div className="text-sm text-muted-foreground">Gia contattati</div>
+                </div>
+              </div>
+
+              {/* Action Button */}
+              {propertiesToContact.length > 0 ? (
+                <div className="flex flex-col items-center gap-4 py-4">
+                  <Button
+                    size="lg"
+                    onClick={() => sendAutomaticMutation.mutate()}
+                    disabled={sendAutomaticMutation.isPending}
+                    className="w-full max-w-md"
+                    data-testid="button-avvia-campagna-automatica"
                   >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Crea la prima campagna
+                    {sendAutomaticMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                        Invio in corso...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-5 w-5 mr-2" />
+                        Invia Messaggi a {propertiesToContact.length} Proprietari
+                      </>
+                    )}
                   </Button>
+                  <p className="text-sm text-muted-foreground text-center">
+                    I messaggi verranno personalizzati con indirizzo e caratteristiche di ogni immobile
+                  </p>
+                </div>
+              ) : propertiesWithPhone.length > 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <CheckCircle2 className="h-12 w-12 mx-auto mb-3 text-green-500" />
+                  <p className="font-medium">Tutti i proprietari sono stati contattati</p>
+                  <p className="text-sm">Importa nuovi immobili dalla sezione Acquisizione per continuare</p>
                 </div>
               ) : (
-                <ScrollArea className="h-[400px]">
-                  <div className="space-y-3">
-                    {campaigns.map((campaign) => (
-                      <div
-                        key={campaign.id}
-                        className="flex items-center justify-between p-4 border rounded-lg hover-elevate"
-                        data-testid={`campaign-row-${campaign.id}`}
-                      >
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{campaign.name}</span>
-                            {getStatusBadge(campaign.status)}
+                <div className="text-center py-8 text-muted-foreground">
+                  <Users className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p className="font-medium">Nessun immobile con telefono</p>
+                  <p className="text-sm">Importa immobili con numero di telefono dalla sezione Acquisizione</p>
+                </div>
+              )}
+
+              {/* Preview of properties to contact */}
+              {propertiesToContact.length > 0 && (
+                <div className="border-t pt-4">
+                  <h4 className="font-medium mb-3">Anteprima destinatari:</h4>
+                  <ScrollArea className="h-[200px]">
+                    <div className="space-y-2">
+                      {propertiesToContact.slice(0, 20).map((property) => (
+                        <div
+                          key={property.id}
+                          className="flex items-center justify-between p-3 border rounded-lg text-sm"
+                          data-testid={`property-to-contact-${property.id}`}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium truncate">{property.titolo}</p>
+                            <p className="text-muted-foreground text-xs">
+                              {property.indirizzo} - {property.contattoTelefono}
+                            </p>
                           </div>
-                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                            <span className="flex items-center gap-1">
-                              <Users className="h-3 w-3" />
-                              {campaign.totalTargets || 0} destinatari
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Send className="h-3 w-3" />
-                              {campaign.sentCount || 0} inviati
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <MessageCircle className="h-3 w-3" />
-                              {campaign.respondedCount || 0} risposte
-                            </span>
-                          </div>
+                          <Badge variant="secondary" className="shrink-0 ml-2">
+                            {property.mq ? `${property.mq} mq` : ""}
+                          </Badge>
                         </div>
-                        <div className="flex items-center gap-2">
-                          {campaign.status === "draft" && (
-                            <Button 
-                              size="sm" 
-                              onClick={() => startCampaignMutation.mutate(campaign.id)}
-                              disabled={startCampaignMutation.isPending}
-                              data-testid={`button-start-campaign-${campaign.id}`}
-                            >
-                              {startCampaignMutation.isPending ? (
-                                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                              ) : (
-                                <Play className="h-4 w-4 mr-1" />
-                              )}
-                              {startCampaignMutation.isPending ? "Invio..." : "Avvia"}
-                            </Button>
-                          )}
-                          {campaign.status === "active" && (
-                            <Button size="sm" variant="secondary" data-testid={`button-pause-campaign-${campaign.id}`}>
-                              <Pause className="h-4 w-4 mr-1" />
-                              Pausa
-                            </Button>
-                          )}
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
-                            onClick={() => setSelectedCampaign(campaign)}
-                            data-testid={`button-view-campaign-${campaign.id}`}
-                          >
-                            Dettagli
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
+                      ))}
+                      {propertiesToContact.length > 20 && (
+                        <p className="text-sm text-muted-foreground text-center pt-2">
+                          +{propertiesToContact.length - 20} altri immobili
+                        </p>
+                      )}
+                    </div>
+                  </ScrollArea>
+                </div>
               )}
             </CardContent>
           </Card>
 
-          {propertiesWithPhone.length > 0 && (
+          {/* Campaign History */}
+          {campaigns.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Proprietari Contattabili</CardTitle>
-                <CardDescription>
-                  Immobili con numero di telefono disponibile per l'acquisizione
-                </CardDescription>
+                <CardTitle className="text-base">Storico Campagne</CardTitle>
               </CardHeader>
               <CardContent>
-                <ScrollArea className="h-[300px]">
+                <ScrollArea className="h-[200px]">
                   <div className="space-y-2">
-                    {propertiesWithPhone.slice(0, 10).map((property) => (
+                    {campaigns.map((campaign) => (
                       <div
-                        key={property.id}
+                        key={campaign.id}
                         className="flex items-center justify-between p-3 border rounded-lg text-sm"
-                        data-testid={`property-contactable-${property.id}`}
+                        data-testid={`campaign-row-${campaign.id}`}
                       >
-                        <div>
-                          <p className="font-medium">{property.titolo}</p>
-                          <p className="text-muted-foreground">
-                            {property.contattoNome || "Privato"} - {property.contattoTelefono}
-                          </p>
+                        <div className="flex items-center gap-3">
+                          <span className="font-medium">{campaign.name}</span>
+                          {getStatusBadge(campaign.status)}
                         </div>
-                        <Badge variant="outline">{property.statoContatto}</Badge>
+                        <div className="flex items-center gap-3 text-muted-foreground">
+                          <span>{campaign.sentCount || 0} inviati</span>
+                          <Button 
+                            size="sm" 
+                            variant="ghost"
+                            onClick={() => setSelectedCampaign(campaign)}
+                            data-testid={`button-view-campaign-${campaign.id}`}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     ))}
-                    {propertiesWithPhone.length > 10 && (
-                      <p className="text-sm text-muted-foreground text-center pt-2">
-                        +{propertiesWithPhone.length - 10} altri immobili
-                      </p>
-                    )}
                   </div>
                 </ScrollArea>
               </CardContent>

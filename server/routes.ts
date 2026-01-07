@@ -1783,6 +1783,111 @@ FIRMA: Un cordiale saluto, l'Assistente del Dott. Ilan Boni`;
     }
   });
 
+  // Automatic acquisition campaign - send to all properties with phone that haven't been contacted yet
+  app.post("/api/whatsapp-campaigns/send-automatic", async (req, res) => {
+    try {
+      // Check if UltraMsg is configured
+      if (!isUltraMsgConfigured()) {
+        return res.status(400).json({ error: "WhatsApp non configurato. Configura UltraMsg nelle impostazioni." });
+      }
+
+      // Get all acquisition properties with phone numbers
+      const allProperties = await storage.getImmobiliEsterni();
+      const propertiesWithPhone = allProperties.filter(p => 
+        p.contattoTelefono && 
+        p.contattoTelefono !== "non disponibile" &&
+        p.statoContatto !== "contattato" // Not already contacted
+      );
+
+      if (propertiesWithPhone.length === 0) {
+        return res.status(400).json({ error: "Nessun immobile con telefono da contattare. Importa nuovi immobili dalla sezione Acquisizione." });
+      }
+
+      // Default template
+      const defaultTemplate = `Gentile Proprietario,
+sono l'assistente del Dott. Ilan Boni.
+
+Il Dott. Boni è agente immobiliare da oltre trent'anni, proprietario di due agenzie a Milano e Vicepresidente della Comunità Ebraica di Milano. La sua attività lo porta ogni giorno a confrontarsi con investitori italiani e stranieri che guardano a Milano come a un'opportunità concreta, spesso legata alla flat tax.
+
+Ha notato il suo immobile in {{via}}.
+Caratteristiche come {{caratteristiche}} sono oggi molto richieste da chi cerca immobili con potenzialità immediate, sia in termini di rendimento sia di stabilità del valore nel tempo.
+
+Il Dott. Boni vorrebbe capire se il suo immobile può inserirsi in un percorso di lavoro molto preciso.
+Nel 2025 ha concluso 14 vendite e, negli ultimi anni, il suo metodo gli ha permesso di chiudere positivamente il 94% dei mandati affidati, mettendo gli acquirenti in concorrenza tra loro e non al ribasso contro il proprietario.
+
+Se per Lei può essere utile, il Dott. Boni è disponibile per un breve incontro direttamente presso l'immobile: una decina di minuti per ascoltare la sua situazione, vedere l'appartamento e mostrarle la domanda reale sulla zona.
+
+Nel frattempo può trovare informazioni sulla sua attività immobiliare e istituzionale anche online.
+
+Può rispondere direttamente a questo messaggio, oppure contattarci allo 02 35981509 o a info@cavourimmobiliare.it.
+
+Un cordiale saluto,
+
+Sara
+Assistente del Dott. Ilan Boni`;
+
+      // Send messages with rate limiting
+      let sentCount = 0;
+      let failedCount = 0;
+      const results: { phoneNumber: string; indirizzo: string; success: boolean; error?: string }[] = [];
+
+      for (const property of propertiesWithPhone) {
+        try {
+          // Build characteristics string
+          const caratteristiche: string[] = [];
+          if (property.mq) caratteristiche.push(`${property.mq} mq`);
+          if (property.camere) caratteristiche.push(`${property.camere} camere`);
+          if (property.balcone) caratteristiche.push("balcone");
+          if (property.terrazzo) caratteristiche.push("terrazzo");
+          if (property.ascensore) caratteristiche.push("ascensore");
+          if (property.box) caratteristiche.push("box");
+          if (property.statoRistrutturato) caratteristiche.push("ristrutturato");
+          
+          // Personalize message
+          const personalizedMessage = defaultTemplate
+            .replace(/\{\{via\}\}/g, property.indirizzo || "questa zona")
+            .replace(/\{\{caratteristiche\}\}/g, caratteristiche.length > 0 ? caratteristiche.join(", ") : "le sue caratteristiche");
+
+          // Send via UltraMsg
+          const result = await sendWhatsAppMessage(property.contattoTelefono!, personalizedMessage);
+          
+          if (result.success) {
+            // Update property status to contacted
+            await storage.updateImmobileEsterno(property.id, { 
+              statoContatto: "contattato",
+              dataContatto: new Date(),
+              messaggioInviato: personalizedMessage
+            });
+            sentCount++;
+            results.push({ phoneNumber: property.contattoTelefono!, indirizzo: property.indirizzo || "", success: true });
+          } else {
+            failedCount++;
+            results.push({ phoneNumber: property.contattoTelefono!, indirizzo: property.indirizzo || "", success: false, error: result.error });
+          }
+
+          // Rate limit: wait 1.5 seconds between messages
+          if (propertiesWithPhone.indexOf(property) < propertiesWithPhone.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 1500));
+          }
+        } catch (error) {
+          failedCount++;
+          results.push({ phoneNumber: property.contattoTelefono!, indirizzo: property.indirizzo || "", success: false, error: String(error) });
+        }
+      }
+
+      res.json({
+        success: true,
+        sent: sentCount,
+        failed: failedCount,
+        total: propertiesWithPhone.length,
+        results
+      });
+    } catch (error) {
+      console.error("Automatic campaign error:", error);
+      res.status(500).json({ error: "Errore nell'invio automatico dei messaggi" });
+    }
+  });
+
   // Add recipients from property IDs
   app.post("/api/whatsapp-campaigns/:id/add-from-properties", async (req, res) => {
     try {
