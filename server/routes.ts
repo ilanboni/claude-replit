@@ -2394,30 +2394,36 @@ Assistente del Dott. Ilan Boni`;
         baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
       });
       
-      // Generate mirroring phrases
+      // Generate mirroring phrases with JSON response format
       const mirroringResponse = await openaiClient.chat.completions.create({
         model: "gpt-4o",
         messages: [
-          { role: "system", content: MIRRORING_PROMPT },
+          { role: "system", content: MIRRORING_PROMPT + '\n\nRispondi SOLO con JSON: {"mirroring": "testo"}' },
           { role: "user", content: context }
         ],
         temperature: MIRRORING_CONFIG.temperature,
-        max_tokens: MIRRORING_CONFIG.max_tokens
+        max_tokens: MIRRORING_CONFIG.max_tokens,
+        response_format: { type: "json_object" }
       });
 
-      const mirroringText = mirroringResponse.choices[0]?.message?.content?.trim() || "";
+      let mirroringText = mirroringResponse.choices[0]?.message?.content?.trim() || "";
+      
+      // Remove any JSON wrapper if present
+      if (mirroringText.startsWith('{')) {
+        try {
+          const parsed = JSON.parse(mirroringText);
+          mirroringText = parsed.mirroring || mirroringText;
+        } catch {
+          // Not JSON, use as-is
+        }
+      }
 
-      // Extract address from testoAnnuncio
-      const viaMatch = testoAnnuncio.match(/(?:via|viale|piazza|corso)\s+[A-Za-zÀ-ÿ\s]+(?:\d+)?/i);
-      const via = viaMatch ? viaMatch[0].trim() : titolo || "zona";
-
-      // Build the complete message with mirroring
+      // Build the complete message with mirroring (AI handles the opening)
       const message = `Gentile Proprietario,
 sono l'assistente del Dott. Ilan Boni.
 
 Il Dott. Boni è agente immobiliare da oltre trent'anni, proprietario di due agenzie a Milano e Vicepresidente della Comunità Ebraica di Milano. La sua attività lo porta ogni giorno a confrontarsi con investitori italiani e stranieri che guardano a Milano come a un'opportunità concreta, spesso legata alla flat tax.
 
-Ha notato il suo immobile in ${via}.
 ${mirroringText}
 
 Il Dott. Boni vorrebbe capire se il suo immobile può inserirsi in un percorso di lavoro molto preciso.
