@@ -732,48 +732,66 @@ ALTRE REGOLE:
   }
 }
 
+// Default acquisition message template for private sellers
+const DEFAULT_ACQUISITION_TEMPLATE = `Gentile Proprietario,
+sono l'assistente del Dott. Ilan Boni.
+
+Il Dott. Boni è agente immobiliare da oltre trent'anni, proprietario di due agenzie a Milano e Vicepresidente della Comunità Ebraica di Milano. La sua attività lo porta ogni giorno a confrontarsi con investitori italiani e stranieri che guardano a Milano come a un'opportunità concreta, spesso legata alla flat tax.
+
+Ha notato il suo immobile in {{via}}.
+Caratteristiche come {{caratteristiche}} sono oggi molto richieste da chi cerca immobili con potenzialità immediate, sia in termini di rendimento sia di stabilità del valore nel tempo.
+
+Il Dott. Boni vorrebbe capire se il suo immobile può inserirsi in un percorso di lavoro molto preciso.
+Nel 2025 ha concluso 14 vendite e, negli ultimi anni, il suo metodo gli ha permesso di chiudere positivamente il 94% dei mandati affidati, mettendo gli acquirenti in concorrenza tra loro e non al ribasso contro il proprietario.
+
+Se per Lei può essere utile, il Dott. Boni è disponibile per un breve incontro direttamente presso l'immobile: una decina di minuti per ascoltare la sua situazione, vedere l'appartamento e mostrarle la domanda reale sulla zona.
+
+Nel frattempo può trovare informazioni sulla sua attività immobiliare e istituzionale anche online.
+
+Può rispondere direttamente a questo messaggio, oppure contattarci allo 02 35981509 o a info@cavourimmobiliare.it.
+
+Un cordiale saluto,
+
+Sara
+Assistente del Dott. Ilan Boni`;
+
 export async function generateAcquisitionMessage(
   immobile: ImmobileEsterno,
   template?: string
 ): Promise<string> {
   try {
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        {
-          role: "system",
-          content: `Sei un agente immobiliare italiano esperto in acquisizioni. Genera un messaggio professionale e persuasivo per contattare un privato che ha messo in vendita un immobile.
-
-Il messaggio deve:
-1. Essere cordiale ma professionale
-2. Fare riferimento specifico all'immobile (indirizzo, prezzo, caratteristiche)
-3. Spiegare brevemente il vantaggio di collaborare con un'agenzia
-4. Proporre un incontro/chiamata senza essere troppo insistente
-5. Essere breve (max 150 parole)
-6. Usare il "Lei" formale
-
-${template ? `Segui questo template/stile:\n${template}` : ''}`
-        },
-        {
-          role: "user",
-          content: `Genera un messaggio per contattare il proprietario di questo immobile:
-
-Titolo: ${immobile.titolo || 'Non specificato'}
-Zona: ${immobile.zona || 'Non specificata'}
-Indirizzo: ${immobile.indirizzo || 'Non specificato'}
-Prezzo: ${immobile.prezzo ? `€${Number(immobile.prezzo).toLocaleString('it-IT')}` : 'Non specificato'}
-Metri quadri: ${immobile.mq || 'Non specificato'}
-Camere: ${immobile.camere || 'Non specificate'}
-Contatto: ${immobile.contattoNome || 'Proprietario'}
-Fonte annuncio: ${immobile.fonte || 'portale immobiliare'}`
-        }
-      ],
-      max_completion_tokens: 300,
-    });
-
-    return response.choices[0]?.message?.content || "Gentile proprietario, ho notato il Suo annuncio e sarei interessato a discutere di una possibile collaborazione per la vendita del Suo immobile.";
+    // Build characteristics string from immobile data
+    const caratteristiche: string[] = [];
+    if (immobile.mq) caratteristiche.push(`${immobile.mq} mq`);
+    if (immobile.camere) caratteristiche.push(`${immobile.camere} locali`);
+    if (immobile.piano) caratteristiche.push(`piano ${immobile.piano}`);
+    if (immobile.ascensore) caratteristiche.push("con ascensore");
+    if (immobile.balcone) caratteristiche.push("con balcone");
+    if (immobile.terrazzo) caratteristiche.push("con terrazzo");
+    if (immobile.box) caratteristiche.push("con box");
+    if (immobile.arredato) caratteristiche.push("arredato");
+    if (immobile.statoRistrutturato) caratteristiche.push("ristrutturato");
+    if (immobile.classeEnergetica) caratteristiche.push(`classe energetica ${immobile.classeEnergetica}`);
+    
+    const caratteristicheStr = caratteristiche.length > 0 
+      ? caratteristiche.join(", ") 
+      : "le sue caratteristiche";
+    
+    const via = immobile.indirizzo || immobile.zona || "zona";
+    
+    // Use provided template or default
+    const baseTemplate = template || DEFAULT_ACQUISITION_TEMPLATE;
+    
+    // Replace placeholders
+    let message = baseTemplate
+      .replace(/\{\{via\}\}/g, via)
+      .replace(/\{\{caratteristiche\}\}/g, caratteristicheStr);
+    
+    return message;
   } catch (error) {
-    console.error("AI acquisition message error:", error);
-    return "Gentile proprietario, ho notato il Suo annuncio e sarei interessato a discutere di una possibile collaborazione per la vendita del Suo immobile.";
+    console.error("Acquisition message generation error:", error);
+    return DEFAULT_ACQUISITION_TEMPLATE
+      .replace(/\{\{via\}\}/g, immobile.indirizzo || "zona")
+      .replace(/\{\{caratteristiche\}\}/g, "le sue caratteristiche");
   }
 }
