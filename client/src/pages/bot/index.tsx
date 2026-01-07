@@ -186,9 +186,12 @@ Contatto: Mario Rossi - 333 1234567`,
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/acquisizione"] });
       queryClient.invalidateQueries({ queryKey: ["/api/whatsapp-campaigns"] });
+      let description = `Inviati ${data.sent} messaggi su ${data.total}`;
+      if (data.failed > 0) description += ` (${data.failed} falliti)`;
+      if (data.skippedDuplicates > 0) description += `. ${data.skippedDuplicates} numeri gia contattati esclusi.`;
       toast({
         title: "Messaggi inviati",
-        description: `Inviati ${data.sent} messaggi su ${data.total}${data.failed > 0 ? ` (${data.failed} falliti)` : ""}`
+        description
       });
     },
     onError: (error: Error) => {

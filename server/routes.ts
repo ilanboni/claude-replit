@@ -1387,6 +1387,46 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         }
       }
       
+      // Check if this phone number has already been contacted
+      let duplicateWarning = null;
+      if (normalizedPhone) {
+        const allProperties = await storage.getImmobiliEsterni();
+        const alreadyContactedWithSamePhone = allProperties.find(p => {
+          if (!p.contattoTelefono) return false;
+          const propPhone = p.contattoTelefono.replace(/\D/g, '');
+          const inputPhone = normalizedPhone.replace(/\D/g, '');
+          return propPhone === inputPhone && p.statoContatto === "contattato";
+        });
+        
+        if (alreadyContactedWithSamePhone) {
+          duplicateWarning = {
+            message: `Attenzione: questo numero (${normalizedPhone}) e gia stato contattato per l'immobile "${alreadyContactedWithSamePhone.titolo}"`,
+            existingProperty: {
+              id: alreadyContactedWithSamePhone.id,
+              titolo: alreadyContactedWithSamePhone.titolo,
+              indirizzo: alreadyContactedWithSamePhone.indirizzo
+            }
+          };
+        }
+        
+        // Also check WhatsApp conversations
+        const whatsappConversations = await storage.getWhatsappConversations();
+        const existingConversation = whatsappConversations.find(c => {
+          const convPhone = c.phoneNumber.replace(/\D/g, '');
+          const inputPhone = normalizedPhone.replace(/\D/g, '');
+          return convPhone === inputPhone;
+        });
+        
+        if (existingConversation && !duplicateWarning) {
+          duplicateWarning = {
+            message: `Attenzione: questo numero (${normalizedPhone}) ha gia una conversazione WhatsApp attiva`,
+            existingConversation: {
+              phoneNumber: existingConversation.phoneNumber
+            }
+          };
+        }
+      }
+
       // Create immobile with clienteId if we have a prospect
       const immobileData = clienteProspect 
         ? { ...parsed.data, clienteId: clienteProspect.id }
@@ -1394,7 +1434,7 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
       
       const immobile = await storage.createImmobileEsterno(immobileData);
       
-      res.status(201).json({ immobile, clienteProspect });
+      res.status(201).json({ immobile, clienteProspect, duplicateWarning });
     } catch (error) {
       console.error("Create acquisizione error:", error);
       res.status(500).json({ error: "Errore nella creazione dell'immobile" });
@@ -1799,7 +1839,38 @@ FIRMA: Un cordiale saluto, l'Assistente del Dott. Ilan Boni`;
         p.statoContatto !== "contattato" // Not already contacted
       );
 
-      if (propertiesWithPhone.length === 0) {
+      // Check for duplicate phone numbers - get all already contacted numbers
+      const contactedPhones = new Set(
+        allProperties
+          .filter(p => p.statoContatto === "contattato" && p.contattoTelefono)
+          .map(p => p.contattoTelefono!.replace(/\D/g, '')) // Normalize phone numbers
+      );
+
+      // Also check WhatsApp conversations for previously contacted numbers
+      const whatsappConversations = await storage.getWhatsappConversations();
+      whatsappConversations.forEach(conv => {
+        contactedPhones.add(conv.phoneNumber.replace(/\D/g, ''));
+      });
+
+      // Filter out properties with already contacted phone numbers
+      const uniquePropertiesToContact = propertiesWithPhone.filter(p => {
+        const normalizedPhone = p.contattoTelefono!.replace(/\D/g, '');
+        return !contactedPhones.has(normalizedPhone);
+      });
+
+      // Identify duplicates for warning
+      const duplicateProperties = propertiesWithPhone.filter(p => {
+        const normalizedPhone = p.contattoTelefono!.replace(/\D/g, '');
+        return contactedPhones.has(normalizedPhone);
+      });
+
+      if (uniquePropertiesToContact.length === 0) {
+        if (duplicateProperties.length > 0) {
+          return res.status(400).json({ 
+            error: `Tutti i ${duplicateProperties.length} numeri sono già stati contattati in precedenza. Importa nuovi immobili con numeri diversi.`,
+            duplicates: duplicateProperties.map(p => ({ titolo: p.titolo, telefono: p.contattoTelefono }))
+          });
+        }
         return res.status(400).json({ error: "Nessun immobile con telefono da contattare. Importa nuovi immobili dalla sezione Acquisizione." });
       }
 
@@ -1831,7 +1902,7 @@ Assistente del Dott. Ilan Boni`;
       let failedCount = 0;
       const results: { phoneNumber: string; indirizzo: string; success: boolean; error?: string }[] = [];
 
-      for (const property of propertiesWithPhone) {
+      for (const property of uniquePropertiesToContact) {
         try {
           // Build characteristics string
           const caratteristiche: string[] = [];
@@ -1866,7 +1937,7 @@ Assistente del Dott. Ilan Boni`;
           }
 
           // Rate limit: wait 1.5 seconds between messages
-          if (propertiesWithPhone.indexOf(property) < propertiesWithPhone.length - 1) {
+          if (uniquePropertiesToContact.indexOf(property) < uniquePropertiesToContact.length - 1) {
             await new Promise(resolve => setTimeout(resolve, 1500));
           }
         } catch (error) {
@@ -1879,7 +1950,9 @@ Assistente del Dott. Ilan Boni`;
         success: true,
         sent: sentCount,
         failed: failedCount,
-        total: propertiesWithPhone.length,
+        total: uniquePropertiesToContact.length,
+        skippedDuplicates: duplicateProperties.length,
+        duplicates: duplicateProperties.map(p => ({ titolo: p.titolo, telefono: p.contattoTelefono, indirizzo: p.indirizzo })),
         results
       });
     } catch (error) {
