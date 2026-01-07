@@ -189,66 +189,67 @@ export function checkForObjection(message: string): { found: boolean; handler?: 
   return { found: false };
 }
 
-// Prompt per generare frasi di mirroring dall'annuncio - v2
-// Mirroring annuncio privato: 2-4 frasi sobrie, neutre, senza marketing
-export const MIRRORING_PROMPT = `Leggi con attenzione l'annuncio immobiliare fornito. Scrivi 2–4 frasi che mostrino che hai letto davvero ciò che il proprietario ha scritto.
+// Prompt per generare frasi di mirroring dall'annuncio - v3
+// Mirroring annuncio privato: 2-4 frasi sobrie, neutre, senza marketing, nessuna deduzione
+export const MIRRORING_PROMPT = `Leggi con attenzione l'annuncio immobiliare fornito. Scrivi 2–4 frasi che mostrino che hai realmente letto il contenuto.
 
-OBIETTIVO: dimostrare ascolto, rispetto e professionalità. Testo sobrio, istituzionale, neutro, reale.
+OBIETTIVO: dimostrare ascolto, rispetto e professionalità. Nessun intento di vendita, nessuna pressione.
 
 TONO OBBLIGATORIO:
 - neutro
 - professionale
-- rispettoso
-- italiano corretto e pulito
-- NESSUNA enfatizzazione
+- istituzionale
+- sobrio
+- italiano corretto
 
-BLOCCHI DI DIVIETO ASSOLUTI:
-- vietato usare parole da marketing: strategico, bellissimo, prestigioso, unico, comodissimo, opportunita, ideale, perfetto
-- vietato scrivere giudizi: vantaggio, comfort, valore, garantisce, ecc.
-- vietato inventare informazioni non presenti
-- vietato esprimere certezze commerciali
-- vietato tono emozionale
+DIVIETI ASSOLUTI:
+- vietato usare termini promozionali: strategico, prestigioso, bellissimo, comodissimo, unico, vantaggioso, comfort, opportunità, ideale, perfetto, punto di forza
+- vietato giudicare: non usare parole come importante, notevole, eccezionale
+- vietato fare supposizioni o deduzioni non esplicite nel testo
+- vietato inventare dati non presenti
+- vietato attribuire intenzioni al proprietario
 
-REGOLE DI STILE OBBLIGATORIE:
-- usa solo informazioni presenti nell'annuncio
-- preferisci indicativo presente
-- frasi brevi, chiare, sobrie
-- nessun tono pubblicitario
-- niente superlativi
+REGOLE OPERATIVE:
+- usa SOLO informazioni chiaramente presenti nell'annuncio
+- se qualcosa non è certo, non citarlo
+- NON dedurre la tipologia o il numero di locali se non è scritto chiaramente
+- se il proprietario indica bilocale non scrivere trilocale, e viceversa
+- preferisci frasi brevi e chiare
+- usa l'indicativo presente
 
-STRUTTURA CONSIGLIATA (non obbligatoria ma preferibile):
-1) descrizione sintetica dello stato dell'immobile se citato (es: ristrutturazione, anno, arredamento)
-2) elementi strutturali: piano, esposizione, balconi, ascensore, lavori condominiali
-3) elementi di contesto: zona, servizi, trasporti SOLO se scritti
+STRUTTURA CONSIGLIATA:
+1) descrizione dello stato dell'immobile SOLO se citato (es: ristrutturato, anno, arredato, libero al rogito)
+2) elementi strutturali e dello stabile SE presenti (piano, esposizione, balconi, ascensore, lavori condominiali)
+3) contesto SE citato (zona, metropolitana, servizi)
 
-FORMULAZIONI CONSIGLIATE:
+FORMULAZIONI CORRETTE:
 - "Dal suo annuncio emerge..."
+- "Risulta inoltre che..."
 - "Sono indicati..."
-- "Risulta inoltre..."
 - "La vicinanza a ... rappresenta un elemento pratico per gli spostamenti"
 
-GESTIONE DEI CASI:
-- Se poche informazioni → scrivi poco
-- Se manca certezza → non scrivere
+CASI PARTICOLARI:
+- Se l'annuncio è povero → scrivi poco
+- Se un'informazione è ambigua → NON citarla
+- Mai riassumere con parole tue aggiungendo significato
 
-ESEMPI POSITIVI:
-"Dal suo annuncio emerge un appartamento ristrutturato, con spazi organizzati e arredamento già presente. Sono indicati interventi recenti anche sullo stabile. La presenza della metropolitana nelle vicinanze rappresenta un elemento pratico per chi vive nella zona."
+ESEMPI CORRETTI:
+"Dal suo annuncio emerge un appartamento ristrutturato negli ultimi anni, con arredamento presente e libero al rogito. Sono indicati interventi recenti anche sullo stabile."
 
-"Il suo appartamento risulta ristrutturato negli ultimi anni e dotato di più elementi funzionali come balcone, ascensore e cantina. Viene segnalata anche una buona dotazione impiantistica."
+"Risulta inoltre la presenza di ascensore e cantina. La vicinanza alla metropolitana rappresenta un elemento pratico per gli spostamenti."
 
 FORMATTAZIONE WHATSAPP:
 - Paragrafi brevi separati da riga vuota
 - Max 1-2 frasi per paragrafo
-- Testo leggibile e ben spaziato
 
 RICORDA:
 - Produci SOLO le 2–4 frasi di mirroring
 - Niente saluti, firme, presentazioni, domande o chiusure
-- Solo descrizione basata su dati reali del testo fornito`;
+- Solo fatti presenti nell'annuncio, nessuna deduzione`;
 
-// Mirroring configuration for structured calls - v2
+// Mirroring configuration for structured calls - v3
 export const MIRRORING_CONFIG = {
-  temperature: 0.15,
+  temperature: 0.12,
   max_tokens: 350
 };
 

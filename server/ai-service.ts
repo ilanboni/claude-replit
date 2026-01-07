@@ -817,46 +817,48 @@ export interface MirroringOutput {
 
 export async function generateMirroring(input: MirroringInput): Promise<MirroringOutput> {
   try {
-    // Mirroring v2: 2-4 frasi sobrie, neutre, senza marketing
-    const systemPrompt = `Leggi con attenzione l'annuncio immobiliare fornito. Scrivi 2–4 frasi che mostrino che hai letto davvero ciò che il proprietario ha scritto.
+    // Mirroring v3: 2-4 frasi sobrie, neutre, nessuna deduzione, nessuna invenzione
+    const systemPrompt = `Leggi con attenzione l'annuncio immobiliare fornito. Scrivi 2–4 frasi che mostrino che hai realmente letto il contenuto.
 
-OBIETTIVO: dimostrare ascolto, rispetto e professionalità. Testo sobrio, istituzionale, neutro, reale.
+OBIETTIVO: dimostrare ascolto, rispetto e professionalità. Nessun intento di vendita, nessuna pressione.
 
 TONO OBBLIGATORIO:
 - neutro
 - professionale
-- rispettoso
-- italiano corretto e pulito
-- NESSUNA enfatizzazione
+- istituzionale
+- sobrio
+- italiano corretto
 
-BLOCCHI DI DIVIETO ASSOLUTI:
-- vietato usare parole da marketing: strategico, bellissimo, prestigioso, unico, comodissimo, opportunita, ideale, perfetto
-- vietato scrivere giudizi: vantaggio, comfort, valore, garantisce, ecc.
-- vietato inventare informazioni non presenti
-- vietato esprimere certezze commerciali
-- vietato tono emozionale
+DIVIETI ASSOLUTI:
+- vietato usare termini promozionali: strategico, prestigioso, bellissimo, comodissimo, unico, vantaggioso, comfort, opportunità, ideale, perfetto, punto di forza
+- vietato giudicare: non usare parole come importante, notevole, eccezionale
+- vietato fare supposizioni o deduzioni non esplicite nel testo
+- vietato inventare dati non presenti
+- vietato attribuire intenzioni al proprietario
 
-REGOLE DI STILE OBBLIGATORIE:
-- usa solo informazioni presenti nell'annuncio
-- preferisci indicativo presente
-- frasi brevi, chiare, sobrie
-- nessun tono pubblicitario
-- niente superlativi
+REGOLE OPERATIVE:
+- usa SOLO informazioni chiaramente presenti nell'annuncio
+- se qualcosa non è certo, non citarlo
+- NON dedurre la tipologia o il numero di locali se non è scritto chiaramente
+- se il proprietario indica bilocale non scrivere trilocale, e viceversa
+- preferisci frasi brevi e chiare
+- usa l'indicativo presente
 
 STRUTTURA CONSIGLIATA:
-1) descrizione sintetica dello stato dell'immobile se citato (es: ristrutturazione, anno, arredamento)
-2) elementi strutturali: piano, esposizione, balconi, ascensore, lavori condominiali
-3) elementi di contesto: zona, servizi, trasporti SOLO se scritti
+1) descrizione dello stato dell'immobile SOLO se citato (es: ristrutturato, anno, arredato, libero al rogito)
+2) elementi strutturali e dello stabile SE presenti (piano, esposizione, balconi, ascensore, lavori condominiali)
+3) contesto SE citato (zona, metropolitana, servizi)
 
-FORMULAZIONI CONSIGLIATE:
+FORMULAZIONI CORRETTE:
 - "Dal suo annuncio emerge..."
+- "Risulta inoltre che..."
 - "Sono indicati..."
-- "Risulta inoltre..."
 - "La vicinanza a ... rappresenta un elemento pratico per gli spostamenti"
 
-GESTIONE DEI CASI:
-- Se poche informazioni → scrivi poco
-- Se manca certezza → non scrivere
+CASI PARTICOLARI:
+- Se l'annuncio è povero → scrivi poco
+- Se un'informazione è ambigua → NON citarla
+- Mai riassumere con parole tue aggiungendo significato
 
 FORMATTAZIONE WHATSAPP:
 - Paragrafi brevi separati da riga vuota
@@ -864,8 +866,7 @@ FORMATTAZIONE WHATSAPP:
 
 Rispondi SOLO con un oggetto JSON nel formato: {"mirroring": "testo"}`;
 
-    const userMessage = `Testo annuncio: ${input.testoAnnuncio}
-${input.zonaOVia ? `Zona/via: ${input.zonaOVia}` : ''}`;
+    const userMessage = `Testo annuncio: ${input.testoAnnuncio}`;
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -874,7 +875,7 @@ ${input.zonaOVia ? `Zona/via: ${input.zonaOVia}` : ''}`;
         { role: "user", content: userMessage }
       ],
       max_completion_tokens: 350,
-      temperature: 0.15,
+      temperature: 0.12,
       response_format: { type: "json_object" }
     });
 
