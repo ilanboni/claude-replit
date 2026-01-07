@@ -2,6 +2,7 @@ import {
   clienti, richieste, immobili, comunicazioni, appuntamenti, matching, immobiliEsterni,
   attivitaImmobile, documentiImmobile, portaliImmobile, storicoPrezzo,
   whatsappCampaigns, campaignMessages, botConversationLogs,
+  whatsappConversations, whatsappMessages,
   type Cliente, type InsertCliente,
   type Richiesta, type InsertRichiesta,
   type Immobile, type InsertImmobile,
@@ -16,6 +17,8 @@ import {
   type WhatsappCampaign, type InsertWhatsappCampaign,
   type CampaignMessage, type InsertCampaignMessage,
   type BotConversationLog, type InsertBotConversationLog,
+  type WhatsappConversation, type InsertWhatsappConversation,
+  type WhatsappMessage, type InsertWhatsappMessage,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql } from "drizzle-orm";
@@ -118,6 +121,19 @@ export interface IStorage {
   // Bot Conversation Logs
   getBotConversationLogs(campaignMessageId: number): Promise<BotConversationLog[]>;
   createBotConversationLog(data: InsertBotConversationLog): Promise<BotConversationLog>;
+
+  // WhatsApp Conversations
+  getWhatsappConversations(): Promise<WhatsappConversation[]>;
+  getWhatsappConversation(id: number): Promise<WhatsappConversation | undefined>;
+  getWhatsappConversationByPhone(phoneNumber: string): Promise<WhatsappConversation | undefined>;
+  createWhatsappConversation(data: InsertWhatsappConversation): Promise<WhatsappConversation>;
+  updateWhatsappConversation(id: number, data: Partial<InsertWhatsappConversation>): Promise<WhatsappConversation | undefined>;
+
+  // WhatsApp Messages
+  getWhatsappMessages(conversationId: number): Promise<WhatsappMessage[]>;
+  getWhatsappMessage(id: number): Promise<WhatsappMessage | undefined>;
+  createWhatsappMessage(data: InsertWhatsappMessage): Promise<WhatsappMessage>;
+  updateWhatsappMessageStatus(id: number, status: string): Promise<WhatsappMessage | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -479,6 +495,51 @@ export class DatabaseStorage implements IStorage {
   async createBotConversationLog(data: InsertBotConversationLog): Promise<BotConversationLog> {
     const [log] = await db.insert(botConversationLogs).values(data).returning();
     return log;
+  }
+
+  // WhatsApp Conversations
+  async getWhatsappConversations(): Promise<WhatsappConversation[]> {
+    return db.select().from(whatsappConversations).orderBy(desc(whatsappConversations.ultimoMessaggioData));
+  }
+
+  async getWhatsappConversation(id: number): Promise<WhatsappConversation | undefined> {
+    const [conversation] = await db.select().from(whatsappConversations).where(eq(whatsappConversations.id, id));
+    return conversation;
+  }
+
+  async getWhatsappConversationByPhone(phoneNumber: string): Promise<WhatsappConversation | undefined> {
+    const [conversation] = await db.select().from(whatsappConversations).where(eq(whatsappConversations.phoneNumber, phoneNumber));
+    return conversation;
+  }
+
+  async createWhatsappConversation(data: InsertWhatsappConversation): Promise<WhatsappConversation> {
+    const [conversation] = await db.insert(whatsappConversations).values(data).returning();
+    return conversation;
+  }
+
+  async updateWhatsappConversation(id: number, data: Partial<InsertWhatsappConversation>): Promise<WhatsappConversation | undefined> {
+    const [conversation] = await db.update(whatsappConversations).set({ ...data, updatedAt: new Date() }).where(eq(whatsappConversations.id, id)).returning();
+    return conversation;
+  }
+
+  // WhatsApp Messages
+  async getWhatsappMessages(conversationId: number): Promise<WhatsappMessage[]> {
+    return db.select().from(whatsappMessages).where(eq(whatsappMessages.conversationId, conversationId)).orderBy(whatsappMessages.createdAt);
+  }
+
+  async getWhatsappMessage(id: number): Promise<WhatsappMessage | undefined> {
+    const [message] = await db.select().from(whatsappMessages).where(eq(whatsappMessages.id, id));
+    return message;
+  }
+
+  async createWhatsappMessage(data: InsertWhatsappMessage): Promise<WhatsappMessage> {
+    const [message] = await db.insert(whatsappMessages).values(data).returning();
+    return message;
+  }
+
+  async updateWhatsappMessageStatus(id: number, status: string): Promise<WhatsappMessage | undefined> {
+    const [message] = await db.update(whatsappMessages).set({ status, statusTimestamp: new Date() }).where(eq(whatsappMessages.id, id)).returning();
+    return message;
   }
 }
 

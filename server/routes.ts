@@ -1943,4 +1943,245 @@ FORMATO RISPOSTE:
       res.status(500).json({ error: "Errore nella risposta AI" });
     }
   });
+
+  // ==================== WHATSAPP CHAT API ====================
+  
+  // Get all WhatsApp conversations
+  app.get("/api/whatsapp/conversations", async (req, res) => {
+    try {
+      const conversations = await storage.getWhatsappConversations();
+      res.json(conversations);
+    } catch (error) {
+      console.error("Get WhatsApp conversations error:", error);
+      res.status(500).json({ error: "Errore nel recupero conversazioni" });
+    }
+  });
+
+  // Get single conversation with messages
+  app.get("/api/whatsapp/conversations/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const conversation = await storage.getWhatsappConversation(id);
+      if (!conversation) {
+        return res.status(404).json({ error: "Conversazione non trovata" });
+      }
+      const messages = await storage.getWhatsappMessages(id);
+      res.json({ conversation, messages });
+    } catch (error) {
+      console.error("Get WhatsApp conversation error:", error);
+      res.status(500).json({ error: "Errore nel recupero conversazione" });
+    }
+  });
+
+  // Get messages for a conversation
+  app.get("/api/whatsapp/conversations/:id/messages", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const messages = await storage.getWhatsappMessages(id);
+      res.json(messages);
+    } catch (error) {
+      console.error("Get WhatsApp messages error:", error);
+      res.status(500).json({ error: "Errore nel recupero messaggi" });
+    }
+  });
+
+  // Send a message (outbound)
+  app.post("/api/whatsapp/send", async (req, res) => {
+    try {
+      const { phoneNumber, content, clienteId, immobileId } = req.body;
+      
+      if (!phoneNumber || !content) {
+        return res.status(400).json({ error: "Numero e contenuto richiesti" });
+      }
+
+      // Normalize phone number
+      const normalizedPhone = phoneNumber.replace(/\D/g, '');
+
+      // Get or create conversation
+      let conversation = await storage.getWhatsappConversationByPhone(normalizedPhone);
+      if (!conversation) {
+        conversation = await storage.createWhatsappConversation({
+          phoneNumber: normalizedPhone,
+          clienteId: clienteId || null,
+          immobileId: immobileId || null,
+          nome: null,
+          ultimoMessaggio: content.substring(0, 100),
+          ultimoMessaggioData: new Date(),
+          nonLetti: 0,
+          stato: "attivo"
+        });
+      } else {
+        // Update conversation with last message
+        await storage.updateWhatsappConversation(conversation.id, {
+          ultimoMessaggio: content.substring(0, 100),
+          ultimoMessaggioData: new Date(),
+          clienteId: clienteId || conversation.clienteId,
+          immobileId: immobileId || conversation.immobileId
+        });
+      }
+
+      // Create message record
+      const message = await storage.createWhatsappMessage({
+        conversationId: conversation.id,
+        whatsappMessageId: null,
+        direction: "outbound",
+        messageType: "text",
+        content,
+        mediaUrl: null,
+        status: "pending"
+      });
+
+      // Create comunicazione record
+      await storage.createComunicazione({
+        clienteId: clienteId || conversation.clienteId,
+        immobileId: immobileId || conversation.immobileId,
+        immobileEsternoId: null,
+        whatsappMessageId: message.id,
+        tipo: "messaggio",
+        testo: content,
+        canale: "whatsapp",
+        creatoDA: "agente",
+        esito: null
+      });
+
+      // TODO: Integrate with actual WhatsApp Business API here
+      // For now, just mark as sent
+      await storage.updateWhatsappMessageStatus(message.id, "sent");
+
+      res.json({ success: true, message, conversationId: conversation.id });
+    } catch (error) {
+      console.error("Send WhatsApp message error:", error);
+      res.status(500).json({ error: "Errore nell'invio messaggio" });
+    }
+  });
+
+  // Webhook to receive incoming WhatsApp messages
+  app.post("/api/webhook/whatsapp", async (req, res) => {
+    try {
+      console.log("WhatsApp Webhook received:", JSON.stringify(req.body, null, 2));
+      
+      // Extract message data (format depends on WhatsApp provider: Twilio, Meta, etc.)
+      const { from, body, messageSid, profileName } = req.body;
+      
+      if (!from || !body) {
+        return res.status(200).json({ status: "ignored", reason: "no message content" });
+      }
+
+      // Normalize phone number
+      const phoneNumber = from.replace(/\D/g, '');
+
+      // Find or create conversation
+      let conversation = await storage.getWhatsappConversationByPhone(phoneNumber);
+      if (!conversation) {
+        // Try to find matching client by phone
+        const clienti = await storage.getClienti();
+        const matchingClient = clienti.find(c => 
+          c.telefono && c.telefono.replace(/\D/g, '').includes(phoneNumber.slice(-9))
+        );
+
+        conversation = await storage.createWhatsappConversation({
+          phoneNumber,
+          clienteId: matchingClient?.id || null,
+          immobileId: null,
+          nome: profileName || null,
+          ultimoMessaggio: body.substring(0, 100),
+          ultimoMessaggioData: new Date(),
+          nonLetti: 1,
+          stato: "attivo"
+        });
+      } else {
+        // Update conversation
+        await storage.updateWhatsappConversation(conversation.id, {
+          ultimoMessaggio: body.substring(0, 100),
+          ultimoMessaggioData: new Date(),
+          nonLetti: (conversation.nonLetti || 0) + 1,
+          nome: profileName || conversation.nome
+        });
+      }
+
+      // Save the incoming message
+      const message = await storage.createWhatsappMessage({
+        conversationId: conversation.id,
+        whatsappMessageId: messageSid || null,
+        direction: "inbound",
+        messageType: "text",
+        content: body,
+        mediaUrl: null,
+        status: "received"
+      });
+
+      // Create comunicazione record
+      await storage.createComunicazione({
+        clienteId: conversation.clienteId,
+        immobileId: conversation.immobileId,
+        immobileEsternoId: null,
+        whatsappMessageId: message.id,
+        tipo: "risposta",
+        testo: body,
+        canale: "whatsapp",
+        creatoDA: "cliente",
+        esito: null
+      });
+
+      // Broadcast to WebSocket clients (will be implemented)
+      // wsServer.broadcast({ type: 'new_message', conversation, message });
+
+      res.status(200).json({ status: "ok", messageId: message.id });
+    } catch (error) {
+      console.error("WhatsApp webhook error:", error);
+      res.status(500).json({ error: "Webhook processing error" });
+    }
+  });
+
+  // Webhook verification for Meta WhatsApp Business API
+  app.get("/api/webhook/whatsapp", (req, res) => {
+    const mode = req.query["hub.mode"];
+    const token = req.query["hub.verify_token"];
+    const challenge = req.query["hub.challenge"];
+
+    // Check if verify token matches (use env var in production)
+    const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN || "immogest_verify";
+    
+    if (mode === "subscribe" && token === verifyToken) {
+      console.log("WhatsApp webhook verified");
+      res.status(200).send(challenge);
+    } else {
+      res.status(403).send("Verification failed");
+    }
+  });
+
+  // Mark conversation as read
+  app.post("/api/whatsapp/conversations/:id/read", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.updateWhatsappConversation(id, { nonLetti: 0 });
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Mark conversation read error:", error);
+      res.status(500).json({ error: "Errore" });
+    }
+  });
+
+  // Link conversation to client/property
+  app.patch("/api/whatsapp/conversations/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { clienteId, immobileId, stato } = req.body;
+      
+      const conversation = await storage.updateWhatsappConversation(id, {
+        ...(clienteId !== undefined && { clienteId }),
+        ...(immobileId !== undefined && { immobileId }),
+        ...(stato && { stato })
+      });
+
+      if (!conversation) {
+        return res.status(404).json({ error: "Conversazione non trovata" });
+      }
+
+      res.json(conversation);
+    } catch (error) {
+      console.error("Update conversation error:", error);
+      res.status(500).json({ error: "Errore nell'aggiornamento" });
+    }
+  });
 }
