@@ -10,6 +10,7 @@ import {
 import { parseRequestWithAI, calculateMatchScore, generateAICoachMessage, parsePropertyListingWithAI, parsePropertyImageWithAI, generateAcquisitionMessage, generateMirroring, extractPropertyFacts } from "./ai-service";
 import { whatsappWS } from "./websocket";
 import { sendWhatsAppMessage, isUltraMsgConfigured } from "./ultramsg";
+import { getUnreadEmails, searchPortalEmails, parsePortalEmail, markAsRead, EmailMessage } from "./gmail-service";
 import { exec } from "child_process";
 import { promisify } from "util";
 import * as fs from "fs";
@@ -3357,6 +3358,154 @@ FORMATO RISPOSTE:
     } catch (error) {
       console.error("Get attivita immobile error:", error);
       res.status(500).json({ error: "Errore nel recupero attività" });
+    }
+  });
+
+  // ==================== GMAIL INTEGRATION ====================
+
+  // Get unread emails
+  app.get("/api/gmail/unread", async (req, res) => {
+    try {
+      const maxResults = parseInt(req.query.max as string) || 10;
+      const emails = await getUnreadEmails(maxResults);
+      res.json(emails);
+    } catch (error: any) {
+      console.error("Gmail unread error:", error);
+      if (error.message?.includes('Gmail not connected')) {
+        res.status(401).json({ error: "Gmail non connesso", needsAuth: true });
+      } else {
+        res.status(500).json({ error: "Errore nel recupero email" });
+      }
+    }
+  });
+
+  // Search portal emails
+  app.get("/api/gmail/portali", async (req, res) => {
+    try {
+      const emails = await searchPortalEmails();
+      const parsedEmails = emails.map(email => ({
+        ...email,
+        parsed: parsePortalEmail(email)
+      }));
+      res.json(parsedEmails);
+    } catch (error: any) {
+      console.error("Gmail portali error:", error);
+      if (error.message?.includes('Gmail not connected')) {
+        res.status(401).json({ error: "Gmail non connesso", needsAuth: true });
+      } else {
+        res.status(500).json({ error: "Errore nel recupero email dai portali" });
+      }
+    }
+  });
+
+  // Mark email as read
+  app.post("/api/gmail/mark-read/:id", async (req, res) => {
+    try {
+      const messageId = req.params.id;
+      await markAsRead(messageId);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Gmail mark read error:", error);
+      res.status(500).json({ error: "Errore nel segnare email come letta" });
+    }
+  });
+
+  // Process portal email - create client and activities
+  app.post("/api/gmail/process", async (req, res) => {
+    try {
+      const { emailId, immobileId } = req.body;
+      
+      // Get the email
+      const emails = await getUnreadEmails(100);
+      const email = emails.find(e => e.id === emailId);
+      
+      if (!email) {
+        return res.status(404).json({ error: "Email non trovata" });
+      }
+      
+      const parsed = parsePortalEmail(email);
+      
+      // Create or find client
+      let cliente = null;
+      let isNewClient = false;
+      
+      if (parsed.emailCliente) {
+        const existingClients = await storage.getClienti();
+        cliente = existingClients.find(c => c.email === parsed.emailCliente);
+        
+        if (!cliente && parsed.telefonoCliente) {
+          cliente = existingClients.find(c => c.telefono === parsed.telefonoCliente);
+        }
+        
+        if (!cliente) {
+          isNewClient = true;
+          const nameParts = (parsed.nomeCliente || "Contatto").split(" ");
+          cliente = await storage.createCliente({
+            nome: nameParts[0] || "Contatto",
+            cognome: nameParts.slice(1).join(" ") || parsed.portale,
+            email: parsed.emailCliente || null,
+            telefono: parsed.telefonoCliente || null,
+            tipoCliente: "acquirente",
+            ratingCliente: 3,
+            note: `Importato da ${parsed.portale}`
+          });
+        }
+      }
+      
+      if (!cliente) {
+        return res.status(400).json({ error: "Impossibile identificare il cliente dall'email" });
+      }
+      
+      // Create client activity
+      const attivitaCliente = await storage.createAttivitaCliente({
+        clienteId: cliente.id,
+        immobileId: immobileId || null,
+        titolo: `Email da ${parsed.portale}`,
+        descrizione: parsed.testoRichiesta.slice(0, 500),
+        fonte: parsed.portale,
+        scadenza: null,
+        stato: "da_fare"
+      });
+      
+      // Create property activity if immobileId
+      let attivitaImmobile = null;
+      if (immobileId) {
+        attivitaImmobile = await storage.createAttivitaImmobile({
+          immobileId,
+          titolo: `Richiesta da ${cliente.nome} ${cliente.cognome}`,
+          descrizione: parsed.testoRichiesta.slice(0, 500),
+          scadenza: null,
+          stato: "da_fare"
+        });
+      }
+      
+      // Create comunicazione
+      await storage.createComunicazione({
+        clienteId: cliente.id,
+        immobileId: immobileId || null,
+        immobileEsternoId: null,
+        whatsappMessageId: null,
+        tipo: "richiesta",
+        testo: parsed.testoRichiesta.slice(0, 1000),
+        canale: "email",
+        creatoDA: "cliente",
+        esito: null
+      });
+      
+      // Mark email as read
+      await markAsRead(emailId);
+      
+      res.json({
+        success: true,
+        cliente,
+        isNewClient,
+        attivitaCliente,
+        attivitaImmobile,
+        parsed
+      });
+    } catch (error: any) {
+      console.error("Gmail process error:", error);
+      res.status(500).json({ error: "Errore nell'elaborazione email" });
     }
   });
 }
