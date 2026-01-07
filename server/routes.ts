@@ -1975,6 +1975,21 @@ FORMATO RISPOSTE:
     }
   });
 
+  app.delete("/api/whatsapp/conversations/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const conversation = await storage.getWhatsappConversation(id);
+      if (!conversation) {
+        return res.status(404).json({ error: "Conversazione non trovata" });
+      }
+      await storage.deleteWhatsappConversation(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Delete WhatsApp conversation error:", error);
+      res.status(500).json({ error: "Errore nell'eliminazione conversazione" });
+    }
+  });
+
   // Get messages for a conversation
   app.get("/api/whatsapp/conversations/:id/messages", async (req, res) => {
     try {

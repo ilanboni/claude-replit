@@ -33,6 +33,23 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Trash2 } from "lucide-react";
 import type { WhatsappConversation, WhatsappMessage, Cliente } from "@shared/schema";
 
 function useWhatsAppWebSocket() {
@@ -109,6 +126,7 @@ export default function WhatsAppPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [messageText, setMessageText] = useState("");
   const [newChatOpen, setNewChatOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [newPhoneNumber, setNewPhoneNumber] = useState("");
   const [newMessage, setNewMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -155,6 +173,28 @@ export default function WhatsAppPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/conversations"] });
+    }
+  });
+
+  const deleteConversationMutation = useMutation({
+    mutationFn: async (conversationId: number) => {
+      const res = await apiRequest("DELETE", `/api/whatsapp/conversations/${conversationId}`, {});
+      return res.json();
+    },
+    onSuccess: () => {
+      setSelectedConversationId(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/conversations"] });
+      toast({
+        title: "Chat eliminata",
+        description: "La conversazione è stata eliminata con successo"
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Errore",
+        description: "Impossibile eliminare la conversazione",
+        variant: "destructive"
+      });
     }
   });
 
@@ -397,10 +437,50 @@ export default function WhatsAppPage() {
                   )}
                 </div>
               </div>
-              <Button size="icon" variant="ghost" data-testid="button-conversation-menu">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="icon" variant="ghost" data-testid="button-conversation-menu">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onClick={() => setDeleteDialogOpen(true)}
+                    data-testid="button-delete-conversation"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Elimina chat
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
+
+            <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Eliminare questa chat?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Questa azione eliminerà permanentemente tutti i messaggi della conversazione.
+                    Non sarà possibile recuperarli.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Annulla</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    onClick={() => {
+                      if (selectedConversationId) {
+                        deleteConversationMutation.mutate(selectedConversationId);
+                      }
+                    }}
+                    data-testid="button-confirm-delete"
+                  >
+                    Elimina
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
 
             <ScrollArea className="flex-1 p-4">
               <div className="space-y-3 max-w-3xl mx-auto">
