@@ -292,36 +292,21 @@ function extractListingData() {
       }
     }
     
-    // Estrai telefono dal testo visibile (dopo click su "Mostra numero")
-    const pageText = document.body.innerText;
-    const phonePatterns = [
-      /(\+39\s*)?(\d{2,4}[\s\-]?\d{6,8})/g,
-      /(\d{3}[\s\-]?\d{3}[\s\-]?\d{4})/g,
-      /(\d{10,11})/g
-    ];
+    // NON estraiamo numeri di telefono automaticamente dal testo della pagina
+    // perché è troppo impreciso e cattura numeri errati (riferimenti annuncio, CAP, ecc.)
+    // Il telefono deve essere:
+    // 1. Presente nel JSON __NEXT_DATA__ (raro per privati)
+    // 2. Inserito manualmente dall'utente
     
-    for (const pattern of phonePatterns) {
-      const matches = pageText.match(pattern);
-      if (matches) {
-        for (const match of matches) {
-          const cleaned = match.replace(/[\s\-]/g, '');
-          // Verifica che sia un numero italiano valido
-          if (cleaned.length >= 9 && cleaned.length <= 13 && /^(\+39)?0?\d+$/.test(cleaned)) {
-            data.contatto.telefono = cleaned;
-            break;
-          }
-        }
-        if (data.contatto.telefono) break;
-      }
-    }
-    
-    // Controlla se c'è l'immagine del telefono
+    // Controlla se c'è l'immagine del telefono (per segnalare che esiste ma è nascosto)
     const telImg = document.querySelector('img[src*="tel_"]');
     if (telImg && !data.contatto.telefono) {
       data.contatto.telefonoImmagine = telImg.src;
+      data.contatto.telefonoNascosto = true;
     }
     
     // Tipo contatto
+    const pageText = document.body.innerText;
     if (pageText.toLowerCase().includes('privato')) {
       data.contatto.tipo = 'Privato';
     }
