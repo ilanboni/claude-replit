@@ -189,44 +189,39 @@ export function checkForObjection(message: string): { found: boolean; handler?: 
   return { found: false };
 }
 
-// Prompt per generare frasi di mirroring dall'annuncio - v6
-// generate_mirroring_text: SOLO fatti reali, indirizzo OBBLIGATORIO, fail se manca
-export const MIRRORING_PROMPT = `Scrivi la parte di mirroring del messaggio WhatsApp basandoti solo su informazioni reali presenti nell'annuncio immobiliare.
+// Prompt per generare frasi di mirroring dall'annuncio - v7
+// generate_mirroring_text: SOLO fatti reali, fallback neutro se manca indirizzo
+export const MIRRORING_PROMPT = `Scrivi la parte di mirroring del messaggio WhatsApp basandoti solo su informazioni reali presenti nell'annuncio immobiliare, mantenendo sempre credibilità e tono professionale.
 
-TONO: professionale, calmo, istituzionale
-STILE: italiano corretto, frasi brevi, zero marketing
+TONO: professionale, calmo, rispettoso, istituzionale
+STILE: frasi brevi, chiare, senza marketing
 PERSONA: assistente del Dott. Ilan Boni
 PRIORITÀ: credibilità assoluta
 
-REGOLE APERTURA (OBBLIGATORIE):
-- Formato ESATTO: "Ha notato il suo immobile in {{indirizzo_completo}}."
-- L'INDIRIZZO È OBBLIGATORIO (via + numero civico)
+LOGICA INDIRIZZO:
+1) Cerca prima nel campo indirizzo strutturato se presente
+2) Se non presente, estrai dal testo con pattern: (Via|Viale|Corso|Piazza) + nome + numero
+3) Se indirizzo trovato → usa "Ha notato il suo immobile in {{indirizzo}}."
+4) Se indirizzo NON trovato → usa fallback neutro: "Ha notato il suo immobile."
+
+REGOLE APERTURA:
+- Scrivi UNA SOLA frase di apertura
+- Formato preferito: "Ha notato il suo immobile in {{indirizzo}}."
+- Formato fallback: "Ha notato il suo immobile."
 - MAI usare zona o quartiere
 - MAI usare il titolo dell'annuncio
 - MAI ripetere l'apertura
-- SE MANCA L'INDIRIZZO: restituisci errore
-
-ESEMPI APERTURA CORRETTA:
-- "Ha notato il suo immobile in Via Antonio Panizzi 15."
-- "Ha notato il suo immobile in Via Leone Tolstoi 31."
-
-ESEMPI APERTURA SBAGLIATA (VIETATI):
-- "Ha notato il suo immobile in Trilocale luminoso Navigli." (titolo annuncio)
-- "Ha notato il suo immobile in zona Navigli." (zona)
-- "Ha notato il suo immobile a Milano." (città generica)
-- "Ha notato il suo immobile..." ripetuto due volte (duplicato)
+- MAI mostrare errori all'utente
 
 INFORMAZIONI AMMESSE (solo se presenti):
 - numero locali
 - composizione interna
-- ristrutturazione con anno
+- anno ristrutturazione
 - arredato
-- esposizione
-- balconi
-- soffitta
-- cantina
-- riqualificazione stabile
+- balcone/terrazzo
+- soffitta/cantina
 - ascensore
+- riqualificazione stabile
 - cappotto termico
 - classe energetica
 - libero al rogito
@@ -234,16 +229,15 @@ INFORMAZIONI AMMESSE (solo se presenti):
 
 VIETATO:
 - interpretazioni
-- giudizi
-- aggettivi commerciali
+- giudizi soggettivi
+- parole commerciali
 - abbellimenti
 - promesse
-- linguaggio pubblicitario
 
 STRUTTURA:
-1) Apertura con indirizzo (obbligatoria)
-2) Descrizione basata su fatti reali (max 3 frasi)
-3) Nessuna conclusione emotiva
+1) Apertura
+2) Descrizione basata su fatti reali
+3) Chiusura naturale prima del paragrafo fisso successivo
 4) Max 4 frasi totali
 
 PREVENZIONE ERRORI:
@@ -251,9 +245,18 @@ PREVENZIONE ERRORI:
 - NO menzioni di zona
 - NO titoli annuncio
 - NO invenzioni
-- FALLIRE se non c'è indirizzo completo`;
+- NO errori visibili
 
-// Mirroring configuration for structured calls - v6
+ESEMPI BUONI:
+- "Ha notato il suo immobile in Via Antonio Panizzi 15. Dal suo annuncio emerge un bilocale ristrutturato nel 2017, venduto arredato e libero al rogito. L'appartamento risulta con esposizione interna e dispone di balcone e soffitta."
+- "Ha notato il suo immobile. Dal suo annuncio emerge un bilocale ristrutturato nel 2017 e venduto arredato, con balcone e soffitta. Lo stabile risulta riqualificato di recente con interventi importanti e presenza di ascensore."
+
+ESEMPI SBAGLIATI:
+- "Ha notato il suo immobile in Trilocale luminoso Navigli." (titolo)
+- "Ha notato il suo immobile in zona Navigli." (zona)
+- "Errore: manca indirizzo." (errore visibile)`;
+
+// Mirroring configuration for structured calls - v7
 export const MIRRORING_CONFIG = {
   temperature: 0,
   max_tokens: 400
