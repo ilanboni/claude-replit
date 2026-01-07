@@ -1,0 +1,68 @@
+{
+  "personalization": {
+    "mode": "mirroring_focus",
+    "goal": "Far sentire al proprietario che abbiamo letto davvero il suo annuncio e capito cosa per lui conta di più",
+    "feature_selection": {
+      "max_features": 3,
+      "min_features": 1,
+      "priority_order": [
+        "ristrutturazione recente e qualità dei materiali",
+        "posizione/zona/metro/servizi",
+        "piano, esposizione, luce",
+        "disposizione interna e sfruttamento spazi",
+        "contesto (condominio curato, zona silenziosa, ecc.)"
+      ]
+    },
+    "mirroring_rules": {
+      "use_owner_words": true,
+      "owner_words_strategy": "Riprendere le parole chiave usate dal proprietario (es. 'completamente ristrutturato nel 2022', 'materiali di pregio', 'posizione strategica', 'doppia esposizione') con minime variazioni naturali.",
+      "transformations_allowed": [
+        "leggeri accorciamenti",
+        "inversione ordine parole se suona più naturale",
+        "inserire un breve commento dopo la caratteristica"
+      ],
+      "avoid_transformations": [
+        "sinonimi troppo da brochure",
+        "cambi di registro (non trasformare parole semplici in linguaggio pomposo)",
+        "aggiungere caratteristiche non citate se non sono evidenti"
+      ]
+    },
+    "commentary": {
+      "enabled": true,
+      "role": "Non solo ripetere le caratteristiche ma commentarle brevemente per far percepire lettura attenta.",
+      "patterns": [
+        "si vede che...",
+        "si capisce che...",
+        "questa è una cosa che oggi gli acquirenti notano molto...",
+        "questo oggi fa davvero la differenza in zona..."
+      ],
+      "max_comments": 2
+    },
+    "tone_and_style": {
+      "tone": "professionale, umano, diretto",
+      "style": {
+        "frasi_brevi": true,
+        "linguaggio_semplice": true,
+        "niente_tono_promozionale": true,
+        "no_elenco_lunghissimo_caratteristiche": true
+      },
+      "length": "sintetica_ma_completa",
+      "register": "istituzionale_ma_non_freddo"
+    },
+    "message_structure": {
+      "apertura": "Riconoscimento dell’immobile e 1–2 caratteristiche chiave così come le ha raccontate il proprietario.",
+      "corpo": "1–3 caratteristiche totali, con breve commento che le collega alla domanda reale degli acquirenti in zona.",
+      "invito": "Proposta di incontro breve, concreta, non aggressiva, focalizzata sull’ascolto della situazione del proprietario.",
+      "chiusura": "Contatti chiari, saluto sobrio."
+    },
+    "avoid": [
+      "elenchi di più di 3 caratteristiche",
+      "tono pubblicitario o da brochure",
+      "frasi troppo lunghe e perfette",
+      "linguaggio generico valido per qualunque immobile",
+      "autocelebrazione eccessiva del professionista",
+      "termini tecnologici o riferimenti all’IA"
+    ],
+    "target_effect": "Il proprietario deve riconoscere il suo modo di parlare della casa e percepire un interesse reale e specifico, non un messaggio standard."
+  }
+}
