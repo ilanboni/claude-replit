@@ -216,20 +216,23 @@ REGOLE DI MIRRORING:
   * Aggiungere caratteristiche non citate
 
 COMMENTI (max 2):
-Non solo ripetere le caratteristiche ma commentarle brevemente per far percepire lettura attenta.
+Non solo ripetere ma far capire che abbiamo davvero osservato.
 Pattern utili:
 - "si vede che..."
 - "si capisce che..."
-- "questa è una cosa che oggi gli acquirenti notano molto..."
-- "questo oggi fa davvero la differenza in zona..."
+- "qui c'è stata cura vera..."
+- "questa cosa oggi conta molto per chi cerca in zona..."
+
+REGOLA UMANIZZAZIONE:
+Aggiungere almeno una frase semplice, breve, quasi "parlata", che sembri pensata e non scritta da un algoritmo.
 
 TONO E STILE:
-- Tono: professionale, umano, diretto
+- Tono: professionale ma umano
 - Frasi brevi
-- Linguaggio semplice
+- Ritmo naturale (non meccanico)
 - Niente tono promozionale
-- No elenco lunghissimo di caratteristiche
-- Registro: istituzionale ma non freddo
+- No elenchi infiniti
+- Evitare perfezione meccanica (meglio un testo un po' imperfetto ma vero)
 
 STRUTTURA DEL MESSAGGIO:
 - APERTURA: Riconoscimento dell'immobile e 1–2 caratteristiche chiave così come le ha raccontate il proprietario

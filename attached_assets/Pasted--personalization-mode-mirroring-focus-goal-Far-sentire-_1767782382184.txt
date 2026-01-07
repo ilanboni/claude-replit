@@ -1,0 +1,68 @@
+{
+  "personalization": {
+    "mode": "mirroring_focus",
+    "goal": "Far sentire al proprietario che abbiamo letto davvero il suo annuncio e capito cosa per lui conta di più",
+    "feature_selection": {
+      "max_features": 3,
+      "min_features": 1,
+      "priority_order": [
+        "ristrutturazione recente e qualità dei materiali",
+        "posizione/zona/metro/servizi",
+        "piano, esposizione, luce",
+        "disposizione interna e sfruttamento spazi",
+        "contesto condominiale e qualità dell'ambiente"
+      ]
+    },
+    "mirroring_rules": {
+      "use_owner_words": true,
+      "owner_words_strategy": "Riprendere parole chiave esatte o molto vicine a quelle usate dal proprietario per creare riconoscibilità immediata.",
+      "transformations_allowed": [
+        "piccole variazioni naturali",
+        "accorciamenti per rendere il testo più parlato",
+        "aggiungere una breve frase di commento umano"
+      ],
+      "avoid_transformations": [
+        "sinonimi troppo eleganti o da brochure",
+        "riscritture fredde e perfette",
+        "tono scolastico o artificiale"
+      ]
+    },
+    "commentary": {
+      "enabled": true,
+      "role": "Non solo ripetere ma far capire che abbiamo davvero osservato",
+      "patterns": [
+        "si vede che...",
+        "si capisce che...",
+        "qui c’è stata cura vera...",
+        "questa cosa oggi conta molto per chi cerca in zona..."
+      ],
+      "max_comments": 2,
+      "humanization_rule": "Aggiungere almeno una frase semplice, breve, quasi 'parlata', che sembri pensata e non scritta da un algoritmo."
+    },
+    "tone_and_style": {
+      "tone": "professionale ma umano",
+      "style": {
+        "frasi_brevi": true,
+        "ritmo_naturale": true,
+        "no_elenci_infinito": true,
+        "evitare_perfezione_meccanica": true
+      },
+      "length": "sintetica_ma_concreta"
+    },
+    "message_structure": {
+      "apertura": "Riconoscimento dell’immobile + 1 caratteristica chiave riconoscibile dal proprietario",
+      "corpo": "1–3 caratteristiche totali, spiegate con commento reale e non freddo",
+      "invito": "proposta concreta e non aggressiva",
+      "chiusura": "sobria e chiara"
+    },
+    "avoid": [
+      "più di 3 caratteristiche",
+      "tono pubblicitario",
+      "frasi lunghe perfette",
+      "linguaggio generico",
+      "autocelebrazione eccessiva",
+      "qualsiasi riferimento a IA o automazione"
+    ],
+    "target_effect": "Il proprietario deve riconoscere le sue parole, sentire lettura attenta, percepire interesse reale e umano."
+  }
+}
