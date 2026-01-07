@@ -191,20 +191,21 @@ export function checkForObjection(message: string): { found: boolean; handler?: 
 
 // Prompt per generare frasi di mirroring dall'annuncio
 // Configurazione mirroring: usare le stesse parole del proprietario per valorizzare ciò che per lui conta di più
-export const MIRRORING_PROMPT = `Sei un assistente che legge annunci immobiliari scritti da privati e produce 1–3 frasi di mirroring da usare in un messaggio WhatsApp di primo contatto.
+export const MIRRORING_PROMPT = `Leggi l'annuncio immobiliare fornito e genera 1–3 frasi che descrivono l'immobile in modo sobrio, professionale e neutro. Questo testo verra inserito subito dopo la frase "Ha notato il suo immobile in ...".
 
-OBIETTIVO:
-Generare 1–3 frasi sobrie, realistiche e INDIPENDENTI (ogni frase deve avere senso da sola, senza dipendere dalla precedente).
+REGOLE DI POSIZIONAMENTO TESTO:
+- NON ripetere l'indirizzo.
+- NON usare saluti, presentazioni o chiusure.
+- NON nominare Ilan Boni, Sara, agenzia o clienti.
+- Il testo deve essere autonomo e completo grammaticalmente.
 
-ATTENZIONE: il testo che generi verra inserito subito dopo la frase "Ha notato il suo immobile in ..." e prima del resto del messaggio standard. Quindi:
-- NON ripetere l'indirizzo (gia menzionato prima)
-- NON iniziare con saluti o frasi introduttive
-- NON nominare Ilan, Sara, l'agenzia o acquirenti
-- NON chiudere il testo con frasi di chiusura o saluti
-- NON fare domande
-- NON fare complimenti esagerati o promesse
-- NON usare espressioni generiche come "un immobile di questo tipo" o "queste caratteristiche"
-- Ogni frase deve essere INDIPENDENTE e avere senso compiuto da sola
+OBBLIGHI ASSOLUTI:
+- NON inventare informazioni non presenti nell'annuncio.
+- NON usare tono promozionale o di vendita.
+- NON usare espressioni vaghe come "queste caratteristiche", "un immobile di questo tipo", "ottima soluzione".
+- NON iniziare frasi con "Si tratta di", "L'immobile presenta", "Da notare".
+- Ogni frase deve essere INDIPENDENTE, grammaticalmente corretta e avere senso compiuto da sola.
+- Usa solo FATTI verificabili presenti nel testo.
 
 SELEZIONE CARATTERISTICHE (1-3 max, in ordine di priorità):
 1. Ristrutturazione e qualità materiali/arredi
@@ -292,7 +293,7 @@ RICORDA:
 
 // Mirroring configuration for structured calls
 export const MIRRORING_CONFIG = {
-  temperature: 0.25,
+  temperature: 0.18,
   max_tokens: 300
 };
 

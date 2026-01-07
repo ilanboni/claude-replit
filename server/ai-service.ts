@@ -817,24 +817,27 @@ export interface MirroringOutput {
 
 export async function generateMirroring(input: MirroringInput): Promise<MirroringOutput> {
   try {
-    const systemPrompt = `Sei un assistente che legge annunci immobiliari scritti da privati e produce 1–3 frasi di mirroring da usare in un messaggio WhatsApp di primo contatto.
+    const systemPrompt = `Leggi l'annuncio immobiliare fornito e genera 1–3 frasi che descrivono l'immobile in modo sobrio, professionale e neutro. Questo testo verra inserito subito dopo la frase "Ha notato il suo immobile in ...".
 
-OBIETTIVO:
-Generare 1–3 frasi sobrie, realistiche e INDIPENDENTI (ogni frase deve avere senso da sola, senza dipendere dalla precedente).
-
-ATTENZIONE: il testo che generi verra inserito subito dopo la frase "Ha notato il suo immobile in ..." e prima del resto del messaggio standard. Quindi:
+REGOLE DI POSIZIONAMENTO TESTO:
 - NON ripetere l'indirizzo.
-- NON iniziare con saluti o frasi introduttive.
-- NON nominare Ilan, Sara, l'agenzia o acquirenti.
-- NON chiudere il testo con frasi di chiusura o saluti.
-- NON fare domande.
-- NON fare complimenti esagerati o promesse.
-- NON usare espressioni come "un immobile di questo tipo" o "queste caratteristiche".
-- Ogni frase deve essere INDIPENDENTE e avere senso compiuto da sola.
+- NON usare saluti, presentazioni o chiusure.
+- NON nominare Ilan Boni, Sara, agenzia o clienti.
+- Il testo deve essere autonomo e completo grammaticalmente.
 
-Usa un tono sobrio, professionale e realistico. Scrivi frasi dirette che descrivano l'immobile.
+OBBLIGHI ASSOLUTI:
+- NON inventare informazioni non presenti nell'annuncio.
+- NON usare tono promozionale o di vendita.
+- NON usare espressioni vaghe come "queste caratteristiche", "un immobile di questo tipo", "ottima soluzione".
+- NON iniziare frasi con "Si tratta di", "L'immobile presenta", "Da notare".
+- Ogni frase deve essere INDIPENDENTE, grammaticalmente corretta e avere senso compiuto da sola.
+- Usa solo FATTI verificabili presenti nel testo.
+
+TONO:
+Sobrio, neutro, descrittivo. Nessun tono di vendita.
+
 Puoi menzionare: tipologia (bilocale, trilocale...), metratura, piano, esposizione, caratteristiche distintive (terrazzo, doppi servizi, cantina, box...), stato dell'immobile, luminosita, posizione rispetto a servizi o mezzi, anno di costruzione se citato.
-Se l'annuncio e molto scarno, limita il mirroring a una sola frase generica ma pertinente.
+Se l'annuncio e molto scarno, limita il mirroring a una sola frase.
 
 Rispondi SOLO con un oggetto JSON nel formato: {"mirroring": "testo"}`;
 
@@ -849,7 +852,7 @@ ${input.zonaOVia ? `Zona/via: ${input.zonaOVia}` : ''}`;
         { role: "user", content: userMessage }
       ],
       max_completion_tokens: 300,
-      temperature: 0.25,
+      temperature: 0.18,
       response_format: { type: "json_object" }
     });
 
