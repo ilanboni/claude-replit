@@ -189,66 +189,69 @@ export function checkForObjection(message: string): { found: boolean; handler?: 
   return { found: false };
 }
 
-// Prompt per generare frasi di mirroring dall'annuncio - v4
-// property_mirroring_generator: paragrafo credibile, professionale, sobrio, senza invenzioni
-export const MIRRORING_PROMPT = `Analizza l'annuncio immobiliare e produci SOLO un paragrafo di mirroring credibile, professionale, sobrio, senza invenzioni.
+// Prompt per generare frasi di mirroring dall'annuncio - v5
+// generate_mirroring_text: SOLO fatti reali, indirizzo obbligatorio, MAI zona
+export const MIRRORING_PROMPT = `Crea la parte di mirroring del messaggio WhatsApp per proprietari privati, basata SOLO su informazioni reali presenti nell'annuncio.
 
-TONO: istituzionale, rispettoso, umano, semplice, senza marketing
-STILE: frasi chiare, italiano corretto, senza iperboli, senza slogan
-PRIORITÀ: precisione assoluta, mai inventare nulla
+TONO: professionale, calmo, rispettoso, istituzionale
+STILE: italiano corretto, frasi brevi, zero enfasi commerciale
+PERSONA: assistente del Dott. Ilan Boni
+PRIORITÀ: credibilità assoluta
 
-STRUTTURA OUTPUT:
-1) Frase iniziale: "Ha notato il suo immobile in {{zona/via}}." usando SOLO quello che appare chiaramente nell'annuncio
-2) 2-4 frasi che riassumano i fatti CERTI e OGGETTIVI
-3) Chiudi PRIMA di "Il Dott. Boni vorrebbe...". Non scrivere altro.
+REGOLE APERTURA (OBBLIGATORIE):
+- Scrivi UNA SOLA frase di apertura: "Ha notato il suo immobile in {{indirizzo}}."
+- INDIRIZZO OBBLIGATORIO: usa l'indirizzo esatto (via, numero civico)
+- MAI usare la zona al posto dell'indirizzo
+- MAI usare il titolo dell'annuncio
+- MAI ripetere l'apertura due volte
 
-REGOLE RIGIDE:
-- NON inventare superficie, numero locali o caratteristiche se non sono chiaramente scritte
-- NON trasformare bilocale in trilocale o viceversa
-- NON usare aggettivi di vendita: niente "splendido", "fantastico", "imperdibile", "luminosissimo"
-- Usa solo aggettivi neutri ammessi: "recente", "ristrutturato", "funzionale", "comodo", "ben servito"
-- Se qualcosa non è chiaro, NON citarlo
-- Se un'informazione è vaga, riassumila senza interpretarla
-
-ESTRAI SOLO SE PRESENTI:
-- via o zona
-- tipologia se esplicitata chiaramente (bilocale / trilocale / quadrilocale)
+CONTENUTO - USA SOLO FATTI VERIFICATI:
+Informazioni ammesse (solo se presenti nell'annuncio):
 - anno ristrutturazione
+- presenza balcone
 - doppia esposizione
-- balcone / terrazzo
-- ascensore
 - classe energetica
+- ascensore
+- cantina
+- soffitta
+- libero al rogito
+- piano
 - arredato
-- cantina / soffitta
-- deposito bici
-- vicinanza mezzi (solo se indicata)
-- condizioni stabile (cappotto termico, lavori recenti, ascensore nuovo)
+- vicinanza metro SOLO se citata esplicitamente nell'annuncio
 
-COMPORTAMENTI VIETATI:
-- mai inventare dettagli non presenti
-- mai fare valutazioni di mercato
-- mai dare giudizi soggettivi
-- mai stimare prezzo
-- mai interpretare tra le righe
+VIETATO:
+- interpretazioni
+- frasi di marketing
+- opinioni personali
+- esagerazioni
+- promesse
+- aggettivi soggettivi
 
-FORMATTAZIONE:
-- NO bullet point
-- NO emoji
-- NO linguaggio confidenziale
-- italiano corretto, frasi brevi e ordinate
+STRUTTURA:
+1) Apertura con indirizzo (obbligatoria)
+2) 2-3 frasi descrittive basate su fatti reali
+3) Massimo 4 righe totali
+4) Terminare PRIMA del paragrafo fisso del messaggio
+
+PREVENZIONE ERRORI:
+- NO duplicati
+- NO menzioni di zona (solo indirizzo)
+- NO titoli dell'annuncio
+- NO invenzioni
+- Modalità fatti stretti
 
 ESEMPIO BUONO:
-"Ha notato il suo immobile in zona Navigli. Dal suo annuncio emerge un bilocale ristrutturato nel 2017, venduto arredato e libero al rogito. L'appartamento ha esposizione interna e dispone di balcone e soffitta. Lo stabile risulta riqualificato di recente, con cappotto termico, ascensore nuovo e accesso disabili. La vicinanza alla M4 Gelsomini, a circa 300 metri, è indicata come un elemento comodo per gli spostamenti."
+"Ha notato il suo immobile in Via Antonio Panizzi 15. Dal suo annuncio emerge un bilocale ristrutturato nel 2017, venduto arredato e libero al rogito. L'appartamento risulta con esposizione interna e dispone di balcone e soffitta. Lo stabile è indicato come riqualificato nel 2024 con cappotto termico, nuovi balconi, caldaia e ascensore, oltre all'accesso disabili. È riportata anche la vicinanza alla fermata Gelsomini della linea M4, a circa 300 metri."
 
-ERRORI DA EVITARE:
-- Mai scrivere "trilocale luminoso" se nell'annuncio non è scritto così
-- Mai usare frasi di vendita o entusiaste
-- Mai aggiungere informazioni non presenti
-- Mai sbagliare il tono istituzionale`;
+ESEMPI SBAGLIATI (NON FARE):
+- "Ha notato il suo meraviglioso trilocale luminoso in zona Navigli." (aggettivi marketing + zona)
+- "Ha notato il suo splendido appartamento in una zona molto richiesta." (marketing)
+- "Ha notato il suo immobile in Trilocale luminoso Navigli." (titolo annuncio)
+- "Ha notato il suo immobile in zona centro città." (zona invece di indirizzo)`;
 
-// Mirroring configuration for structured calls - v4
+// Mirroring configuration for structured calls - v5
 export const MIRRORING_CONFIG = {
-  temperature: 0.12,
+  temperature: 0,
   max_tokens: 400
 };
 
