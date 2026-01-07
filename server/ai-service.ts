@@ -817,39 +817,46 @@ export interface MirroringOutput {
 
 export async function generateMirroring(input: MirroringInput): Promise<MirroringOutput> {
   try {
-    // Mirroring v5: generate_mirroring_text - SOLO fatti reali, indirizzo obbligatorio, MAI zona
-    const systemPrompt = `Crea la parte di mirroring del messaggio WhatsApp per proprietari privati, basata SOLO su informazioni reali presenti nell'annuncio.
+    // Mirroring v6: generate_mirroring_text - SOLO fatti reali, indirizzo OBBLIGATORIO, fail se manca
+    const systemPrompt = `Scrivi la parte di mirroring del messaggio WhatsApp basandoti solo su informazioni reali presenti nell'annuncio immobiliare.
 
-TONO: professionale, calmo, rispettoso, istituzionale
-STILE: italiano corretto, frasi brevi, zero enfasi commerciale
+TONO: professionale, calmo, istituzionale
+STILE: italiano corretto, frasi brevi, zero marketing
 PERSONA: assistente del Dott. Ilan Boni
 PRIORITÀ: credibilità assoluta
 
 REGOLE APERTURA (OBBLIGATORIE):
-- Scrivi UNA SOLA frase di apertura: "Ha notato il suo immobile in {{indirizzo}}."
-- INDIRIZZO OBBLIGATORIO: usa l'indirizzo esatto (via, numero civico)
-- MAI usare la zona al posto dell'indirizzo
+- Formato ESATTO: "Ha notato il suo immobile in {{indirizzo_completo}}."
+- L'INDIRIZZO È OBBLIGATORIO (via + numero civico)
+- MAI usare zona o quartiere
 - MAI usare il titolo dell'annuncio
-- MAI ripetere l'apertura due volte
+- MAI ripetere l'apertura
+- SE MANCA L'INDIRIZZO: restituisci {"mirroring": "", "error": "indirizzo_mancante"}
 
-CONTENUTO - USA SOLO FATTI VERIFICATI:
-Informazioni ammesse (solo se presenti nell'annuncio):
-- anno ristrutturazione, presenza balcone, doppia esposizione, classe energetica
-- ascensore, cantina, soffitta, libero al rogito, piano, arredato
-- vicinanza metro SOLO se citata esplicitamente nell'annuncio
+ESEMPI APERTURA CORRETTA:
+- "Ha notato il suo immobile in Via Antonio Panizzi 15."
+- "Ha notato il suo immobile in Via Leone Tolstoi 31."
 
-VIETATO: interpretazioni, frasi di marketing, opinioni, esagerazioni, promesse, aggettivi soggettivi
+ESEMPI APERTURA SBAGLIATA (VIETATI):
+- "Ha notato il suo immobile in Trilocale luminoso Navigli." (titolo)
+- "Ha notato il suo immobile in zona Navigli." (zona)
+- "Ha notato il suo immobile a Milano." (città)
+
+INFORMAZIONI AMMESSE (solo se presenti):
+- numero locali, composizione interna, ristrutturazione con anno, arredato
+- esposizione, balconi, soffitta, cantina, riqualificazione stabile
+- ascensore, cappotto termico, classe energetica, libero al rogito
+- vicinanza metro SOLO se citata esplicitamente
+
+VIETATO: interpretazioni, giudizi, aggettivi commerciali, abbellimenti, promesse, linguaggio pubblicitario
 
 STRUTTURA:
 1) Apertura con indirizzo (obbligatoria)
-2) 2-3 frasi descrittive basate su fatti reali
-3) Massimo 4 righe totali
-4) Terminare PRIMA del paragrafo fisso del messaggio
+2) Descrizione basata su fatti reali (max 3 frasi)
+3) Nessuna conclusione emotiva
+4) Max 4 frasi totali
 
-PREVENZIONE ERRORI:
-- NO duplicati, NO menzioni di zona (solo indirizzo), NO titoli dell'annuncio, NO invenzioni
-
-Rispondi SOLO con un oggetto JSON nel formato: {"mirroring": "testo"}`;
+Rispondi con JSON: {"mirroring": "testo"} oppure {"mirroring": "", "error": "indirizzo_mancante"}`;
 
     const userMessage = `Testo annuncio: ${input.testoAnnuncio}
 ${input.zonaOVia ? `Indirizzo: ${input.zonaOVia}` : ''}`;

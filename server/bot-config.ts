@@ -189,67 +189,71 @@ export function checkForObjection(message: string): { found: boolean; handler?: 
   return { found: false };
 }
 
-// Prompt per generare frasi di mirroring dall'annuncio - v5
-// generate_mirroring_text: SOLO fatti reali, indirizzo obbligatorio, MAI zona
-export const MIRRORING_PROMPT = `Crea la parte di mirroring del messaggio WhatsApp per proprietari privati, basata SOLO su informazioni reali presenti nell'annuncio.
+// Prompt per generare frasi di mirroring dall'annuncio - v6
+// generate_mirroring_text: SOLO fatti reali, indirizzo OBBLIGATORIO, fail se manca
+export const MIRRORING_PROMPT = `Scrivi la parte di mirroring del messaggio WhatsApp basandoti solo su informazioni reali presenti nell'annuncio immobiliare.
 
-TONO: professionale, calmo, rispettoso, istituzionale
-STILE: italiano corretto, frasi brevi, zero enfasi commerciale
+TONO: professionale, calmo, istituzionale
+STILE: italiano corretto, frasi brevi, zero marketing
 PERSONA: assistente del Dott. Ilan Boni
 PRIORITÀ: credibilità assoluta
 
 REGOLE APERTURA (OBBLIGATORIE):
-- Scrivi UNA SOLA frase di apertura: "Ha notato il suo immobile in {{indirizzo}}."
-- INDIRIZZO OBBLIGATORIO: usa l'indirizzo esatto (via, numero civico)
-- MAI usare la zona al posto dell'indirizzo
+- Formato ESATTO: "Ha notato il suo immobile in {{indirizzo_completo}}."
+- L'INDIRIZZO È OBBLIGATORIO (via + numero civico)
+- MAI usare zona o quartiere
 - MAI usare il titolo dell'annuncio
-- MAI ripetere l'apertura due volte
+- MAI ripetere l'apertura
+- SE MANCA L'INDIRIZZO: restituisci errore
 
-CONTENUTO - USA SOLO FATTI VERIFICATI:
-Informazioni ammesse (solo se presenti nell'annuncio):
-- anno ristrutturazione
-- presenza balcone
-- doppia esposizione
-- classe energetica
-- ascensore
-- cantina
-- soffitta
-- libero al rogito
-- piano
+ESEMPI APERTURA CORRETTA:
+- "Ha notato il suo immobile in Via Antonio Panizzi 15."
+- "Ha notato il suo immobile in Via Leone Tolstoi 31."
+
+ESEMPI APERTURA SBAGLIATA (VIETATI):
+- "Ha notato il suo immobile in Trilocale luminoso Navigli." (titolo annuncio)
+- "Ha notato il suo immobile in zona Navigli." (zona)
+- "Ha notato il suo immobile a Milano." (città generica)
+- "Ha notato il suo immobile..." ripetuto due volte (duplicato)
+
+INFORMAZIONI AMMESSE (solo se presenti):
+- numero locali
+- composizione interna
+- ristrutturazione con anno
 - arredato
-- vicinanza metro SOLO se citata esplicitamente nell'annuncio
+- esposizione
+- balconi
+- soffitta
+- cantina
+- riqualificazione stabile
+- ascensore
+- cappotto termico
+- classe energetica
+- libero al rogito
+- vicinanza metro SOLO se citata esplicitamente
 
 VIETATO:
 - interpretazioni
-- frasi di marketing
-- opinioni personali
-- esagerazioni
+- giudizi
+- aggettivi commerciali
+- abbellimenti
 - promesse
-- aggettivi soggettivi
+- linguaggio pubblicitario
 
 STRUTTURA:
 1) Apertura con indirizzo (obbligatoria)
-2) 2-3 frasi descrittive basate su fatti reali
-3) Massimo 4 righe totali
-4) Terminare PRIMA del paragrafo fisso del messaggio
+2) Descrizione basata su fatti reali (max 3 frasi)
+3) Nessuna conclusione emotiva
+4) Max 4 frasi totali
 
 PREVENZIONE ERRORI:
 - NO duplicati
-- NO menzioni di zona (solo indirizzo)
-- NO titoli dell'annuncio
+- NO menzioni di zona
+- NO titoli annuncio
 - NO invenzioni
-- Modalità fatti stretti
+- FALLIRE se non c'è indirizzo completo`;
 
-ESEMPIO BUONO:
-"Ha notato il suo immobile in Via Antonio Panizzi 15. Dal suo annuncio emerge un bilocale ristrutturato nel 2017, venduto arredato e libero al rogito. L'appartamento risulta con esposizione interna e dispone di balcone e soffitta. Lo stabile è indicato come riqualificato nel 2024 con cappotto termico, nuovi balconi, caldaia e ascensore, oltre all'accesso disabili. È riportata anche la vicinanza alla fermata Gelsomini della linea M4, a circa 300 metri."
-
-ESEMPI SBAGLIATI (NON FARE):
-- "Ha notato il suo meraviglioso trilocale luminoso in zona Navigli." (aggettivi marketing + zona)
-- "Ha notato il suo splendido appartamento in una zona molto richiesta." (marketing)
-- "Ha notato il suo immobile in Trilocale luminoso Navigli." (titolo annuncio)
-- "Ha notato il suo immobile in zona centro città." (zona invece di indirizzo)`;
-
-// Mirroring configuration for structured calls - v5
+// Mirroring configuration for structured calls - v6
 export const MIRRORING_CONFIG = {
   temperature: 0,
   max_tokens: 400
