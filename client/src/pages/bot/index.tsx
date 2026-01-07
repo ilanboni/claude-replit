@@ -1,10 +1,12 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useRef, useEffect } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { 
   Bot, 
   Send, 
@@ -16,12 +18,40 @@ import {
   Plus,
   Play,
   Pause,
-  Eye
+  Eye,
+  RefreshCw,
+  User
 } from "lucide-react";
 import type { WhatsappCampaign, CampaignMessage, ImmobileEsterno } from "@shared/schema";
+import { apiRequest } from "@/lib/queryClient";
+
+interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+  timestamp: Date;
+}
+
+interface PropertyContext {
+  titolo: string;
+  indirizzo: string;
+  prezzo: number;
+  mq: number;
+  proprietario: string;
+}
 
 export default function BotPage() {
   const [activeTab, setActiveTab] = useState("acquisizione");
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [inputMessage, setInputMessage] = useState("");
+  const [propertyContext, setPropertyContext] = useState<PropertyContext>({
+    titolo: "Trilocale luminoso zona Navigli",
+    indirizzo: "Via Corsico 15, Milano",
+    prezzo: 320000,
+    mq: 85,
+    proprietario: "Mario Rossi"
+  });
+  const [isSimulating, setIsSimulating] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   const { data: campaigns = [], isLoading: loadingCampaigns } = useQuery<WhatsappCampaign[]>({
     queryKey: ["/api/whatsapp-campaigns"],
@@ -45,10 +75,62 @@ export default function BotPage() {
     },
   });
 
+  const simulateMutation = useMutation({
+    mutationFn: async (data: { message: string; history: ChatMessage[]; property: PropertyContext }) => {
+      const res = await apiRequest("POST", "/api/bot/simulate", data);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setChatMessages(prev => [...prev, {
+        role: "assistant",
+        content: data.message,
+        timestamp: new Date()
+      }]);
+    }
+  });
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages]);
+
   const propertiesWithPhone = properties.filter(p => p.contattoTelefono && p.contattoTelefono !== "non disponibile");
 
   const activeCampaigns = campaigns.filter(c => c.status === "active");
   const activeConversations = conversations.filter(c => c.conversationActive);
+
+  const handleSendMessage = async () => {
+    if (!inputMessage.trim() || simulateMutation.isPending) return;
+
+    const userMessage: ChatMessage = {
+      role: "user",
+      content: inputMessage.trim(),
+      timestamp: new Date()
+    };
+
+    setChatMessages(prev => [...prev, userMessage]);
+    setInputMessage("");
+
+    simulateMutation.mutate({
+      message: inputMessage.trim(),
+      history: chatMessages,
+      property: propertyContext
+    });
+  };
+
+  const handleStartSimulation = () => {
+    setIsSimulating(true);
+    const initialMessage: ChatMessage = {
+      role: "assistant",
+      content: `Buongiorno Sig. ${propertyContext.proprietario.split(" ").pop()}, sono l'assistente del Dott. Ilan Boni, agente immobiliare con oltre trent'anni di esperienza. Ho visto il Suo annuncio per "${propertyContext.titolo}" in ${propertyContext.indirizzo}. L'immobile sembra interessante. Posso chiederLe se sta gia lavorando con un'agenzia o sta gestendo la vendita da privato?`,
+      timestamp: new Date()
+    };
+    setChatMessages([initialMessage]);
+  };
+
+  const handleResetSimulation = () => {
+    setChatMessages([]);
+    setIsSimulating(false);
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -140,6 +222,10 @@ export default function BotPage() {
           <TabsTrigger value="conversazioni" className="gap-2" data-testid="tab-conversazioni">
             <MessageCircle className="h-4 w-4" />
             Risposte Clienti
+          </TabsTrigger>
+          <TabsTrigger value="simulatore" className="gap-2" data-testid="tab-simulatore">
+            <Bot className="h-4 w-4" />
+            Simulatore
           </TabsTrigger>
         </TabsList>
 
@@ -334,6 +420,175 @@ export default function BotPage() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="simulatore" className="space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <Card className="lg:col-span-1">
+              <CardHeader>
+                <CardTitle className="text-base">Contesto Immobile</CardTitle>
+                <CardDescription>
+                  Configura i dettagli dell'immobile per la simulazione
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Titolo Annuncio</label>
+                  <Input
+                    value={propertyContext.titolo}
+                    onChange={(e) => setPropertyContext(prev => ({ ...prev, titolo: e.target.value }))}
+                    placeholder="es. Trilocale luminoso zona Navigli"
+                    data-testid="input-titolo-simulazione"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Indirizzo</label>
+                  <Input
+                    value={propertyContext.indirizzo}
+                    onChange={(e) => setPropertyContext(prev => ({ ...prev, indirizzo: e.target.value }))}
+                    placeholder="es. Via Corsico 15, Milano"
+                    data-testid="input-indirizzo-simulazione"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Prezzo</label>
+                    <Input
+                      type="number"
+                      value={propertyContext.prezzo}
+                      onChange={(e) => setPropertyContext(prev => ({ ...prev, prezzo: parseInt(e.target.value) || 0 }))}
+                      placeholder="320000"
+                      data-testid="input-prezzo-simulazione"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">MQ</label>
+                    <Input
+                      type="number"
+                      value={propertyContext.mq}
+                      onChange={(e) => setPropertyContext(prev => ({ ...prev, mq: parseInt(e.target.value) || 0 }))}
+                      placeholder="85"
+                      data-testid="input-mq-simulazione"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Nome Proprietario</label>
+                  <Input
+                    value={propertyContext.proprietario}
+                    onChange={(e) => setPropertyContext(prev => ({ ...prev, proprietario: e.target.value }))}
+                    placeholder="es. Mario Rossi"
+                    data-testid="input-proprietario-simulazione"
+                  />
+                </div>
+                <div className="flex gap-2 pt-2">
+                  {!isSimulating ? (
+                    <Button onClick={handleStartSimulation} className="flex-1" data-testid="button-avvia-simulazione">
+                      <Play className="h-4 w-4 mr-2" />
+                      Avvia Simulazione
+                    </Button>
+                  ) : (
+                    <Button onClick={handleResetSimulation} variant="outline" className="flex-1" data-testid="button-reset-simulazione">
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Nuova Simulazione
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <MessageCircle className="h-5 w-5" />
+                  Chat Simulazione
+                </CardTitle>
+                <CardDescription>
+                  Scrivi come se fossi un proprietario e vedi le risposte del bot
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <ScrollArea className="h-[400px] border rounded-lg p-4">
+                  {chatMessages.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
+                      <Bot className="h-12 w-12 mb-4" />
+                      <p className="font-medium">Simulatore Conversazione</p>
+                      <p className="text-sm">
+                        Configura l'immobile e avvia la simulazione per testare il bot
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {chatMessages.map((msg, index) => (
+                        <div
+                          key={index}
+                          className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                        >
+                          <div
+                            className={`max-w-[80%] rounded-lg p-3 ${
+                              msg.role === "user"
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-muted"
+                            }`}
+                            data-testid={`chat-message-${index}`}
+                          >
+                            <div className="flex items-center gap-2 mb-1">
+                              {msg.role === "assistant" ? (
+                                <Bot className="h-4 w-4" />
+                              ) : (
+                                <User className="h-4 w-4" />
+                              )}
+                              <span className="text-xs font-medium">
+                                {msg.role === "assistant" ? "Dott. Boni" : "Proprietario"}
+                              </span>
+                            </div>
+                            <p className="text-sm">{msg.content}</p>
+                          </div>
+                        </div>
+                      ))}
+                      {simulateMutation.isPending && (
+                        <div className="flex justify-start">
+                          <div className="bg-muted rounded-lg p-3">
+                            <div className="flex items-center gap-2">
+                              <Bot className="h-4 w-4 animate-pulse" />
+                              <span className="text-sm text-muted-foreground">Sta scrivendo...</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      <div ref={chatEndRef} />
+                    </div>
+                  )}
+                </ScrollArea>
+                {isSimulating && (
+                  <div className="flex gap-2">
+                    <Textarea
+                      value={inputMessage}
+                      onChange={(e) => setInputMessage(e.target.value)}
+                      placeholder="Scrivi come se fossi il proprietario..."
+                      className="min-h-[60px] resize-none"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSendMessage();
+                        }
+                      }}
+                      data-testid="input-messaggio-simulazione"
+                    />
+                    <Button
+                      onClick={handleSendMessage}
+                      disabled={!inputMessage.trim() || simulateMutation.isPending}
+                      size="icon"
+                      className="h-[60px]"
+                      data-testid="button-invia-messaggio-simulazione"
+                    >
+                      <Send className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </div>

@@ -1459,4 +1459,86 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
       res.status(500).json({ error: "Errore nel caricamento dei log" });
     }
   });
+
+  // ==================== BOT SIMULATION ====================
+
+  // Simulate bot response
+  app.post("/api/bot/simulate", async (req, res) => {
+    try {
+      const { message, history, property } = req.body;
+      
+      if (!message || !property) {
+        return res.status(400).json({ error: "Messaggio e contesto immobile richiesti" });
+      }
+
+      const OpenAI = (await import("openai")).default;
+      const openai = new OpenAI({
+        baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+        apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY
+      });
+
+      const systemPrompt = `Sei l'Assistente del Dott. Ilan Boni, agente immobiliare con oltre 30 anni di esperienza a Milano.
+
+CONTESTO IMMOBILE:
+- Titolo: ${property.titolo || "Non specificato"}
+- Indirizzo: ${property.indirizzo || "Non specificato"}
+- Prezzo: EUR ${property.prezzo?.toLocaleString("it-IT") || "Da definire"}
+- Superficie: ${property.mq || "Non specificata"} mq
+- Proprietario: Sig. ${property.proprietario || "Proprietario"}
+
+REGOLE COMUNICAZIONE:
+1. Dai SEMPRE del Lei
+2. Frasi BREVI (max 3-4 frasi, stile WhatsApp)
+3. Tono: calmo, empatico, professionale
+4. EVITA: linguaggio aggressivo, promesse, termini tecnici complessi
+5. Rispondi SOLO in italiano
+
+OBIETTIVO PRINCIPALE:
+Fissare un appuntamento breve (10-15 minuti) per permettere al Dott. Boni di vedere l'immobile.
+
+GESTIONE OBIEZIONI:
+- Se dice "non mi fido delle agenzie": riconosci il sentimento, spiega che il Dott. Boni lavora in modo diverso, con pochi immobili seguiti personalmente.
+- Se chiede "quanto prendete?": spiega che se ne parla solo dopo aver visto l'immobile, nessun impegno vincolante.
+- Se dice "ci penso": proponi un incontro breve senza impegno per avere un quadro chiaro.
+- Se chiede dettagli tecnici: rinvia all'incontro, il Dott. Boni potra rispondere di persona.
+
+STRUTTURA RISPOSTA:
+1. Empatia (riconosci il punto di vista)
+2. Ricalco (mostra comprensione)
+3. Valore dell'incontro (perche conviene vedersi)
+4. Proposta appuntamento (concreta ma non insistente)`;
+
+      const messages: any[] = [
+        { role: "system", content: systemPrompt }
+      ];
+
+      // Add conversation history
+      if (history && Array.isArray(history)) {
+        for (const msg of history) {
+          messages.push({
+            role: msg.role,
+            content: msg.content
+          });
+        }
+      }
+
+      // Add current message
+      messages.push({ role: "user", content: message });
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages,
+        temperature: 0.7,
+        max_tokens: 200
+      });
+
+      const botMessage = completion.choices[0]?.message?.content?.trim() 
+        || "Grazie per il messaggio. La ricontattero a breve.";
+
+      res.json({ message: botMessage });
+    } catch (error) {
+      console.error("Bot simulation error:", error);
+      res.status(500).json({ error: "Errore nella simulazione", message: "Mi scusi, c'e stato un problema tecnico. Riprovi tra poco." });
+    }
+  });
 }
