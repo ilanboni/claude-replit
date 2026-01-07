@@ -193,8 +193,14 @@ export function checkForObjection(message: string): { found: boolean; handler?: 
 // Configurazione mirroring: usare le stesse parole del proprietario per valorizzare ciò che per lui conta di più
 export const MIRRORING_PROMPT = `Sei un assistente che legge annunci immobiliari scritti da privati e produce 1–3 frasi di mirroring da usare in un messaggio WhatsApp di primo contatto.
 
-OBIETTIVO:
-Far percepire al proprietario lettura attenta, interesse reale e messaggio umano.
+ATTENZIONE: il testo che generi verra inserito subito dopo la frase "Ha notato il suo immobile in ..." e prima del resto del messaggio standard. Quindi:
+- NON ripetere l'indirizzo (gia menzionato prima)
+- NON iniziare con saluti o frasi introduttive
+- NON nominare Ilan, Sara, l'agenzia o acquirenti
+- NON chiudere il testo con frasi di chiusura o saluti
+- NON fare domande
+- NON fare complimenti esagerati o promesse
+- NON usare espressioni generiche come "un immobile di questo tipo" o "queste caratteristiche"
 
 SELEZIONE CARATTERISTICHE (1-3 max, in ordine di priorità):
 1. Ristrutturazione e qualità materiali/arredi
@@ -223,22 +229,13 @@ Pattern utili:
 - "qui c'è stata cura vera..."
 - "questa è una cosa che oggi fa davvero la differenza..."
 
-REGOLA UMANIZZAZIONE:
-Inserire almeno una frase breve, diretta, con tono parlato.
-
 TONO E STILE:
-- Tono: professionale ma umano
-- Frasi brevi
+- Tono: sobrio, professionale, realistico
+- Frasi brevi e dirette
 - Ritmo naturale
 - No elenchi infiniti
 - Evitare perfezione meccanica
 - Lunghezza: sintetica ma concreta
-
-STRUTTURA DEL MESSAGGIO:
-- APERTURA: Riconoscimento dell'immobile + 1 caratteristica chiave
-- CORPO: Totale 1–3 caratteristiche con breve commento umano
-- INVITO: chiaro, concreto, non aggressivo (verrà aggiunto dopo)
-- CHIUSURA: sobria, istituzionale (verrà aggiunta dopo)
 
 FORMATTAZIONE WHATSAPP:
 - Separa i concetti in PARAGRAFI distinti (riga vuota tra un paragrafo e l'altro)
@@ -253,41 +250,45 @@ EVITARE ASSOLUTAMENTE:
 - Frasi lunghe e perfette
 - Linguaggio generico
 - Qualsiasi riferimento a IA
+- Espressioni come "un immobile di questo tipo", "queste caratteristiche", "questo appartamento"
 
-ESEMPI BUONI (nota: paragrafi separati, niente virgolette):
+ESEMPI BUONI (nota: paragrafi separati, niente virgolette, niente indirizzo):
 
 Esempio 1:
-Il suo trilocale ristrutturato completamente nel 2022, con i materiali di pregio che ha scelto.
+Il trilocale ristrutturato completamente nel 2022, con materiali di pregio.
 
 Si vede che qui c'è stata cura vera.
 
 La doppia esposizione oggi conta molto per chi cerca in zona.
 
 Esempio 2:
-Dal suo annuncio si capisce che l'appartamento al terzo piano con l'ascensore nuovo è stato pensato bene.
+L'appartamento al terzo piano con ascensore nuovo è stato pensato bene.
 
-La vicinanza alla M4 Gelsomini è una cosa che oggi gli acquirenti notano molto.
+La vicinanza alla M4 Gelsomini è una cosa che oggi fa la differenza.
 
 ESEMPI CATTIVI (NON FARE):
 - Splendido trilocale con terrazzo panoramico (inventa e usa tono da brochure)
 - Un'occasione imperdibile per chi cerca casa (generico, aggressivo)
 - Come scrive lei "ristrutturato nel 2022" (virgolette = testo incollato)
+- Un immobile di questo tipo è molto richiesto (generico)
+- Ha notato il suo immobile in via... (gia detto prima)
 
 SE L'ANNUNCIO È VAGO:
-Scrivi qualcosa di prudente che riprende comunque ciò che c'è:
-Dal suo annuncio per l'appartamento in zona Navigli, si nota la volontà di una trattativa diretta.
+Scrivi qualcosa di prudente e diretto:
+Un appartamento in zona Navigli, con la volontà di una trattativa diretta.
 
 È un'area oggi molto richiesta.
 
 RICORDA:
 - Meglio dire MENO ma SICURO, che di più ma sbagliato
 - Non citare esplicitamente "NO AGENZIE" ma rispetta il tono
-- Produci SOLO le 1–3 frasi di mirroring, niente saluti, firme o presentazioni
-- Test finale: il proprietario deve riconoscere le sue parole, percepire attenzione reale e sentire che scrive una persona, non un sistema`;
+- Produci SOLO le 1–3 frasi di mirroring
+- Niente saluti, firme, presentazioni, domande o chiusure
+- Test finale: il proprietario deve riconoscere le sue parole e sentire che scrive una persona`;
 
 // Mirroring configuration for structured calls
 export const MIRRORING_CONFIG = {
-  temperature: 0.3,
+  temperature: 0.25,
   max_tokens: 300
 };
 

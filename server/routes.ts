@@ -2284,7 +2284,7 @@ Assistente del Dott. Ilan Boni`;
         return res.status(400).json({ error: "Testo annuncio richiesto" });
       }
 
-      const { MIRRORING_PROMPT } = await import("./bot-config");
+      const { MIRRORING_PROMPT, MIRRORING_CONFIG } = await import("./bot-config");
       
       // Build context for mirroring
       let context = `Testo annuncio:\n"${testoAnnuncio}"`;
@@ -2305,8 +2305,8 @@ Assistente del Dott. Ilan Boni`;
           { role: "system", content: MIRRORING_PROMPT },
           { role: "user", content: context }
         ],
-        temperature: 0.3,
-        max_tokens: 300
+        temperature: MIRRORING_CONFIG.temperature,
+        max_tokens: MIRRORING_CONFIG.max_tokens
       });
 
       const mirroringText = mirroringResponse.choices[0]?.message?.content?.trim() || "";
