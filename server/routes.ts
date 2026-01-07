@@ -4,7 +4,8 @@ import { storage } from "./storage";
 import { 
   insertClienteSchema, insertRichiestaSchema, insertImmobileSchema,
   insertComunicazioneSchema, insertAppuntamentoSchema, insertMatchingSchema,
-  insertImmobileEsternoSchema, insertWhatsappCampaignSchema, insertCampaignMessageSchema
+  insertImmobileEsternoSchema, insertWhatsappCampaignSchema, insertCampaignMessageSchema,
+  insertAttivitaClienteSchema
 } from "@shared/schema";
 import { parseRequestWithAI, calculateMatchScore, generateAICoachMessage, parsePropertyListingWithAI, parsePropertyImageWithAI, generateAcquisitionMessage, generateMirroring, extractPropertyFacts } from "./ai-service";
 import { whatsappWS } from "./websocket";
@@ -3160,6 +3161,201 @@ FORMATO RISPOSTE:
     } catch (error) {
       console.error("Update conversation error:", error);
       res.status(500).json({ error: "Errore nell'aggiornamento" });
+    }
+  });
+
+  // ==================== ATTIVITA CLIENTE ====================
+  
+  // Get all client activities (with optional stato filter)
+  app.get("/api/attivita-cliente", async (req, res) => {
+    try {
+      const stato = req.query.stato as string | undefined;
+      const attivita = await storage.getAllAttivitaCliente(stato);
+      res.json(attivita);
+    } catch (error) {
+      console.error("Get attivita cliente error:", error);
+      res.status(500).json({ error: "Errore nel recupero attività" });
+    }
+  });
+
+  // Get activities for a specific client
+  app.get("/api/clienti/:id/attivita", async (req, res) => {
+    try {
+      const clienteId = parseInt(req.params.id);
+      const attivita = await storage.getAttivitaCliente(clienteId);
+      res.json(attivita);
+    } catch (error) {
+      console.error("Get client attivita error:", error);
+      res.status(500).json({ error: "Errore nel recupero attività cliente" });
+    }
+  });
+
+  // Create client activity
+  app.post("/api/attivita-cliente", async (req, res) => {
+    try {
+      const parsed = insertAttivitaClienteSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Dati non validi", details: parsed.error.errors });
+      }
+      const attivita = await storage.createAttivitaCliente(parsed.data);
+      res.json(attivita);
+    } catch (error) {
+      console.error("Create attivita cliente error:", error);
+      res.status(500).json({ error: "Errore nella creazione attività" });
+    }
+  });
+
+  // Update client activity
+  app.patch("/api/attivita-cliente/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const attivita = await storage.updateAttivitaCliente(id, req.body);
+      if (!attivita) {
+        return res.status(404).json({ error: "Attività non trovata" });
+      }
+      res.json(attivita);
+    } catch (error) {
+      console.error("Update attivita cliente error:", error);
+      res.status(500).json({ error: "Errore nell'aggiornamento attività" });
+    }
+  });
+
+  // Delete client activity
+  app.delete("/api/attivita-cliente/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteAttivitaCliente(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Delete attivita cliente error:", error);
+      res.status(500).json({ error: "Errore nell'eliminazione attività" });
+    }
+  });
+
+  // ==================== RICHIESTE EMAIL PORTALI ====================
+  
+  // Register an inbound email request from real estate portals
+  // This creates a client (if not exists) and activities for tracking
+  app.post("/api/email-richiesta", async (req, res) => {
+    try {
+      const { 
+        email, 
+        nome, 
+        cognome, 
+        telefono, 
+        immobileId, 
+        descrizioneRichiesta,
+        portale 
+      } = req.body;
+
+      if (!email && !telefono) {
+        return res.status(400).json({ error: "Email o telefono richiesto" });
+      }
+
+      // Check if client already exists by email
+      let cliente = null;
+      const clienti = await storage.getClienti();
+      
+      if (email) {
+        cliente = clienti.find(c => c.email?.toLowerCase() === email.toLowerCase());
+      }
+      
+      // If not found by email, try by phone
+      if (!cliente && telefono) {
+        const normalizedPhone = telefono.replace(/\D/g, '').slice(-9);
+        cliente = clienti.find(c => 
+          c.telefono && c.telefono.replace(/\D/g, '').includes(normalizedPhone)
+        );
+      }
+
+      // Create new client if not exists
+      const isNewClient = !cliente;
+      if (!cliente) {
+        cliente = await storage.createCliente({
+          nome: nome || "Potenziale",
+          cognome: cognome || "Acquirente",
+          email: email || null,
+          telefono: telefono || null,
+          tipoCliente: "compratore",
+          ratingCliente: 3,
+          note: `Contatto da portale ${portale || 'immobiliare'}`
+        });
+      }
+
+      // Validate immobileId if provided
+      let immobile = null;
+      let immobileTitolo = "";
+      if (immobileId) {
+        immobile = await storage.getImmobile(immobileId);
+        if (!immobile) {
+          return res.status(404).json({ error: "Immobile non trovato" });
+        }
+        immobileTitolo = immobile.indirizzo || immobile.titolo || `ID ${immobileId}`;
+      }
+
+      // Create client activity
+      const attivitaCliente = await storage.createAttivitaCliente({
+        clienteId: cliente.id,
+        immobileId: immobileId || null,
+        titolo: immobileTitolo 
+          ? `Mail ricevuta per immobile in ${immobileTitolo}`
+          : `Richiesta generica da ${portale || 'portale'}`,
+        descrizione: descrizioneRichiesta || null,
+        fonte: portale || "email",
+        scadenza: null,
+        stato: "da_fare"
+      });
+
+      // Create immobile activity if immobileId provided
+      let attivitaImmobile = null;
+      if (immobileId) {
+        const clienteNome = `${cliente.nome} ${cliente.cognome}`.trim();
+        attivitaImmobile = await storage.createAttivitaImmobile({
+          immobileId,
+          titolo: `Mail ricevuta da ${clienteNome}`,
+          descrizione: descrizioneRichiesta || null,
+          scadenza: null,
+          stato: "da_fare"
+        });
+      }
+
+      // Create comunicazione record
+      await storage.createComunicazione({
+        clienteId: cliente.id,
+        immobileId: immobileId || null,
+        immobileEsternoId: null,
+        whatsappMessageId: null,
+        tipo: "richiesta",
+        testo: descrizioneRichiesta || `Richiesta da ${portale || 'portale'}`,
+        canale: "email",
+        creatoDA: "cliente",
+        esito: null
+      });
+
+      res.json({
+        success: true,
+        cliente,
+        attivitaCliente,
+        attivitaImmobile,
+        isNewClient
+      });
+    } catch (error) {
+      console.error("Email richiesta error:", error);
+      res.status(500).json({ error: "Errore nella registrazione richiesta email" });
+    }
+  });
+
+  // ==================== ATTIVITA IMMOBILE (EXTENDED) ====================
+  
+  // Get all property activities (with optional stato filter)
+  app.get("/api/attivita-immobile", async (req, res) => {
+    try {
+      const stato = req.query.stato as string | undefined;
+      const attivita = await storage.getAllAttivitaImmobile(stato);
+      res.json(attivita);
+    } catch (error) {
+      console.error("Get attivita immobile error:", error);
+      res.status(500).json({ error: "Errore nel recupero attività" });
     }
   });
 }
