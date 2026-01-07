@@ -1,0 +1,69 @@
+{
+  "personalization": {
+    "mode": "mirroring_focus",
+    "goal": "Far percepire al proprietario lettura attenta, interesse reale e messaggio umano",
+    "feature_selection": {
+      "max_features": 3,
+      "min_features": 1,
+      "priority_order": [
+        "ristrutturazione e qualità materiali/arredi",
+        "posizione/servizi/metro",
+        "piano, esposizione, luce",
+        "disposizione interna",
+        "contesto e qualità condominio"
+      ]
+    },
+    "mirroring_rules": {
+      "use_owner_words": true,
+      "owner_words_strategy": "Riprendere parole e concetti del proprietario in modo riconoscibile, con piccole variazioni naturali.",
+      "avoid_quotation_style": true,
+      "avoid_quotation_reason": "Le virgolette fanno percepire testo incollato e meno umano.",
+      "transformations_allowed": [
+        "leggere semplificazioni",
+        "ordine frasi più naturale",
+        "aggiunta di un breve commento umano"
+      ],
+      "avoid_transformations": [
+        "citazioni testuali lunghe",
+        "virgolette o blocchi citati",
+        "linguaggio troppo tecnico o da brochure"
+      ]
+    },
+    "commentary": {
+      "enabled": true,
+      "purpose": "Non solo ripetere, ma commentare come farebbe una persona che ha letto davvero.",
+      "patterns": [
+        "si vede che...",
+        "si capisce che...",
+        "qui c’è stata cura vera...",
+        "questa è una cosa che oggi fa davvero la differenza..."
+      ],
+      "max_comments": 2,
+      "humanization_rule": "Inserire almeno una frase breve, diretta, con tono parlato."
+    },
+    "tone_and_style": {
+      "tone": "professionale ma umano",
+      "style": {
+        "frasi_brevi": true,
+        "ritmo_naturale": true,
+        "no_lista_lunghissima_caratteristiche": true,
+        "evitare_perfezione_meccanica": true
+      }
+    },
+    "message_structure": {
+      "apertura": "Riconoscimento dell’immobile + 1 caratteristica chiave",
+      "corpo": "Totale 1–3 caratteristiche con breve commento umano",
+      "invito": "chiaro, concreto, non aggressivo",
+      "chiusura": "sobria, istituzionale"
+    },
+    "avoid": [
+      "più di 3 caratteristiche",
+      "virgolette nel mirroring",
+      "tono promozionale",
+      "frasi lunghe e perfette",
+      "linguaggio generico",
+      "qualsiasi riferimento a IA"
+    ],
+    "target_effect": "Il proprietario deve riconoscere le sue parole, percepire attenzione reale e sentire che scrive una persona, non un sistema."
+  }
+}
