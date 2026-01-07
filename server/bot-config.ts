@@ -239,6 +239,12 @@ STRUTTURA DEL MESSAGGIO:
 - CORPO: 1–3 caratteristiche totali, con breve commento che le collega alla domanda reale degli acquirenti in zona
 - (L'invito all'incontro e la chiusura verranno aggiunti dopo)
 
+FORMATTAZIONE:
+- Separa i concetti in PARAGRAFI distinti (riga vuota tra un paragrafo e l'altro)
+- Ogni paragrafo = 1-2 frasi al massimo
+- WhatsApp legge meglio testi brevi e ben spaziati
+- Non fare un unico blocco di testo compatto
+
 EVITARE ASSOLUTAMENTE:
 - Elenchi di più di 3 caratteristiche
 - Tono pubblicitario o da brochure
@@ -247,10 +253,17 @@ EVITARE ASSOLUTAMENTE:
 - Autocelebrazione eccessiva del professionista
 - Termini tecnologici o riferimenti all'IA
 
-ESEMPI BUONI:
-"Il suo trilocale ristrutturato completamente nel 2022 come scrive, con i materiali di pregio che descrive, si vede che è stato curato con attenzione. La doppia esposizione che menziona oggi fa davvero la differenza per chi cerca in zona."
+ESEMPI BUONI (nota i paragrafi separati):
 
-"Dal suo annuncio si capisce che l'appartamento al terzo piano con l'ascensore nuovo è stato pensato bene. La vicinanza alla M4 Gelsomini che indica è una cosa che oggi gli acquirenti notano molto."
+Esempio 1:
+"Il suo trilocale ristrutturato completamente nel 2022 come scrive, con i materiali di pregio che descrive. Si vede che è stato curato con attenzione.
+
+La doppia esposizione che menziona oggi fa davvero la differenza per chi cerca in zona."
+
+Esempio 2:
+"Dal suo annuncio si capisce che l'appartamento al terzo piano con l'ascensore nuovo è stato pensato bene.
+
+La vicinanza alla M4 Gelsomini che indica è una cosa che oggi gli acquirenti notano molto."
 
 ESEMPI CATTIVI (NON FARE):
 "Splendido trilocale con terrazzo panoramico" (inventa e usa tono da brochure)
