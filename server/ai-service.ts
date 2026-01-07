@@ -867,3 +867,104 @@ ${input.zonaOVia ? `Zona/via: ${input.zonaOVia}` : ''}`;
     return { mirroring: "" };
   }
 }
+
+// Extracted property facts interface
+export interface ExtractedPropertyFacts {
+  tipo_unita: string | null;
+  ristrutturato: boolean;
+  anno_ristrutturazione: number | null;
+  numero_camere: number | null;
+  numero_bagni: number | null;
+  doppia_esposizione: boolean;
+  balconi: number | null;
+  terrazzo: boolean;
+  piano: string | null;
+  ultimo_piano: boolean;
+  ascensore: boolean;
+  portineria: boolean;
+  classe_energetica: string | null;
+  arredato: boolean;
+  cantina: boolean;
+  posto_auto_o_bici: boolean;
+  zona_testuale: string | null;
+  metro_o_trasporti: string | null;
+}
+
+export async function extractPropertyFacts(testoAnnuncio: string): Promise<ExtractedPropertyFacts> {
+  const defaultResult: ExtractedPropertyFacts = {
+    tipo_unita: null,
+    ristrutturato: false,
+    anno_ristrutturazione: null,
+    numero_camere: null,
+    numero_bagni: null,
+    doppia_esposizione: false,
+    balconi: null,
+    terrazzo: false,
+    piano: null,
+    ultimo_piano: false,
+    ascensore: false,
+    portineria: false,
+    classe_energetica: null,
+    arredato: false,
+    cantina: false,
+    posto_auto_o_bici: false,
+    zona_testuale: null,
+    metro_o_trasporti: null
+  };
+
+  try {
+    const systemPrompt = `Il tuo compito è SOLO estrarre informazioni oggettive dall'annuncio immobiliare.
+
+REGOLE OBBLIGATORIE:
+- Non generare frasi o testi descrittivi.
+- Non usare linguaggio di marketing.
+- Non interpretare o indovinare.
+- Se un'informazione non è chiaramente presente, imposta null (per stringhe/numero) o false (per booleani).
+- Non aggiungere campi non previsti.
+
+Obiettivo: restituire esclusivamente i dati richiesti nel JSON in modo affidabile e pulito.
+
+Rispondi con un oggetto JSON contenente questi campi:
+{
+  "tipo_unita": string o null (es. "bilocale", "trilocale", "appartamento", "attico"),
+  "ristrutturato": boolean,
+  "anno_ristrutturazione": integer o null,
+  "numero_camere": integer o null,
+  "numero_bagni": integer o null,
+  "doppia_esposizione": boolean,
+  "balconi": integer o null,
+  "terrazzo": boolean,
+  "piano": string o null (es. "3", "terra", "rialzato"),
+  "ultimo_piano": boolean,
+  "ascensore": boolean,
+  "portineria": boolean,
+  "classe_energetica": string o null (es. "A", "B", "C", "D", "E", "F", "G"),
+  "arredato": boolean,
+  "cantina": boolean,
+  "posto_auto_o_bici": boolean,
+  "zona_testuale": string o null (es. "Navigli", "Porta Romana"),
+  "metro_o_trasporti": string o null (es. "M2 Porta Genova", "tram 9")
+}`;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: testoAnnuncio }
+      ],
+      max_completion_tokens: 500,
+      temperature: 0,
+      response_format: { type: "json_object" }
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (content) {
+      const parsed = JSON.parse(content);
+      return { ...defaultResult, ...parsed };
+    }
+    return defaultResult;
+  } catch (error) {
+    console.error("Extract property facts error:", error);
+    return defaultResult;
+  }
+}

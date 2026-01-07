@@ -1,0 +1,59 @@
+{
+  "name": "estrai_fatti_annuncio_privato",
+  "description": "Estrae solo informazioni oggettive da un annuncio immobiliare scritto da un privato, senza generare testo descrittivo o promozionale.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "testo_annuncio": {
+        "type": "string",
+        "description": "Testo completo dell'annuncio pubblicato dal proprietario."
+      }
+    },
+    "required": ["testo_annuncio"]
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "tipo_unita": { "type": ["string", "null"] },
+      "ristrutturato": { "type": "boolean" },
+      "anno_ristrutturazione": { "type": ["integer", "null"] },
+      "numero_camere": { "type": ["integer", "null"] },
+      "numero_bagni": { "type": ["integer", "null"] },
+      "doppia_esposizione": { "type": "boolean" },
+      "balconi": { "type": ["integer", "null"] },
+      "terrazzo": { "type": "boolean" },
+      "piano": { "type": ["string", "null"] },
+      "ultimo_piano": { "type": "boolean" },
+      "ascensore": { "type": "boolean" },
+      "portineria": { "type": "boolean" },
+      "classe_energetica": { "type": ["string", "null"] },
+      "arredato": { "type": "boolean" },
+      "cantina": { "type": "boolean" },
+      "posto_auto_o_bici": { "type": "boolean" },
+      "zona_testuale": { "type": ["string", "null"] },
+      "metro_o_trasporti": { "type": ["string", "null"] }
+    },
+    "required": [
+      "tipo_unita",
+      "ristrutturato",
+      "anno_ristrutturazione",
+      "numero_camere",
+      "numero_bagni",
+      "doppia_esposizione",
+      "balconi",
+      "terrazzo",
+      "piano",
+      "ultimo_piano",
+      "ascensore",
+      "portineria",
+      "classe_energetica",
+      "arredato",
+      "cantina",
+      "posto_auto_o_bici",
+      "zona_testuale",
+      "metro_o_trasporti"
+    ]
+  },
+  "system_prompt": "Il tuo compito è SOLO estrarre informazioni oggettive dall'annuncio immobiliare.\\n\\nREGOLE OBBLIGATORIE:\\n- Non generare frasi o testi descrittivi.\\n- Non usare linguaggio di marketing.\\n- Non interpretare o indovinare.\\n- Se un'informazione non è chiaramente presente, imposta null (per stringhe/numero) o false (per booleani).\\n- Non aggiungere campi non previsti.\\n\\nObiettivo: restituire esclusivamente i dati richiesti nel JSON in modo affidabile e pulito.",
+  "temperature": 0.0
+}

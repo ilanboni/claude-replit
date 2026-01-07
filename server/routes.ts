@@ -6,7 +6,7 @@ import {
   insertComunicazioneSchema, insertAppuntamentoSchema, insertMatchingSchema,
   insertImmobileEsternoSchema, insertWhatsappCampaignSchema, insertCampaignMessageSchema
 } from "@shared/schema";
-import { parseRequestWithAI, calculateMatchScore, generateAICoachMessage, parsePropertyListingWithAI, parsePropertyImageWithAI, generateAcquisitionMessage, generateMirroring } from "./ai-service";
+import { parseRequestWithAI, calculateMatchScore, generateAICoachMessage, parsePropertyListingWithAI, parsePropertyImageWithAI, generateAcquisitionMessage, generateMirroring, extractPropertyFacts } from "./ai-service";
 import { whatsappWS } from "./websocket";
 import { sendWhatsAppMessage, isUltraMsgConfigured } from "./ultramsg";
 import { exec } from "child_process";
@@ -2272,6 +2272,23 @@ Assistente del Dott. Ilan Boni`;
     } catch (error) {
       console.error("Generate mirroring error:", error);
       res.status(500).json({ error: "Errore nella generazione del mirroring" });
+    }
+  });
+
+  // Extract property facts from listing text
+  app.post("/api/bot/extract-facts", async (req, res) => {
+    try {
+      const { testoAnnuncio } = req.body;
+      
+      if (!testoAnnuncio) {
+        return res.status(400).json({ error: "Testo annuncio richiesto" });
+      }
+
+      const facts = await extractPropertyFacts(testoAnnuncio);
+      res.json(facts);
+    } catch (error) {
+      console.error("Extract facts error:", error);
+      res.status(500).json({ error: "Errore nell'estrazione dei fatti" });
     }
   });
 
