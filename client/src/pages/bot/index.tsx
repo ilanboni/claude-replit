@@ -78,6 +78,9 @@ Contatto: Mario Rossi - 333 1234567`,
     proprietario: "Mario Rossi"
   });
   const [isSimulating, setIsSimulating] = useState(false);
+  const [showNewCampaignDialog, setShowNewCampaignDialog] = useState(false);
+  const [newCampaignName, setNewCampaignName] = useState("");
+  const [selectedProperties, setSelectedProperties] = useState<number[]>([]);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const { data: campaigns = [], isLoading: loadingCampaigns } = useQuery<WhatsappCampaign[]>({
@@ -137,6 +140,63 @@ Contatto: Mario Rossi - 333 1234567`,
       toast({
         title: "Errore",
         description: error.message || "Impossibile avviare la campagna",
+        variant: "destructive"
+      });
+    }
+  });
+
+  const createCampaignMutation = useMutation({
+    mutationFn: async (data: { name: string; propertyIds: number[] }) => {
+      const res = await apiRequest("POST", "/api/whatsapp-campaigns/create-with-recipients", data);
+      const result = await res.json();
+      if (!res.ok) {
+        throw new Error(result.error || "Errore nella creazione della campagna");
+      }
+      return result;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/whatsapp-campaigns"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/campaign-messages"] });
+      setShowNewCampaignDialog(false);
+      setNewCampaignName("");
+      setSelectedProperties([]);
+      toast({
+        title: "Campagna creata",
+        description: `Campagna "${data.campaign.name}" creata con ${data.recipientsAdded} destinatari`
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Errore",
+        description: error.message || "Impossibile creare la campagna",
+        variant: "destructive"
+      });
+    }
+  });
+
+  const addRecipientsMutation = useMutation({
+    mutationFn: async (data: { campaignId: number; propertyIds: number[] }) => {
+      const res = await apiRequest("POST", `/api/whatsapp-campaigns/${data.campaignId}/add-from-properties`, {
+        propertyIds: data.propertyIds
+      });
+      const result = await res.json();
+      if (!res.ok) {
+        throw new Error(result.error || "Errore nell'aggiunta dei destinatari");
+      }
+      return result;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/whatsapp-campaigns"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/campaign-messages"] });
+      toast({
+        title: "Destinatari aggiunti",
+        description: `${data.added} nuovi destinatari aggiunti alla campagna`
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Errore",
+        description: error.message || "Impossibile aggiungere i destinatari",
         variant: "destructive"
       });
     }
@@ -344,7 +404,10 @@ GESTIONE OBIEZIONI: ${JSON.stringify(selectedCampaign.objectionHandling || {}, n
                   Invia messaggi automatici ai proprietari privati per acquisire immobili
                 </CardDescription>
               </div>
-              <Button data-testid="button-nuova-campagna">
+              <Button 
+                onClick={() => setShowNewCampaignDialog(true)}
+                data-testid="button-nuova-campagna"
+              >
                 <Plus className="h-4 w-4 mr-2" />
                 Nuova Campagna
               </Button>
@@ -361,7 +424,10 @@ GESTIONE OBIEZIONI: ${JSON.stringify(selectedCampaign.objectionHandling || {}, n
                       Crea una nuova campagna per iniziare a contattare i proprietari privati
                     </p>
                   </div>
-                  <Button data-testid="button-crea-prima-campagna">
+                  <Button 
+                    onClick={() => setShowNewCampaignDialog(true)}
+                    data-testid="button-crea-prima-campagna"
+                  >
                     <Plus className="h-4 w-4 mr-2" />
                     Crea la prima campagna
                   </Button>
@@ -885,6 +951,139 @@ GESTIONE OBIEZIONI: ${JSON.stringify(selectedCampaign.objectionHandling || {}, n
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Nuova Campagna */}
+      <Dialog open={showNewCampaignDialog} onOpenChange={setShowNewCampaignDialog}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Nuova Campagna di Acquisizione</DialogTitle>
+            <DialogDescription>
+              Crea una campagna per contattare proprietari privati con messaggi WhatsApp automatici
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Nome campagna</label>
+              <Input
+                value={newCampaignName}
+                onChange={(e) => setNewCampaignName(e.target.value)}
+                placeholder="Es: Acquisizione zona Navigli - Gennaio 2026"
+                data-testid="input-nome-campagna"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Seleziona destinatari</label>
+              <p className="text-sm text-muted-foreground">
+                Scegli gli immobili dai quali inviare messaggi ai proprietari
+              </p>
+              
+              {propertiesWithPhone.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground border rounded-lg">
+                  <Users className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p>Nessun immobile con telefono disponibile</p>
+                  <p className="text-xs">Importa immobili con numero di telefono dalla sezione Acquisizione</p>
+                </div>
+              ) : (
+                <ScrollArea className="h-[300px] border rounded-lg p-3">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between mb-3 pb-2 border-b">
+                      <span className="text-sm text-muted-foreground">
+                        {selectedProperties.length} selezionati su {propertiesWithPhone.length}
+                      </span>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => {
+                          if (selectedProperties.length === propertiesWithPhone.length) {
+                            setSelectedProperties([]);
+                          } else {
+                            setSelectedProperties(propertiesWithPhone.map(p => p.id));
+                          }
+                        }}
+                        data-testid="button-seleziona-tutti"
+                      >
+                        {selectedProperties.length === propertiesWithPhone.length ? "Deseleziona tutti" : "Seleziona tutti"}
+                      </Button>
+                    </div>
+                    {propertiesWithPhone.map((property) => (
+                      <div
+                        key={property.id}
+                        className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover-elevate ${
+                          selectedProperties.includes(property.id) ? "border-primary bg-primary/5" : ""
+                        }`}
+                        onClick={() => {
+                          setSelectedProperties(prev => 
+                            prev.includes(property.id) 
+                              ? prev.filter(id => id !== property.id)
+                              : [...prev, property.id]
+                          );
+                        }}
+                        data-testid={`property-select-${property.id}`}
+                      >
+                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                          selectedProperties.includes(property.id) 
+                            ? "bg-primary border-primary text-primary-foreground" 
+                            : "border-muted-foreground"
+                        }`}>
+                          {selectedProperties.includes(property.id) && <CheckCircle2 className="h-3 w-3" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium truncate">{property.titolo}</div>
+                          <div className="text-sm text-muted-foreground">{property.indirizzo}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {property.contattoNome || "Proprietario"} - {property.contattoTelefono}
+                          </div>
+                        </div>
+                        <Badge variant="secondary" className="shrink-0">
+                          {property.prezzo ? `${Number(property.prezzo).toLocaleString('it-IT')}` : "N/D"}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4 border-t">
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setShowNewCampaignDialog(false);
+                  setNewCampaignName("");
+                  setSelectedProperties([]);
+                }}
+                data-testid="button-annulla-campagna"
+              >
+                Annulla
+              </Button>
+              <Button
+                onClick={() => {
+                  createCampaignMutation.mutate({
+                    name: newCampaignName || `Campagna ${new Date().toLocaleDateString('it-IT')}`,
+                    propertyIds: selectedProperties
+                  });
+                }}
+                disabled={selectedProperties.length === 0 || createCampaignMutation.isPending}
+                data-testid="button-crea-campagna"
+              >
+                {createCampaignMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Creazione...
+                  </>
+                ) : (
+                  <>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Crea Campagna ({selectedProperties.length} destinatari)
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

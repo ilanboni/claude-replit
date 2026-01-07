@@ -1635,6 +1635,212 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
     }
   });
 
+  // Create campaign with recipients from properties
+  app.post("/api/whatsapp-campaigns/create-with-recipients", async (req, res) => {
+    try {
+      const { name, propertyIds } = req.body as { name: string; propertyIds: number[] };
+      
+      if (!propertyIds || propertyIds.length === 0) {
+        return res.status(400).json({ error: "Seleziona almeno un immobile" });
+      }
+
+      // Default template for acquisition campaigns
+      const defaultTemplate = `Gentile Proprietario,
+sono l'assistente del Dott. Ilan Boni.
+
+Il Dott. Boni è agente immobiliare da oltre trent'anni, proprietario di due agenzie a Milano e Vicepresidente della Comunità Ebraica di Milano. La sua attività lo porta ogni giorno a confrontarsi con investitori italiani e stranieri che guardano a Milano come a un'opportunità concreta, spesso legata alla flat tax.
+
+Ha notato il suo immobile in {{via}}.
+Caratteristiche come {{caratteristiche}} sono oggi molto richieste da chi cerca immobili con potenzialità immediate, sia in termini di rendimento sia di stabilità del valore nel tempo.
+
+Il Dott. Boni vorrebbe capire se il suo immobile può inserirsi in un percorso di lavoro molto preciso.
+Nel 2025 ha concluso 14 vendite e, negli ultimi anni, il suo metodo gli ha permesso di chiudere positivamente il 94% dei mandati affidati, mettendo gli acquirenti in concorrenza tra loro e non al ribasso contro il proprietario.
+
+Se per Lei può essere utile, il Dott. Boni è disponibile per un breve incontro direttamente presso l'immobile: una decina di minuti per ascoltare la sua situazione, vedere l'appartamento e mostrarle la domanda reale sulla zona.
+
+Nel frattempo può trovare informazioni sulla sua attività immobiliare e istituzionale anche online.
+
+Può rispondere direttamente a questo messaggio, oppure contattarci allo 02 35981509 o a info@cavourimmobiliare.it.
+
+Un cordiale saluto,
+
+Sara
+Assistente del Dott. Ilan Boni`;
+
+      const defaultInstructions = `IDENTITÀ BOT:
+- Nome: Assistente del Dott. Ilan Boni
+- Presentazione: "Sono l'assistente del Dott. Ilan Boni."
+- Background: Il Dott. Boni è agente immobiliare da oltre trent'anni, proprietario di due agenzie a Milano e Vicepresidente della Comunità Ebraica di Milano.
+- Posizionamento: Figura di supporto che gestisce il primo contatto, ascolta il proprietario e valuta se ha senso fissare un incontro diretto con il Dott. Boni.
+
+OBIETTIVI:
+- Primario: Fissare un appuntamento presso l'immobile con il Dott. Boni, breve e non vincolante.
+- Secondario: Lasciare un'ottima impressione, creare fiducia, posizionare il Dott. Boni come riferimento per dubbi futuri.
+
+REGOLE DI COMPORTAMENTO:
+1. Dare sempre del Lei.
+2. Essere empatico, calmo e rispettoso.
+3. Ascoltare prima di rispondere.
+4. Non criticare altre agenzie.
+5. Non fare promesse sul risultato.
+6. Non portare clienti senza aver visto l'immobile.
+7. Evitare discussioni tecniche approfondite via messaggio.
+8. Riportare sempre la conversazione verso la proposta di un incontro breve.
+9. Chiudere sempre con gentilezza.
+
+STILE COMUNICAZIONE:
+- Formalità: Dare sempre del "Lei"
+- Frasi: brevi
+- Tono: calmo, istituzionale, empatico
+- EVITARE: tono commerciale, promesse, pressing, linguaggio aggressivo, linguaggio troppo tecnico
+
+FIRMA: Un cordiale saluto, l'Assistente del Dott. Ilan Boni`;
+
+      const defaultObjectionHandling = {
+        no_agency_solo_privati: {
+          triggers: ["no agenzie", "no agenzia", "solo privati", "vendo da solo", "senza agenzia", "vendita privata", "vendere da privato"],
+          responses: [
+            "Capisco perfettamente, molti proprietari oggi preferiscono muoversi da privati. Il punto è che gli investitori che segue il Dott. Boni non si muovono mai senza prima avere un quadro preciso dell'immobile e dei documenti. Per questo serve un breve incontro in casa: dieci minuti per ascoltare la sua situazione e capire se l'immobile rientra davvero nelle richieste che abbiamo.",
+            "È comprensibile. Anche chi vende da privato spesso chiede un confronto per evitare errori o perdite di tempo. Per capire se e come possiamo esserle utili, il Dott. Boni deve vedere l'immobile e ascoltare la sua storia. Possiamo fissare un incontro breve?"
+          ]
+        },
+        already_agency: {
+          triggers: ["ho già un'agenzia", "mi segue un'altra agenzia", "ho un amico agente", "sono già seguito"],
+          responses: [
+            "Capisco bene, ed è un segno di correttezza da parte sua. A volte però un secondo sguardo, soprattutto di un professionista che lavora molto con investitori italiani e stranieri, può dare spunti utili senza togliere nulla a chi la segue oggi. Il Dott. Boni può passare per un breve confronto in appartamento, le potrebbe essere utile?",
+            "Ha fatto bene a dirlo. Non si tratta di sostituire il lavoro di nessuno, ma di offrirle un punto di vista aggiuntivo, basato sulla domanda reale che gestiamo ogni giorno. Se vuole, posso organizzare un incontro di dieci minuti con il Dott. Boni direttamente in casa."
+          ]
+        },
+        porta_cliente_no_mandato: {
+          triggers: ["portate clienti", "portate il cliente", "se avete un cliente", "no mandato", "senza mandato", "non pago provvigioni"],
+          responses: [
+            "Capisco cosa intende. Il Dott. Boni però non porta mai un acquirente senza aver prima visto l'immobile e valutato documenti e situazione del proprietario. Non sarebbe serio né per Lei né per l'investitore. Possiamo fissare un incontro breve in casa e capire insieme se il suo immobile può rientrare nelle richieste che abbiamo.",
+            "Comprendo la richiesta. Il punto è che il nostro lavoro non è accompagnare persone a caso, ma costruire trattative solide mettendo gli acquirenti in concorrenza tra loro. Per farlo serve conoscere bene l'immobile. Possiamo organizzare un appuntamento con il Dott. Boni per vedere la casa?"
+          ]
+        },
+        ci_penso: {
+          triggers: ["ci penso", "devo pensarci", "vediamo", "forse", "valuterò"],
+          responses: [
+            "È giusto prendersi un momento. Di solito però prima di pensarci aiuta avere qualche dato concreto sulla domanda reale in zona. Il Dott. Boni può passarle dieci minuti in appartamento e darle un quadro chiaro. Vuole fissare un momento?",
+            "Capisco. Un incontro breve serve proprio a chiarire i dubbi che oggi la fanno esitare. Se vuole, organizzo un appuntamento con il Dott. Boni direttamente in casa."
+          ]
+        }
+      };
+
+      // Create the campaign
+      const campaign = await storage.createWhatsappCampaign({
+        name: name || `Campagna ${new Date().toLocaleDateString('it-IT')}`,
+        template: defaultTemplate,
+        instructions: defaultInstructions,
+        objectionHandling: defaultObjectionHandling,
+        useAiPersonalization: true,
+        status: "draft",
+        totalTargets: propertyIds.length
+      });
+
+      // Get properties and create messages
+      let recipientsAdded = 0;
+      for (const propertyId of propertyIds) {
+        const property = await storage.getImmobileEsterno(propertyId);
+        if (property && property.contattoTelefono) {
+          // Build characteristics string
+          const caratteristiche: string[] = [];
+          if (property.mq) caratteristiche.push(`${property.mq} mq`);
+          if (property.camere) caratteristiche.push(`${property.camere} camere`);
+          if (property.balcone) caratteristiche.push("balcone");
+          if (property.terrazzo) caratteristiche.push("terrazzo");
+          if (property.ascensore) caratteristiche.push("ascensore");
+          if (property.box) caratteristiche.push("box");
+          if (property.statoRistrutturato) caratteristiche.push("ristrutturato");
+          
+          // Personalize message
+          let personalizedMessage = defaultTemplate
+            .replace(/\{\{via\}\}/g, property.indirizzo || "questa zona")
+            .replace(/\{\{caratteristiche\}\}/g, caratteristiche.length > 0 ? caratteristiche.join(", ") : "le sue caratteristiche");
+
+          await storage.createCampaignMessage({
+            campaignId: campaign.id,
+            phoneNumber: property.contattoTelefono,
+            ownerName: property.contattoNome || null,
+            messageContent: personalizedMessage,
+            immobileEsternoId: property.id,
+            status: "pending"
+          });
+          recipientsAdded++;
+        }
+      }
+
+      // Update campaign total targets
+      await storage.updateWhatsappCampaign(campaign.id, { totalTargets: recipientsAdded });
+
+      res.status(201).json({ 
+        campaign, 
+        recipientsAdded 
+      });
+    } catch (error) {
+      console.error("Create campaign with recipients error:", error);
+      res.status(500).json({ error: "Errore nella creazione della campagna" });
+    }
+  });
+
+  // Add recipients from property IDs
+  app.post("/api/whatsapp-campaigns/:id/add-from-properties", async (req, res) => {
+    try {
+      const campaignId = parseInt(req.params.id);
+      const { propertyIds } = req.body as { propertyIds: number[] };
+      
+      const campaign = await storage.getWhatsappCampaign(campaignId);
+      if (!campaign) {
+        return res.status(404).json({ error: "Campagna non trovata" });
+      }
+
+      if (!propertyIds || propertyIds.length === 0) {
+        return res.status(400).json({ error: "Seleziona almeno un immobile" });
+      }
+
+      let added = 0;
+      for (const propertyId of propertyIds) {
+        const property = await storage.getImmobileEsterno(propertyId);
+        if (property && property.contattoTelefono) {
+          // Build characteristics string
+          const caratteristiche: string[] = [];
+          if (property.mq) caratteristiche.push(`${property.mq} mq`);
+          if (property.camere) caratteristiche.push(`${property.camere} camere`);
+          if (property.balcone) caratteristiche.push("balcone");
+          if (property.terrazzo) caratteristiche.push("terrazzo");
+          if (property.ascensore) caratteristiche.push("ascensore");
+          if (property.box) caratteristiche.push("box");
+          if (property.statoRistrutturato) caratteristiche.push("ristrutturato");
+          
+          // Personalize message using campaign template
+          let personalizedMessage = campaign.template
+            .replace(/\{\{via\}\}/g, property.indirizzo || "questa zona")
+            .replace(/\{\{caratteristiche\}\}/g, caratteristiche.length > 0 ? caratteristiche.join(", ") : "le sue caratteristiche");
+
+          await storage.createCampaignMessage({
+            campaignId,
+            phoneNumber: property.contattoTelefono,
+            ownerName: property.contattoNome || null,
+            messageContent: personalizedMessage,
+            immobileEsternoId: property.id,
+            status: "pending"
+          });
+          added++;
+        }
+      }
+
+      // Update campaign total targets
+      await storage.updateWhatsappCampaign(campaignId, { 
+        totalTargets: (campaign.totalTargets || 0) + added 
+      });
+
+      res.json({ added, total: (campaign.totalTargets || 0) + added });
+    } catch (error) {
+      console.error("Add from properties error:", error);
+      res.status(500).json({ error: "Errore nell'aggiunta dei destinatari" });
+    }
+  });
+
   // Update campaign
   app.patch("/api/whatsapp-campaigns/:id", async (req, res) => {
     try {
