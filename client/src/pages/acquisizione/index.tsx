@@ -296,10 +296,10 @@ function ParseAnnuncioForm({ onSuccess }: { onSuccess: () => void }) {
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
+    if (file.size > 100 * 1024 * 1024) {
       toast({
         title: "File troppo grande",
-        description: "Il file deve essere inferiore a 10MB",
+        description: "Il file deve essere inferiore a 100MB",
         variant: "destructive",
       });
       return;
@@ -423,7 +423,7 @@ function ParseAnnuncioForm({ onSuccess }: { onSuccess: () => void }) {
                 <Upload className="h-10 w-10 text-muted-foreground mb-4" />
                 <p className="text-sm font-medium">Clicca per caricare un file</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Immagini (JPEG, PNG, GIF, WebP) o PDF (max 10MB)
+                  Immagini (JPEG, PNG, GIF, WebP) o PDF (max 100MB)
                 </p>
                 <input
                   type="file"
