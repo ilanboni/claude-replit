@@ -1666,6 +1666,139 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
     }
   });
 
+  // Start campaign - send pending messages via UltraMsg
+  app.post("/api/whatsapp-campaigns/:id/start", async (req, res) => {
+    try {
+      const campaignId = parseInt(req.params.id);
+      
+      // Check if UltraMsg is configured before proceeding
+      if (!isUltraMsgConfigured()) {
+        return res.status(400).json({ error: "WhatsApp non configurato. Configura UltraMsg nelle impostazioni." });
+      }
+      
+      const campaign = await storage.getWhatsappCampaign(campaignId);
+      
+      if (!campaign) {
+        return res.status(404).json({ error: "Campagna non trovata" });
+      }
+
+      // Get pending messages for this campaign
+      const allMessages = await storage.getCampaignMessages(campaignId);
+      const pendingMessages = allMessages.filter(m => m.status === "pending");
+
+      if (pendingMessages.length === 0) {
+        return res.status(400).json({ error: "Nessun messaggio da inviare. Aggiungi prima dei destinatari." });
+      }
+
+      // Send messages with rate limiting (1.5 seconds between messages to avoid spam)
+      let sentCount = 0;
+      let failedCount = 0;
+      const results: { phoneNumber: string; success: boolean; error?: string }[] = [];
+
+      for (const msg of pendingMessages) {
+        try {
+          const result = await sendWhatsAppMessage(msg.phoneNumber, msg.messageContent);
+          
+          if (result.success) {
+            await storage.updateCampaignMessage(msg.id, {
+              status: "sent",
+              sentAt: new Date(),
+              metadata: { ...(msg.metadata || {}), ultraMsgId: result.messageId }
+            });
+            sentCount++;
+            results.push({ phoneNumber: msg.phoneNumber, success: true });
+          } else {
+            await storage.updateCampaignMessage(msg.id, {
+              status: "failed",
+              errorMessage: result.error
+            });
+            failedCount++;
+            results.push({ phoneNumber: msg.phoneNumber, success: false, error: result.error });
+          }
+
+          // Rate limit: wait 1.5 seconds between messages
+          if (pendingMessages.indexOf(msg) < pendingMessages.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 1500));
+          }
+        } catch (error) {
+          await storage.updateCampaignMessage(msg.id, {
+            status: "failed",
+            errorMessage: String(error)
+          });
+          failedCount++;
+          results.push({ phoneNumber: msg.phoneNumber, success: false, error: String(error) });
+        }
+      }
+
+      // Update campaign stats and status
+      await storage.updateWhatsappCampaign(campaignId, {
+        sentCount: (campaign.sentCount || 0) + sentCount,
+        status: sentCount > 0 ? "active" : "paused",
+        startedAt: campaign.startedAt || new Date()
+      });
+
+      res.json({
+        success: true,
+        sent: sentCount,
+        failed: failedCount,
+        total: pendingMessages.length,
+        results
+      });
+    } catch (error) {
+      console.error("Start campaign error:", error);
+      res.status(500).json({ error: "Errore nell'avvio della campagna" });
+    }
+  });
+
+  // Add recipients to campaign
+  app.post("/api/whatsapp-campaigns/:id/recipients", async (req, res) => {
+    try {
+      const campaignId = parseInt(req.params.id);
+      const campaign = await storage.getWhatsappCampaign(campaignId);
+      
+      if (!campaign) {
+        return res.status(404).json({ error: "Campagna non trovata" });
+      }
+
+      const { recipients } = req.body as { recipients: Array<{ phoneNumber: string; ownerName?: string; message?: string; immobileEsternoId?: number }> };
+      
+      if (!recipients || !Array.isArray(recipients) || recipients.length === 0) {
+        return res.status(400).json({ error: "Fornisci almeno un destinatario" });
+      }
+
+      const createdMessages: any[] = [];
+      
+      for (const recipient of recipients) {
+        // Use custom message or campaign template
+        const messageContent = recipient.message || campaign.template;
+        
+        const msg = await storage.createCampaignMessage({
+          campaignId,
+          phoneNumber: recipient.phoneNumber,
+          ownerName: recipient.ownerName || null,
+          messageContent,
+          immobileEsternoId: recipient.immobileEsternoId || null,
+          status: "pending"
+        });
+        createdMessages.push(msg);
+      }
+
+      // Update campaign total targets
+      await storage.updateWhatsappCampaign(campaignId, {
+        totalTargets: (campaign.totalTargets || 0) + recipients.length
+      });
+
+      res.status(201).json({
+        success: true,
+        added: createdMessages.length,
+        messages: createdMessages
+      });
+    } catch (error) {
+      console.error("Add recipients error:", error);
+      res.status(500).json({ error: "Errore nell'aggiunta dei destinatari" });
+    }
+  });
+
   // ==================== CAMPAIGN MESSAGES ====================
 
   // Get campaign messages (with optional filters)

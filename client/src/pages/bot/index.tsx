@@ -35,7 +35,8 @@ import {
   Loader2
 } from "lucide-react";
 import type { WhatsappCampaign, CampaignMessage, ImmobileEsterno } from "@shared/schema";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -50,6 +51,7 @@ interface PropertyContext {
 }
 
 export default function BotPage() {
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("acquisizione");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState("");
@@ -111,6 +113,32 @@ Contatto: Mario Rossi - 333 1234567`,
         content: data.message,
         timestamp: new Date()
       }]);
+    }
+  });
+
+  const startCampaignMutation = useMutation({
+    mutationFn: async (campaignId: number) => {
+      const res = await apiRequest("POST", `/api/whatsapp-campaigns/${campaignId}/start`, {});
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Errore nell'avvio della campagna");
+      }
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/whatsapp-campaigns"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/campaign-messages"] });
+      toast({
+        title: "Campagna avviata",
+        description: `Inviati ${data.sent} messaggi su ${data.total}${data.failed > 0 ? ` (${data.failed} falliti)` : ""}`
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Errore",
+        description: error.message || "Impossibile avviare la campagna",
+        variant: "destructive"
+      });
     }
   });
 
@@ -369,9 +397,18 @@ GESTIONE OBIEZIONI: ${JSON.stringify(selectedCampaign.objectionHandling || {}, n
                         </div>
                         <div className="flex items-center gap-2">
                           {campaign.status === "draft" && (
-                            <Button size="sm" data-testid={`button-start-campaign-${campaign.id}`}>
-                              <Play className="h-4 w-4 mr-1" />
-                              Avvia
+                            <Button 
+                              size="sm" 
+                              onClick={() => startCampaignMutation.mutate(campaign.id)}
+                              disabled={startCampaignMutation.isPending}
+                              data-testid={`button-start-campaign-${campaign.id}`}
+                            >
+                              {startCampaignMutation.isPending ? (
+                                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                              ) : (
+                                <Play className="h-4 w-4 mr-1" />
+                              )}
+                              {startCampaignMutation.isPending ? "Invio..." : "Avvia"}
                             </Button>
                           )}
                           {campaign.status === "active" && (
