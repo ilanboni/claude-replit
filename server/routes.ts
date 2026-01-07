@@ -629,7 +629,18 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
       if (!parsed.success) {
         return res.status(400).json({ error: "Dati non validi", details: parsed.error });
       }
-      const comunicazione = await storage.createComunicazione(parsed.data);
+      
+      // Auto-link to immobile esterno if clienteId is provided and client has external properties
+      let dataToSave = { ...parsed.data };
+      if (parsed.data.clienteId && !parsed.data.immobileEsternoId) {
+        const immobiliEsterni = await storage.getImmobiliEsterniByCliente(parsed.data.clienteId);
+        if (immobiliEsterni.length > 0) {
+          // Link to the most recent immobile esterno of this client
+          dataToSave.immobileEsternoId = immobiliEsterni[0].id;
+        }
+      }
+      
+      const comunicazione = await storage.createComunicazione(dataToSave);
       res.status(201).json(comunicazione);
     } catch (error) {
       console.error("Create comunicazione error:", error);
