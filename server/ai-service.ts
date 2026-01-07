@@ -217,8 +217,81 @@ const ITALIAN_MOBILE_COMPACT = /(?:\+39[\s.-]?)?3[0-9]{8,9}/g;
 
 const EMAIL_PATTERN = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
 
-// Known advertising/service numbers to exclude
-const EXCLUDED_PHONE_PREFIXES = ['800', '840', '841', '842', '843', '844', '845', '846', '847', '848', '199', '899'];
+// Valid Italian landline prefixes (main cities and areas)
+const VALID_LANDLINE_PREFIXES = [
+  '02',   // Milano
+  '06',   // Roma
+  '010',  // Genova
+  '011',  // Torino
+  '015',  // Biella
+  '019',  // Savona
+  '030',  // Brescia
+  '031',  // Como
+  '035',  // Bergamo
+  '039',  // Monza
+  '040',  // Trieste
+  '041',  // Venezia
+  '045',  // Verona
+  '049',  // Padova
+  '050',  // Pisa
+  '051',  // Bologna
+  '055',  // Firenze
+  '059',  // Modena
+  '070',  // Cagliari
+  '071',  // Ancona
+  '075',  // Perugia
+  '079',  // Sassari
+  '080',  // Bari
+  '081',  // Napoli
+  '085',  // Pescara
+  '089',  // Salerno
+  '090',  // Messina
+  '091',  // Palermo
+  '095',  // Catania
+  '099',  // Taranto
+];
+
+// Known advertising/service numbers to exclude (prefix patterns)
+const EXCLUDED_PHONE_PATTERNS = [
+  /^800/,   // Numeri verdi
+  /^84[0-8]/, // Numeri a pagamento 840-848
+  /^199/,   // Numeri a pagamento
+  /^899/,   // Numeri a pagamento
+  /^178/,   // Servizi
+  /^166/,   // Servizi
+  /^144/,   // Servizi
+  /^0[0-9]*0{4,}/, // Numeri con 4+ zeri consecutivi (probabilmente codici)
+];
+
+// Check if number looks like a reference code (not a real phone)
+function looksLikeReferenceCode(phone: string): boolean {
+  // Contains 4+ consecutive zeros
+  if (/0{4,}/.test(phone)) return true;
+  // Contains 4+ consecutive same digits
+  if (/(\d)\1{3,}/.test(phone)) return true;
+  // Starts with unusual patterns for Italian phones
+  if (/^08[2-9]/.test(phone)) return true; // 082-089 are not common Italian prefixes
+  // Too many digits (likely a reference code)
+  if (phone.length > 12) return true;
+  return false;
+}
+
+// Validate if a landline number has a real Italian prefix
+function isValidLandlinePrefix(phone: string): boolean {
+  for (const prefix of VALID_LANDLINE_PREFIXES) {
+    if (phone.startsWith(prefix)) return true;
+  }
+  // Also accept 01XX, 02X, 03XX, 04XX, 05XX patterns that aren't in main list
+  // but only if they follow Italian format (0XX followed by 6-8 digits)
+  if (/^0[1-9][0-9]/.test(phone)) {
+    const afterPrefix = phone.substring(3);
+    // Real landlines have 6-8 digits after the prefix
+    if (afterPrefix.length >= 6 && afterPrefix.length <= 8) {
+      return true;
+    }
+  }
+  return false;
+}
 
 function extractPhoneFromText(text: string): string | undefined {
   // Priority 1: Mobile numbers (3xx) - most likely to be the owner
@@ -228,6 +301,11 @@ function extractPhoneFromText(text: string): string | undefined {
       for (const match of matches) {
         const phone = match.replace(/[\s.-]/g, '').replace(/^\+39/, '');
         if (phone.length >= 9 && phone.length <= 11 && phone.startsWith('3')) {
+          // Extra validation: check for reference code patterns
+          if (looksLikeReferenceCode(phone)) {
+            console.log(`[AI] Skipping mobile-looking reference code: ${phone}`);
+            continue;
+          }
           console.log(`[AI] Found mobile phone: ${phone}`);
           return phone;
         }
@@ -235,20 +313,42 @@ function extractPhoneFromText(text: string): string | undefined {
     }
   }
   
-  // Priority 2: Landline numbers (02, 06, etc) but NOT service numbers (800, 84x, etc)
-  const landlinePattern = /(?:\+39[\s.-]?)?0[0-9]{1,3}[\s.-]?[0-9]{5,8}/g;
-  const landlineMatches = text.match(landlinePattern);
+  // Priority 2: Landline numbers with STRICT validation
+  // Look for numbers with separators (more likely to be real phones)
+  const landlineWithSeparators = /(?:\+39[\s.-]?)?0[0-9]{1,2}[\s.-][0-9]{3,4}[\s.-]?[0-9]{3,4}/g;
+  const landlineMatches = text.match(landlineWithSeparators);
   if (landlineMatches) {
     for (const match of landlineMatches) {
       const phone = match.replace(/[\s.-]/g, '').replace(/^\+39/, '');
-      const prefix = phone.substring(0, 3);
-      if (!EXCLUDED_PHONE_PREFIXES.includes(prefix) && phone.length >= 9 && phone.length <= 12) {
-        console.log(`[AI] Found landline phone: ${phone}`);
+      
+      // Check against excluded patterns
+      const isExcluded = EXCLUDED_PHONE_PATTERNS.some(pattern => pattern.test(phone));
+      if (isExcluded) {
+        console.log(`[AI] Skipping excluded pattern: ${phone}`);
+        continue;
+      }
+      
+      // Check if looks like reference code
+      if (looksLikeReferenceCode(phone)) {
+        console.log(`[AI] Skipping reference code: ${phone}`);
+        continue;
+      }
+      
+      // Validate prefix
+      if (!isValidLandlinePrefix(phone)) {
+        console.log(`[AI] Skipping invalid landline prefix: ${phone}`);
+        continue;
+      }
+      
+      if (phone.length >= 9 && phone.length <= 11) {
+        console.log(`[AI] Found valid landline phone: ${phone}`);
         return phone;
       }
     }
   }
   
+  // DO NOT fallback to compact landline patterns - too risky for false positives
+  console.log(`[AI] No valid phone number found in text`);
   return undefined;
 }
 
