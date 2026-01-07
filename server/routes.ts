@@ -6,7 +6,7 @@ import {
   insertComunicazioneSchema, insertAppuntamentoSchema, insertMatchingSchema,
   insertImmobileEsternoSchema, insertWhatsappCampaignSchema, insertCampaignMessageSchema
 } from "@shared/schema";
-import { parseRequestWithAI, calculateMatchScore, generateAICoachMessage, parsePropertyListingWithAI, parsePropertyImageWithAI, generateAcquisitionMessage } from "./ai-service";
+import { parseRequestWithAI, calculateMatchScore, generateAICoachMessage, parsePropertyListingWithAI, parsePropertyImageWithAI, generateAcquisitionMessage, generateMirroring } from "./ai-service";
 import { whatsappWS } from "./websocket";
 import { sendWhatsAppMessage, isUltraMsgConfigured } from "./ultramsg";
 import { exec } from "child_process";
@@ -1874,14 +1874,14 @@ FIRMA: Un cordiale saluto, l'Assistente del Dott. Ilan Boni`;
         return res.status(400).json({ error: "Nessun immobile con telefono da contattare. Importa nuovi immobili dalla sezione Acquisizione." });
       }
 
-      // Default template
+      // Template with {{mirroring}} placeholder
       const defaultTemplate = `Gentile Proprietario,
 sono l'assistente del Dott. Ilan Boni.
 
 Il Dott. Boni è agente immobiliare da oltre trent'anni, proprietario di due agenzie a Milano e Vicepresidente della Comunità Ebraica di Milano. La sua attività lo porta ogni giorno a confrontarsi con investitori italiani e stranieri che guardano a Milano come a un'opportunità concreta, spesso legata alla flat tax.
 
 Ha notato il suo immobile in {{via}}.
-Caratteristiche come {{caratteristiche}} sono oggi molto richieste da chi cerca immobili con potenzialità immediate, sia in termini di rendimento sia di stabilità del valore nel tempo.
+{{mirroring}}
 
 Il Dott. Boni vorrebbe capire se il suo immobile può inserirsi in un percorso di lavoro molto preciso.
 Nel 2025 ha concluso 14 vendite e, negli ultimi anni, il suo metodo gli ha permesso di chiudere positivamente il 94% dei mandati affidati, mettendo gli acquirenti in concorrenza tra loro e non al ribasso contro il proprietario.
@@ -1900,24 +1900,44 @@ Assistente del Dott. Ilan Boni`;
       // Send messages with rate limiting
       let sentCount = 0;
       let failedCount = 0;
-      const results: { phoneNumber: string; indirizzo: string; success: boolean; error?: string }[] = [];
+      const results: { phoneNumber: string; indirizzo: string; success: boolean; error?: string; mirroring?: string }[] = [];
 
       for (const property of uniquePropertiesToContact) {
         try {
-          // Build characteristics string
-          const caratteristiche: string[] = [];
-          if (property.mq) caratteristiche.push(`${property.mq} mq`);
-          if (property.camere) caratteristiche.push(`${property.camere} camere`);
-          if (property.balcone) caratteristiche.push("balcone");
-          if (property.terrazzo) caratteristiche.push("terrazzo");
-          if (property.ascensore) caratteristiche.push("ascensore");
-          if (property.box) caratteristiche.push("box");
-          if (property.statoRistrutturato) caratteristiche.push("ristrutturato");
+          // Generate AI mirroring from the property listing text
+          let mirroringText = "";
+          if (property.descrizione) {
+            try {
+              const mirroringResult = await generateMirroring({
+                testoAnnuncio: property.descrizione,
+                tipoUnita: property.camere ? `${property.camere} locali` : null,
+                zonaOVia: property.indirizzo || property.zona
+              });
+              mirroringText = mirroringResult.mirroring;
+            } catch (e) {
+              console.log("Mirroring generation failed, using fallback:", e);
+            }
+          }
+          
+          // Fallback: Build characteristics string if no mirroring generated
+          if (!mirroringText) {
+            const caratteristiche: string[] = [];
+            if (property.mq) caratteristiche.push(`${property.mq} mq`);
+            if (property.camere) caratteristiche.push(`${property.camere} camere`);
+            if (property.balcone) caratteristiche.push("balcone");
+            if (property.terrazzo) caratteristiche.push("terrazzo");
+            if (property.ascensore) caratteristiche.push("ascensore");
+            if (property.box) caratteristiche.push("box");
+            if (property.statoRistrutturato) caratteristiche.push("ristrutturato");
+            mirroringText = caratteristiche.length > 0 
+              ? `Caratteristiche come ${caratteristiche.join(", ")} sono oggi molto richieste da chi cerca immobili con potenzialita immediate, sia in termini di rendimento sia di stabilita del valore nel tempo.`
+              : "Le sue caratteristiche sono oggi molto richieste da chi cerca immobili con potenzialita immediate.";
+          }
           
           // Personalize message
           const personalizedMessage = defaultTemplate
             .replace(/\{\{via\}\}/g, property.indirizzo || "questa zona")
-            .replace(/\{\{caratteristiche\}\}/g, caratteristiche.length > 0 ? caratteristiche.join(", ") : "le sue caratteristiche");
+            .replace(/\{\{mirroring\}\}/g, mirroringText);
 
           // Send via UltraMsg
           const result = await sendWhatsAppMessage(property.contattoTelefono!, personalizedMessage);
@@ -2232,6 +2252,28 @@ Assistente del Dott. Ilan Boni`;
   });
 
   // ==================== BOT SIMULATION ====================
+
+  // Generate mirroring text from property description
+  app.post("/api/bot/generate-mirroring", async (req, res) => {
+    try {
+      const { testoAnnuncio, tipoUnita, zonaOVia } = req.body;
+      
+      if (!testoAnnuncio) {
+        return res.status(400).json({ error: "Testo annuncio richiesto" });
+      }
+
+      const result = await generateMirroring({
+        testoAnnuncio,
+        tipoUnita,
+        zonaOVia
+      });
+
+      res.json(result);
+    } catch (error) {
+      console.error("Generate mirroring error:", error);
+      res.status(500).json({ error: "Errore nella generazione del mirroring" });
+    }
+  });
 
   // Generate initial message with AI mirroring for simulation
   app.post("/api/bot/generate-initial-message", async (req, res) => {

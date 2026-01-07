@@ -804,3 +804,58 @@ export async function generateAcquisitionMessage(
       .replace(/\{\{caratteristiche\}\}/g, "le sue caratteristiche");
   }
 }
+
+export interface MirroringInput {
+  testoAnnuncio: string;
+  tipoUnita?: string | null;
+  zonaOVia?: string | null;
+}
+
+export interface MirroringOutput {
+  mirroring: string;
+}
+
+export async function generateMirroring(input: MirroringInput): Promise<MirroringOutput> {
+  try {
+    const systemPrompt = `Sei un assistente che legge annunci immobiliari scritti da privati e produce 1–3 frasi di mirroring da usare in un messaggio WhatsApp di primo contatto.
+
+ATTENZIONE: il testo che generi verra inserito subito dopo la frase "Ha notato il suo immobile in ..." e prima del resto del messaggio standard. Quindi:
+- NON ripetere l'indirizzo.
+- NON iniziare con "Ha notato..." o simili.
+- NON inserire saluti (niente "Gentile Proprietario" ecc.).
+- NON nominare Ilan Boni o l'agenzia.
+- NON fare domande.
+- NON fare complimenti esagerati o promesse.
+
+Usa un tono sobrio, professionale e realistico.
+Puoi menzionare: tipologia (bilocale, trilocale...), metratura, piano, esposizione, caratteristiche distintive (terrazzo, doppi servizi, cantina, box...), stato dell'immobile, luminosita, posizione rispetto a servizi o mezzi, anno di costruzione se citato.
+Se l'annuncio e molto scarno, limita il mirroring a una sola frase generica ma pertinente.
+
+Rispondi SOLO con un oggetto JSON nel formato: {"mirroring": "testo"}`;
+
+    const userMessage = `Testo annuncio: ${input.testoAnnuncio}
+${input.tipoUnita ? `Tipo unita: ${input.tipoUnita}` : ''}
+${input.zonaOVia ? `Zona/via: ${input.zonaOVia}` : ''}`;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMessage }
+      ],
+      max_completion_tokens: 300,
+      temperature: 0.3,
+      response_format: { type: "json_object" }
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (content) {
+      const parsed = JSON.parse(content);
+      return { mirroring: parsed.mirroring || "" };
+    }
+    return { mirroring: "" };
+  } catch (error) {
+    console.error("Mirroring generation error:", error);
+    return { mirroring: "" };
+  }
+}
