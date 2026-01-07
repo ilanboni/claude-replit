@@ -1307,6 +1307,18 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         return res.status(400).json({ error: "Dati non validi", details: parsed.error });
       }
       
+      // Extract property facts from description using AI
+      let extractedFacts = null;
+      const descrizioneOrTesto = parsed.data.descrizione || parsed.data.testoOriginale;
+      if (descrizioneOrTesto) {
+        try {
+          extractedFacts = await extractPropertyFacts(descrizioneOrTesto);
+          console.log("Extracted property facts:", extractedFacts);
+        } catch (e) {
+          console.log("Could not extract property facts:", e);
+        }
+      }
+      
       // Auto-create prospect client if we have contact info (phone or email required)
       let clienteProspect = null;
       const { contattoTelefono, contattoEmail } = parsed.data;
@@ -1427,10 +1439,63 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         }
       }
 
+      // Merge extracted facts with parsed data (extracted facts fill in missing fields)
+      let enrichedData = { ...parsed.data };
+      if (extractedFacts) {
+        // Map extracted facts to schema fields (only fill if not already provided)
+        const parsePiano = (piano: string | null): number | null => {
+          if (!piano) return null;
+          const lower = piano.toLowerCase();
+          if (lower === "terra" || lower === "t" || lower === "pt") return 0;
+          if (lower === "rialzato" || lower === "r") return 1;
+          const num = parseInt(piano);
+          return isNaN(num) ? null : num;
+        };
+        
+        // Safely coerce boolean values (avoid undefined becoming false unexpectedly)
+        const safeBoolean = (val: boolean | null | undefined, current: boolean | null | undefined): boolean | undefined => {
+          if (current !== null && current !== undefined) return current;
+          return val === true ? true : undefined;
+        };
+        
+        // Check if balconi count is valid and > 0
+        const hasBalcone = typeof extractedFacts.balconi === 'number' && extractedFacts.balconi > 0;
+        
+        enrichedData = {
+          ...enrichedData,
+          // Only override if the field is empty/null
+          zona: enrichedData.zona || extractedFacts.zona_testuale || undefined,
+          camere: enrichedData.camere ?? extractedFacts.numero_camere ?? undefined,
+          bagni: enrichedData.bagni ?? extractedFacts.numero_bagni ?? undefined,
+          piano: enrichedData.piano ?? parsePiano(extractedFacts.piano) ?? undefined,
+          ascensore: safeBoolean(extractedFacts.ascensore, enrichedData.ascensore),
+          balcone: enrichedData.balcone === true ? true : (hasBalcone ? true : undefined),
+          terrazzo: safeBoolean(extractedFacts.terrazzo, enrichedData.terrazzo),
+          cantina: safeBoolean(extractedFacts.cantina, enrichedData.cantina),
+          arredato: safeBoolean(extractedFacts.arredato, enrichedData.arredato),
+          box: safeBoolean(extractedFacts.posto_auto_o_bici, enrichedData.box),
+          statoRistrutturato: safeBoolean(extractedFacts.ristrutturato, enrichedData.statoRistrutturato),
+          classeEnergetica: enrichedData.classeEnergetica || extractedFacts.classe_energetica || undefined,
+          // Store additional extracted data in caratteristiche
+          caratteristiche: {
+            ...(enrichedData.caratteristiche || {}),
+            extractedFacts: {
+              tipo_unita: extractedFacts.tipo_unita,
+              doppia_esposizione: extractedFacts.doppia_esposizione,
+              ultimo_piano: extractedFacts.ultimo_piano,
+              portineria: extractedFacts.portineria,
+              anno_ristrutturazione: extractedFacts.anno_ristrutturazione,
+              metro_o_trasporti: extractedFacts.metro_o_trasporti,
+              balconi: extractedFacts.balconi
+            }
+          }
+        };
+      }
+      
       // Create immobile with clienteId if we have a prospect
       const immobileData = clienteProspect 
-        ? { ...parsed.data, clienteId: clienteProspect.id }
-        : parsed.data;
+        ? { ...enrichedData, clienteId: clienteProspect.id }
+        : enrichedData;
       
       const immobile = await storage.createImmobileEsterno(immobileData);
       
@@ -1529,6 +1594,17 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
       if (immobile.ascensore) campiEstratti.push("ascensore presente");
       if (immobile.bagni) campiEstratti.push(`${immobile.bagni} bagni`);
       
+      // Add AI-extracted facts from caratteristiche if available
+      const extractedFacts = (immobile.caratteristiche as any)?.extractedFacts;
+      if (extractedFacts) {
+        if (extractedFacts.tipo_unita && !tipoUnita) tipoUnita = extractedFacts.tipo_unita;
+        if (extractedFacts.doppia_esposizione) campiEstratti.push("doppia esposizione");
+        if (extractedFacts.ultimo_piano) campiEstratti.push("ultimo piano");
+        if (extractedFacts.portineria) campiEstratti.push("portineria");
+        if (extractedFacts.metro_o_trasporti) campiEstratti.push(`vicino a ${extractedFacts.metro_o_trasporti}`);
+        if (extractedFacts.balconi && extractedFacts.balconi > 1) campiEstratti.push(`${extractedFacts.balconi} balconi`);
+      }
+      
       if (campiEstratti.length > 0) {
         context += `\n\nCampi già estratti:\n${campiEstratti.join("\n")}`;
       }
@@ -1588,26 +1664,29 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
       if (immobile.mq) campiEstratti.push(`metratura: ${immobile.mq} mq`);
       if (immobile.camere) campiEstratti.push(`camere: ${immobile.camere}`);
       
+      // Add AI-extracted facts from caratteristiche if available
+      const extractedFacts = (immobile.caratteristiche as any)?.extractedFacts;
+      if (extractedFacts) {
+        if (extractedFacts.tipo_unita) campiEstratti.push(`tipo_unita: ${extractedFacts.tipo_unita}`);
+        if (extractedFacts.doppia_esposizione) campiEstratti.push("doppia_esposizione: si");
+        if (extractedFacts.ultimo_piano) campiEstratti.push("ultimo_piano: si");
+        if (extractedFacts.portineria) campiEstratti.push("portineria: si");
+        if (extractedFacts.metro_o_trasporti) campiEstratti.push(`metro_o_trasporti: ${extractedFacts.metro_o_trasporti}`);
+        if (extractedFacts.balconi) campiEstratti.push(`numero_balconi: ${extractedFacts.balconi}`);
+      }
+      
       if (campiEstratti.length > 0) {
         context += `\n\nCampi già estratti:\n${campiEstratti.join("\n")}`;
       }
 
-      const OpenAI = (await import("openai")).default;
-      const openaiClient = new OpenAI({
-        apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-        baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-      });
-      const response = await openaiClient.chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-          { role: "system", content: MIRRORING_PROMPT },
-          { role: "user", content: context }
-        ],
-        temperature: 0.3,
-        max_tokens: 300
+      // Use the centralized generateMirroring function for consistency
+      const result = await generateMirroring({
+        testoAnnuncio: immobile.descrizione || immobile.titolo || '',
+        tipoUnita: extractedFacts?.tipo_unita || undefined,
+        zonaOVia: immobile.zona || immobile.indirizzo || undefined
       });
 
-      const mirroring = response.choices[0]?.message?.content?.trim() || "";
+      const mirroring = result.mirroring;
       res.json({ mirroring });
     } catch (error) {
       console.error("Generate mirroring error:", error);
