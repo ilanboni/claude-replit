@@ -621,7 +621,7 @@ GESTIONE OBIEZIONI: ${JSON.stringify(selectedCampaign.objectionHandling || {}, n
                                 {msg.role === "assistant" ? "Dott. Boni" : "Proprietario"}
                               </span>
                             </div>
-                            <p className="text-sm">{msg.content}</p>
+                            <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
                           </div>
                         </div>
                       ))}
