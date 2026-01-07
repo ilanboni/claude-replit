@@ -2190,27 +2190,38 @@ FORMATO RISPOSTE:
 
       // Handle message acknowledgment (delivery/read status)
       if (data.ack !== undefined && data.ack !== "") {
-        const ackStatus = parseInt(data.ack);
         let newStatus = "sent";
         
-        // UltraMsg ack values: 1=sent, 2=delivered, 3=read
-        if (ackStatus === 2) {
+        // UltraMsg ack string values: "server"=sent, "device"=delivered, "read"=read
+        const ackValue = String(data.ack).toLowerCase();
+        if (ackValue === "device" || ackValue === "2") {
           newStatus = "delivered";
-        } else if (ackStatus === 3) {
+        } else if (ackValue === "read" || ackValue === "3") {
           newStatus = "read";
+        } else if (ackValue === "server" || ackValue === "1") {
+          newStatus = "sent";
         }
 
         // Find message by whatsappMessageId and update status
-        if (data.id) {
+        // UltraMsg sends 'id' in the root object (e.g., 658) and 'data.id' as full WhatsApp ID
+        const messageIdToFind = String(req.body.id || data.sid || "");
+        
+        if (messageIdToFind) {
           const conversations = await storage.getWhatsappConversations();
+          let found = false;
           for (const conv of conversations) {
             const messages = await storage.getWhatsappMessages(conv.id);
-            const msg = messages.find(m => m.whatsappMessageId === data.id);
+            const msg = messages.find(m => m.whatsappMessageId === messageIdToFind);
             if (msg) {
               await storage.updateWhatsappMessageStatus(msg.id, newStatus);
               whatsappWS.notifyNewMessage(conv.id, { ...msg, status: newStatus, conversationId: conv.id });
+              found = true;
+              console.log(`Updated message ${msg.id} status to ${newStatus}`);
               break;
             }
+          }
+          if (!found) {
+            console.log(`Message not found for ID: ${messageIdToFind}`);
           }
         }
         
