@@ -7,6 +7,7 @@ import {
   insertImmobileEsternoSchema, insertWhatsappCampaignSchema, insertCampaignMessageSchema
 } from "@shared/schema";
 import { parseRequestWithAI, calculateMatchScore, generateAICoachMessage, parsePropertyListingWithAI, parsePropertyImageWithAI, generateAcquisitionMessage } from "./ai-service";
+import { whatsappWS } from "./websocket";
 import { exec } from "child_process";
 import { promisify } from "util";
 import * as fs from "fs";
@@ -2048,6 +2049,15 @@ FORMATO RISPOSTE:
       // For now, just mark as sent
       await storage.updateWhatsappMessageStatus(message.id, "sent");
 
+      // Fetch updated conversation with correct state
+      const updatedConversation = await storage.getWhatsappConversation(conversation.id);
+      
+      // Notify WebSocket clients with conversationId included
+      whatsappWS.notifyNewMessage(conversation.id, { ...message, conversationId: conversation.id });
+      if (updatedConversation) {
+        whatsappWS.notifyConversationUpdate({ ...updatedConversation, conversationId: updatedConversation.id });
+      }
+
       res.json({ success: true, message, conversationId: conversation.id });
     } catch (error) {
       console.error("Send WhatsApp message error:", error);
@@ -2058,12 +2068,25 @@ FORMATO RISPOSTE:
   // Webhook to receive incoming WhatsApp messages
   app.post("/api/webhook/whatsapp", async (req, res) => {
     try {
+      // Verify webhook signature/token for security
+      const webhookToken = req.headers["x-webhook-token"] || req.query.token;
+      const expectedToken = process.env.WHATSAPP_WEBHOOK_TOKEN || "immogest_webhook_secret";
+      
+      if (webhookToken !== expectedToken) {
+        console.warn("WhatsApp webhook: invalid token attempt");
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
       console.log("WhatsApp Webhook received:", JSON.stringify(req.body, null, 2));
       
-      // Extract message data (format depends on WhatsApp provider: Twilio, Meta, etc.)
+      // Validate payload structure
       const { from, body, messageSid, profileName } = req.body;
       
-      if (!from || !body) {
+      if (!from || typeof from !== "string") {
+        return res.status(400).json({ error: "Missing or invalid 'from' field" });
+      }
+      
+      if (!body || typeof body !== "string") {
         return res.status(200).json({ status: "ignored", reason: "no message content" });
       }
 
@@ -2123,8 +2146,14 @@ FORMATO RISPOSTE:
         esito: null
       });
 
-      // Broadcast to WebSocket clients (will be implemented)
-      // wsServer.broadcast({ type: 'new_message', conversation, message });
+      // Fetch updated conversation with correct unread count
+      const updatedConversation = await storage.getWhatsappConversation(conversation.id);
+      
+      // Broadcast to WebSocket clients with conversationId
+      whatsappWS.notifyNewMessage(conversation.id, { ...message, conversationId: conversation.id });
+      if (updatedConversation) {
+        whatsappWS.notifyConversationUpdate({ ...updatedConversation, conversationId: updatedConversation.id });
+      }
 
       res.status(200).json({ status: "ok", messageId: message.id });
     } catch (error) {
@@ -2154,6 +2183,10 @@ FORMATO RISPOSTE:
   app.post("/api/whatsapp/conversations/:id/read", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
+      const conversation = await storage.getWhatsappConversation(id);
+      if (!conversation) {
+        return res.status(404).json({ error: "Conversazione non trovata" });
+      }
       await storage.updateWhatsappConversation(id, { nonLetti: 0 });
       res.json({ success: true });
     } catch (error) {

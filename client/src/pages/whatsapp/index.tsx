@@ -1,7 +1,6 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -21,12 +20,82 @@ import {
   Clock,
   User,
   Home,
-  MoreVertical
+  MoreVertical,
+  Wifi,
+  WifiOff
 } from "lucide-react";
 import type { WhatsappConversation, WhatsappMessage, Cliente } from "@shared/schema";
 
+function useWhatsAppWebSocket() {
+  const [isConnected, setIsConnected] = useState(false);
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const connect = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) return;
+
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const ws = new WebSocket(`${protocol}//${window.location.host}/ws/whatsapp`);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      console.log("WhatsApp WebSocket connected");
+      setIsConnected(true);
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === "new_message") {
+          queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/conversations"] });
+          const convId = data.data?.conversationId;
+          if (convId) {
+            queryClient.invalidateQueries({ 
+              queryKey: ["/api/whatsapp/conversations", convId] 
+            });
+          }
+        } else if (data.type === "conversation_update") {
+          queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/conversations"] });
+          const convId = data.data?.conversationId || data.data?.id;
+          if (convId) {
+            queryClient.invalidateQueries({ 
+              queryKey: ["/api/whatsapp/conversations", convId] 
+            });
+          }
+        }
+      } catch (e) {
+        console.error("WebSocket message parse error:", e);
+      }
+    };
+
+    ws.onclose = () => {
+      console.log("WhatsApp WebSocket disconnected");
+      setIsConnected(false);
+      reconnectTimeoutRef.current = setTimeout(connect, 3000);
+    };
+
+    ws.onerror = (error) => {
+      console.error("WebSocket error:", error);
+      ws.close();
+    };
+  }, []);
+
+  useEffect(() => {
+    connect();
+    return () => {
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+      wsRef.current?.close();
+    };
+  }, [connect]);
+
+  return { isConnected };
+}
+
 export default function WhatsAppPage() {
   const { toast } = useToast();
+  const { isConnected } = useWhatsAppWebSocket();
   const [selectedConversationId, setSelectedConversationId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [messageText, setMessageText] = useState("");
@@ -34,7 +103,7 @@ export default function WhatsAppPage() {
 
   const { data: conversations = [], isLoading: loadingConversations } = useQuery<WhatsappConversation[]>({
     queryKey: ["/api/whatsapp/conversations"],
-    refetchInterval: 5000
+    refetchInterval: isConnected ? false : 5000
   });
 
   const { data: conversationData, isLoading: loadingMessages } = useQuery<{ 
@@ -43,7 +112,7 @@ export default function WhatsAppPage() {
   }>({
     queryKey: ["/api/whatsapp/conversations", selectedConversationId],
     enabled: !!selectedConversationId,
-    refetchInterval: 3000
+    refetchInterval: isConnected ? false : 3000
   });
 
   const { data: clienti = [] } = useQuery<Cliente[]>({
@@ -145,9 +214,16 @@ export default function WhatsAppPage() {
           <div className="flex items-center gap-2 mb-3">
             <MessageSquare className="h-5 w-5 text-green-600" />
             <h2 className="font-semibold">WhatsApp</h2>
-            <Badge variant="secondary" className="ml-auto">
-              {conversations.filter(c => (c.nonLetti ?? 0) > 0).length}
-            </Badge>
+            <div className="ml-auto flex items-center gap-2">
+              {isConnected ? (
+                <Wifi className="h-4 w-4 text-green-500" />
+              ) : (
+                <WifiOff className="h-4 w-4 text-muted-foreground" />
+              )}
+              <Badge variant="secondary">
+                {conversations.filter(c => (c.nonLetti ?? 0) > 0).length}
+              </Badge>
+            </div>
           </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

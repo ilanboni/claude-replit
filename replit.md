@@ -66,6 +66,8 @@ Preferred communication style: Simple, everyday language.
 - `whatsapp_campaigns` - WhatsApp acquisition campaigns for private sellers
 - `campaign_messages` - Individual messages sent in campaigns with tracking
 - `bot_conversation_logs` - AI chatbot conversation logs with intent analysis
+- `whatsapp_conversations` - Real-time WhatsApp chat conversations by phone number
+- `whatsapp_messages` - Individual WhatsApp messages with delivery status tracking
 
 **Migrations:** Managed via Drizzle Kit with `drizzle-kit push` command
 
@@ -108,8 +110,14 @@ Preferred communication style: Simple, everyday language.
 - **OpenAI API** - GPT-4o for text processing, gpt-image-1 for image generation
 - Environment variables: `AI_INTEGRATIONS_OPENAI_API_KEY`, `AI_INTEGRATIONS_OPENAI_BASE_URL`
 
-### Communication Integrations (Prepared)
-- **WhatsApp** - Webhook endpoints structured for Twilio/Meta API integration
+### Communication Integrations
+- **WhatsApp Chat** - Full WhatsApp-style messaging interface with:
+  - `/api/whatsapp/conversations` - Conversation management
+  - `/api/whatsapp/send` - Send outbound messages
+  - `/api/webhook/whatsapp` - Receive incoming messages (secured with token)
+  - WebSocket `/ws/whatsapp` - Real-time updates for new messages
+  - Automatic client matching by phone number
+  - Message delivery status tracking (pending, sent, delivered, read)
 - **Gmail** - OAuth-based email integration (architecture prepared)
 
 ### UI Libraries
