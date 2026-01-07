@@ -17,7 +17,7 @@ import type { ImmobileEsterno } from "@shared/schema";
 import { 
   Search, Star, StarOff, Phone, Mail, ExternalLink, MapPin, Home, Euro, 
   Trash2, MessageSquare, Copy, Check, Loader2, Sparkles, Building2, Plus,
-  Image, FileText, Upload, X, Ruler, Bath, Eye
+  Image, FileText, Upload, X, Ruler, Bath, Eye, Send
 } from "lucide-react";
 
 interface ParsedListing {
@@ -72,6 +72,9 @@ function ParseAnnuncioForm({ onSuccess }: { onSuccess: () => void }) {
   const [filePreview, setFilePreview] = useState<string | null>(null);
   const [parsedData, setParsedData] = useState<ParsedListing | null>(null);
   const [showPreview, setShowPreview] = useState(false);
+  const [manualPhone, setManualPhone] = useState("");
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [checkingPhone, setCheckingPhone] = useState(false);
 
   const parseMutation = useMutation({
     mutationFn: async (data: { text: string; url?: string }) => {
@@ -229,10 +232,32 @@ function ParseAnnuncioForm({ onSuccess }: { onSuccess: () => void }) {
     },
   });
 
+  // Check phone duplicate
+  const checkPhoneDuplicate = async (phone: string): Promise<boolean> => {
+    if (!phone.trim()) return false;
+    setCheckingPhone(true);
+    setPhoneError(null);
+    try {
+      const res = await fetch(`/api/acquisizione/check-phone?phone=${encodeURIComponent(phone)}`);
+      const data = await res.json();
+      if (data.exists) {
+        setPhoneError(`Numero già presente: ${data.immobile?.titolo || 'altro immobile'}`);
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    } finally {
+      setCheckingPhone(false);
+    }
+  };
+
   const saveMutation = useMutation({
     mutationFn: async (data: ParsedListing) => {
+      const phoneToUse = manualPhone.trim() || data.contattoTelefono;
       const res = await apiRequest("POST", "/api/acquisizione", {
         ...data,
+        contattoTelefono: phoneToUse || undefined,
         testoOriginale: annuncioText || undefined,
         urlAnnuncio: annuncioUrl || undefined,
       });
@@ -267,6 +292,8 @@ function ParseAnnuncioForm({ onSuccess }: { onSuccess: () => void }) {
     setFilePreview(null);
     setParsedData(null);
     setShowPreview(false);
+    setManualPhone("");
+    setPhoneError(null);
   };
 
   const fileToBase64 = (file: File): Promise<string> => {
@@ -610,25 +637,40 @@ function ParseAnnuncioForm({ onSuccess }: { onSuccess: () => void }) {
                 </div>
 
                 <div className="col-span-3 border-t pt-4">
-                  <Label className="text-muted-foreground text-xs">Contatto</Label>
-                  <div className="flex gap-4 mt-1 flex-wrap">
-                    {parsedData.contattoNome && <p>{parsedData.contattoNome}</p>}
-                    {parsedData.contattoTelefono && (
-                      <Badge variant="secondary">
-                        <Phone className="h-3 w-3 mr-1" />
-                        {parsedData.contattoTelefono}
-                      </Badge>
-                    )}
-                    {parsedData.contattoEmail && (
-                      <Badge variant="secondary">
-                        <Mail className="h-3 w-3 mr-1" />
-                        {parsedData.contattoEmail}
-                      </Badge>
-                    )}
-                    {!parsedData.contattoNome && !parsedData.contattoTelefono && !parsedData.contattoEmail && (
-                      <span className="text-muted-foreground text-sm">Nessun contatto trovato</span>
-                    )}
+                  <Label className="text-muted-foreground text-xs font-semibold">Telefono Proprietario *</Label>
+                  <div className="flex gap-2 mt-2 items-start">
+                    <div className="flex-1">
+                      <Input
+                        placeholder="Inserisci numero telefono (es. 3331234567)"
+                        value={manualPhone || parsedData.contattoTelefono || ""}
+                        onChange={(e) => {
+                          setManualPhone(e.target.value);
+                          setPhoneError(null);
+                        }}
+                        onBlur={() => {
+                          const phone = manualPhone.trim() || parsedData.contattoTelefono || "";
+                          if (phone) checkPhoneDuplicate(phone);
+                        }}
+                        className={phoneError ? "border-red-500" : ""}
+                        data-testid="input-phone-manual"
+                      />
+                      {phoneError && (
+                        <p className="text-red-500 text-sm mt-1">{phoneError}</p>
+                      )}
+                      {checkingPhone && (
+                        <p className="text-muted-foreground text-sm mt-1 flex items-center gap-1">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          Verifica duplicati...
+                        </p>
+                      )}
+                    </div>
                   </div>
+                  {parsedData.contattoEmail && (
+                    <div className="flex items-center gap-2 mt-2">
+                      <Mail className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm">{parsedData.contattoEmail}</span>
+                    </div>
+                  )}
                 </div>
 
                 {parsedData.descrizione && (
@@ -646,8 +688,18 @@ function ParseAnnuncioForm({ onSuccess }: { onSuccess: () => void }) {
               Modifica
             </Button>
             <Button 
-              onClick={() => parsedData && saveMutation.mutate(parsedData)}
-              disabled={saveMutation.isPending}
+              onClick={async () => {
+                if (!parsedData) return;
+                const phone = manualPhone.trim() || parsedData.contattoTelefono || "";
+                if (!phone) {
+                  setPhoneError("Inserisci il numero di telefono del proprietario");
+                  return;
+                }
+                const isDuplicate = await checkPhoneDuplicate(phone);
+                if (isDuplicate) return;
+                saveMutation.mutate(parsedData);
+              }}
+              disabled={saveMutation.isPending || checkingPhone || !!phoneError}
               data-testid="button-save-immobile"
             >
               {saveMutation.isPending ? (
@@ -967,19 +1019,22 @@ function ImmobileEsternoCard({
 
 export default function AcquisizionePage() {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState("tutti");
+  const [activeTab, setActiveTab] = useState("daInviare");
   const [messageDialogOpen, setMessageDialogOpen] = useState(false);
   const [generatedMessage, setGeneratedMessage] = useState("");
   const [selectedImmobileId, setSelectedImmobileId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [messageCopied, setMessageCopied] = useState(false);
+  const [sendingWhatsapp, setSendingWhatsapp] = useState(false);
 
   const { data: immobili = [], isLoading } = useQuery<ImmobileEsterno[]>({
     queryKey: ["/api/acquisizione"],
   });
 
+  // Divide in Da Inviare (no messaggio) e Inviati (messaggio inviato)
+  const daInviare = immobili.filter(i => !i.messaggioInviato && i.statoContatto !== 'contattato');
+  const inviati = immobili.filter(i => i.messaggioInviato || i.statoContatto === 'contattato');
   const preferiti = immobili.filter(i => i.preferito);
-  const tutti = immobili;
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
@@ -1024,7 +1079,52 @@ export default function AcquisizionePage() {
     toast({ title: "Messaggio copiato" });
   };
 
-  const displayedImmobili = activeTab === "preferiti" ? preferiti : tutti;
+  const sendWhatsappMessage = async () => {
+    if (!selectedImmobileId || !generatedMessage) return;
+    
+    const immobile = immobili.find(i => i.id === selectedImmobileId);
+    if (!immobile?.contattoTelefono) {
+      toast({
+        title: "Telefono mancante",
+        description: "Inserisci il numero di telefono per inviare il messaggio",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSendingWhatsapp(true);
+    try {
+      const res = await apiRequest("POST", `/api/acquisizione/${selectedImmobileId}/send-whatsapp`, {
+        message: generatedMessage,
+        phone: immobile.contattoTelefono,
+      });
+      const result = await res.json();
+      
+      if (result.success) {
+        toast({ 
+          title: "Messaggio inviato", 
+          description: `WhatsApp inviato a ${immobile.contattoTelefono}` 
+        });
+        setMessageDialogOpen(false);
+        queryClient.invalidateQueries({ queryKey: ["/api/acquisizione"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/clienti"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/comunicazioni"] });
+        setActiveTab("inviati");
+      } else {
+        throw new Error(result.error || "Invio fallito");
+      }
+    } catch (error: any) {
+      toast({
+        title: "Errore invio",
+        description: error.message || "Impossibile inviare il messaggio WhatsApp",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingWhatsapp(false);
+    }
+  };
+
+  const displayedImmobili = activeTab === "preferiti" ? preferiti : activeTab === "inviati" ? inviati : daInviare;
 
   return (
     <div className="space-y-6 p-6">
@@ -1037,8 +1137,12 @@ export default function AcquisizionePage() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
-          <TabsTrigger value="tutti" data-testid="tab-tutti">
-            Tutti ({tutti.length})
+          <TabsTrigger value="daInviare" data-testid="tab-da-inviare">
+            Da Inviare ({daInviare.length})
+          </TabsTrigger>
+          <TabsTrigger value="inviati" data-testid="tab-inviati">
+            <Check className="h-4 w-4 mr-1" />
+            Inviati ({inviati.length})
           </TabsTrigger>
           <TabsTrigger value="preferiti" data-testid="tab-preferiti">
             <Star className="h-4 w-4 mr-1" />
@@ -1046,26 +1150,26 @@ export default function AcquisizionePage() {
           </TabsTrigger>
           <TabsTrigger value="nuovo" data-testid="tab-nuovo">
             <Plus className="h-4 w-4 mr-1" />
-            Nuovo Annuncio
+            Nuovo
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="tutti" className="mt-6">
+        <TabsContent value="daInviare" className="mt-6">
           {isLoading ? (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {[1, 2, 3].map(i => (
                 <Skeleton key={i} className="h-64" />
               ))}
             </div>
-          ) : tutti.length === 0 ? (
+          ) : daInviare.length === 0 ? (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <div className="rounded-full bg-muted p-4 mb-4">
                   <Search className="h-8 w-8 text-muted-foreground" />
                 </div>
-                <h3 className="text-lg font-medium">Nessun annuncio salvato</h3>
+                <h3 className="text-lg font-medium">Nessun annuncio da inviare</h3>
                 <p className="text-muted-foreground text-center mt-1">
-                  Inizia aggiungendo un annuncio da analizzare
+                  Aggiungi un annuncio per generare il messaggio
                 </p>
                 <Button className="mt-4" onClick={() => setActiveTab("nuovo")} data-testid="button-add-annuncio-empty">
                   <Plus className="h-4 w-4 mr-2" />
@@ -1075,7 +1179,34 @@ export default function AcquisizionePage() {
             </Card>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {displayedImmobili.map(immobile => (
+              {daInviare.map((immobile: ImmobileEsterno) => (
+                <ImmobileEsternoCard
+                  key={immobile.id}
+                  immobile={immobile}
+                  onGenerateMessage={handleGenerateMessage}
+                  onDelete={setDeletingId}
+                />
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="inviati" className="mt-6">
+          {inviati.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <div className="rounded-full bg-muted p-4 mb-4">
+                  <Check className="h-8 w-8 text-muted-foreground" />
+                </div>
+                <h3 className="text-lg font-medium">Nessun messaggio inviato</h3>
+                <p className="text-muted-foreground text-center mt-1">
+                  I messaggi inviati appariranno qui
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {inviati.map((immobile: ImmobileEsterno) => (
                 <ImmobileEsternoCard
                   key={immobile.id}
                   immobile={immobile}
@@ -1102,7 +1233,7 @@ export default function AcquisizionePage() {
             </Card>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {preferiti.map(immobile => (
+              {preferiti.map((immobile: ImmobileEsterno) => (
                 <ImmobileEsternoCard
                   key={immobile.id}
                   immobile={immobile}
@@ -1126,7 +1257,7 @@ export default function AcquisizionePage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <ParseAnnuncioForm onSuccess={() => setActiveTab("tutti")} />
+              <ParseAnnuncioForm onSuccess={() => setActiveTab("daInviare")} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -1157,11 +1288,11 @@ export default function AcquisizionePage() {
             </div>
           )}
 
-          <DialogFooter>
+          <DialogFooter className="gap-2 flex-wrap">
             <Button variant="outline" onClick={() => setMessageDialogOpen(false)} data-testid="button-close-message-dialog">
               Chiudi
             </Button>
-            <Button onClick={copyMessage} disabled={!generatedMessage} data-testid="button-copy-message">
+            <Button variant="secondary" onClick={copyMessage} disabled={!generatedMessage} data-testid="button-copy-message">
               {messageCopied ? (
                 <>
                   <Check className="h-4 w-4 mr-2" />
@@ -1170,7 +1301,25 @@ export default function AcquisizionePage() {
               ) : (
                 <>
                   <Copy className="h-4 w-4 mr-2" />
-                  Copia Messaggio
+                  Copia
+                </>
+              )}
+            </Button>
+            <Button 
+              onClick={sendWhatsappMessage} 
+              disabled={!generatedMessage || sendingWhatsapp}
+              className="bg-green-600 hover:bg-green-700"
+              data-testid="button-send-whatsapp"
+            >
+              {sendingWhatsapp ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Invio...
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4 mr-2" />
+                  Invia WhatsApp
                 </>
               )}
             </Button>

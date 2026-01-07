@@ -867,6 +867,34 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
     }
   });
 
+  // Check if phone number exists (duplicate check)
+  app.get("/api/acquisizione/check-phone", async (req, res) => {
+    try {
+      const phone = req.query.phone as string;
+      if (!phone) {
+        return res.json({ exists: false });
+      }
+      // Normalize phone (remove spaces, dashes, +39)
+      const normalizedPhone = phone.replace(/[\s\-\+]/g, '').replace(/^39/, '');
+      
+      const immobili = await storage.getImmobiliEsterni();
+      const existing = immobili.find(i => {
+        if (!i.contattoTelefono) return false;
+        const normalizedExisting = i.contattoTelefono.replace(/[\s\-\+]/g, '').replace(/^39/, '');
+        return normalizedExisting === normalizedPhone;
+      });
+      
+      if (existing) {
+        res.json({ exists: true, immobile: { id: existing.id, titolo: existing.titolo } });
+      } else {
+        res.json({ exists: false });
+      }
+    } catch (error) {
+      console.error("Check phone error:", error);
+      res.json({ exists: false });
+    }
+  });
+
   // Get single external property
   app.get("/api/acquisizione/:id", async (req, res) => {
     try {
@@ -1633,6 +1661,87 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
     } catch (error) {
       console.error("Generate message error:", error);
       res.status(500).json({ error: "Errore nella generazione del messaggio" });
+    }
+  });
+
+  // Send WhatsApp message and update immobile status
+  app.post("/api/acquisizione/:id/send-whatsapp", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { message, phone } = req.body;
+      
+      if (!message || !phone) {
+        return res.status(400).json({ error: "Messaggio e telefono richiesti" });
+      }
+
+      const immobile = await storage.getImmobileEsterno(id);
+      if (!immobile) {
+        return res.status(404).json({ error: "Immobile non trovato" });
+      }
+
+      // Send WhatsApp message
+      const { sendWhatsAppMessage } = await import("./ultramsg");
+      const result = await sendWhatsAppMessage(phone, message);
+      
+      if (!result.success) {
+        return res.status(500).json({ success: false, error: result.error });
+      }
+
+      // Update immobile status
+      await storage.updateImmobileEsterno(id, {
+        statoContatto: "contattato",
+        messaggioInviato: message,
+        dataContatto: new Date(),
+      });
+
+      // Helper to normalize phone numbers for comparison
+      const normalizePhone = (p: string) => p?.replace(/\D/g, '').replace(/^(0039|39)/, '') || '';
+      const normalizedPhone = normalizePhone(phone);
+      
+      // Create or find client "Proprietario di [indirizzo]"
+      const indirizzo = immobile.indirizzo || immobile.zona || "Immobile";
+      
+      // Check if client already exists by phone
+      const clienti = await storage.getClienti();
+      let cliente = clienti.find(c => normalizePhone(c.telefono || '') === normalizedPhone);
+      
+      if (!cliente) {
+        // Create new client
+        cliente = await storage.createCliente({
+          nome: "Proprietario",
+          cognome: indirizzo,
+          telefono: normalizedPhone,
+          email: immobile.contattoEmail || "",
+          tipoCliente: "venditore",
+          ratingCliente: 1,
+          note: `Prospect da acquisizione: ${immobile.titolo || indirizzo}`,
+          attivo: true,
+        });
+      }
+
+      // Update immobile with client association
+      await storage.updateImmobileEsterno(id, {
+        clienteId: cliente.id,
+      });
+
+      // Create communication record
+      await storage.createComunicazione({
+        clienteId: cliente.id,
+        immobileEsternoId: id,
+        tipo: "proposta",
+        testo: message,
+        canale: "whatsapp",
+        dataOra: new Date(),
+      });
+
+      res.json({ 
+        success: true, 
+        messageId: result.messageId,
+        cliente: cliente,
+      });
+    } catch (error) {
+      console.error("Send WhatsApp error:", error);
+      res.status(500).json({ success: false, error: "Errore nell'invio del messaggio" });
     }
   });
 
