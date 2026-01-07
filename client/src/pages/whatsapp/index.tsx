@@ -22,8 +22,17 @@ import {
   Home,
   MoreVertical,
   Wifi,
-  WifiOff
+  WifiOff,
+  Plus,
+  X
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import type { WhatsappConversation, WhatsappMessage, Cliente } from "@shared/schema";
 
 function useWhatsAppWebSocket() {
@@ -99,6 +108,9 @@ export default function WhatsAppPage() {
   const [selectedConversationId, setSelectedConversationId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [messageText, setMessageText] = useState("");
+  const [newChatOpen, setNewChatOpen] = useState(false);
+  const [newPhoneNumber, setNewPhoneNumber] = useState("");
+  const [newMessage, setNewMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const { data: conversations = [], isLoading: loadingConversations } = useQuery<WhatsappConversation[]>({
@@ -178,6 +190,25 @@ export default function WhatsAppPage() {
     });
   };
 
+  const handleNewChat = () => {
+    if (!newPhoneNumber.trim() || !newMessage.trim()) {
+      toast({ title: "Errore", description: "Inserisci numero e messaggio", variant: "destructive" });
+      return;
+    }
+    
+    sendMessageMutation.mutate({
+      phoneNumber: newPhoneNumber.trim(),
+      content: newMessage.trim()
+    }, {
+      onSuccess: () => {
+        setNewChatOpen(false);
+        setNewPhoneNumber("");
+        setNewMessage("");
+        toast({ title: "Inviato", description: "Messaggio WhatsApp inviato" });
+      }
+    });
+  };
+
   const getConversationName = (conversation: WhatsappConversation) => {
     if (conversation.clienteId) {
       const cliente = clienti.find(c => c.id === conversation.clienteId);
@@ -223,6 +254,48 @@ export default function WhatsAppPage() {
               <Badge variant="secondary">
                 {conversations.filter(c => (c.nonLetti ?? 0) > 0).length}
               </Badge>
+              <Dialog open={newChatOpen} onOpenChange={setNewChatOpen}>
+                <DialogTrigger asChild>
+                  <Button size="icon" variant="ghost" data-testid="button-new-chat">
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Nuova Chat WhatsApp</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 pt-4">
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Numero di telefono</label>
+                      <Input
+                        placeholder="Es: 3331234567 o +393331234567"
+                        value={newPhoneNumber}
+                        onChange={(e) => setNewPhoneNumber(e.target.value)}
+                        data-testid="input-new-phone"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Messaggio</label>
+                      <Input
+                        placeholder="Scrivi il tuo messaggio..."
+                        value={newMessage}
+                        onChange={(e) => setNewMessage(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && handleNewChat()}
+                        data-testid="input-new-message"
+                      />
+                    </div>
+                    <Button 
+                      onClick={handleNewChat} 
+                      className="w-full"
+                      disabled={sendMessageMutation.isPending}
+                      data-testid="button-send-new-chat"
+                    >
+                      <Send className="h-4 w-4 mr-2" />
+                      Invia Messaggio
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
           </div>
           <div className="relative">
