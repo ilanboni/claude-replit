@@ -84,13 +84,13 @@ function ImmobileCard({ immobile, onEdit, onDelete }: {
           <div className="min-w-0">
             <Link href={`/immobili/${immobile.id}`}>
               <h3 className="font-medium hover:underline cursor-pointer truncate" data-testid={`text-property-title-${immobile.id}`}>
-                {immobile.titolo}
+                {immobile.indirizzo || immobile.titolo}
               </h3>
             </Link>
-            {(immobile.zona || immobile.indirizzo) && (
+            {immobile.zona && (
               <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
                 <MapPin className="h-3 w-3" />
-                <span className="truncate">{immobile.zona || immobile.indirizzo}</span>
+                <span className="truncate">{immobile.zona}</span>
               </p>
             )}
           </div>
