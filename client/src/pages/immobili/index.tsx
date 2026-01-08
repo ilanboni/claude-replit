@@ -14,6 +14,7 @@ import {
   Edit,
   Eye,
   Building2,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -170,15 +171,30 @@ function ImmobileCard({ immobile, onEdit, onDelete }: {
           </div>
         )}
 
-        <div className="mt-4 flex items-center justify-between">
+        <div className="mt-4 flex items-center justify-between gap-2">
           <Badge variant={immobile.attivo ? "default" : "secondary"}>
             {immobile.attivo ? "Attivo" : "Inattivo"}
           </Badge>
-          <Link href={`/immobili/${immobile.id}`}>
-            <Button size="sm" variant="outline" data-testid={`button-view-property-${immobile.id}`}>
-              Dettagli
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            {immobile.urlAnnuncio && (
+              <a 
+                href={immobile.urlAnnuncio} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                data-testid={`link-property-external-${immobile.id}`}
+              >
+                <Button size="sm" variant="outline">
+                  <ExternalLink className="h-4 w-4 mr-1" />
+                  Annuncio
+                </Button>
+              </a>
+            )}
+            <Link href={`/immobili/${immobile.id}`}>
+              <Button size="sm" variant="outline" data-testid={`button-view-property-${immobile.id}`}>
+                Dettagli
+              </Button>
+            </Link>
+          </div>
         </div>
       </CardContent>
     </Card>
