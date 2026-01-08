@@ -72,6 +72,7 @@ export const richieste = pgTable("richieste", {
 export const immobili = pgTable("immobili", {
   id: serial("id").primaryKey(),
   idWeb: text("id_web").unique(), // ID univoco per identificazione via email/web
+  idPortale: text("id_portale"), // ID breve per matching richieste portali (es. "Prima" per Primaticcio)
   proprietarioId: integer("proprietario_id").references(() => clienti.id, { onDelete: "set null" }),
   titolo: text("titolo").notNull(),
   descrizione: text("descrizione"),
