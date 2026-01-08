@@ -7,16 +7,46 @@ interface UltraMsgResponse {
   id?: string;
 }
 
+// Normalizza un numero di telefono italiano al formato internazionale (39xxxxxxxxxx)
+export function normalizeItalianPhone(phone: string): string {
+  // Rimuovi tutti i caratteri non numerici
+  let cleaned = phone.replace(/\D/g, '');
+  
+  // Rimuovi eventuale prefisso 0039
+  if (cleaned.startsWith('0039')) {
+    cleaned = cleaned.slice(4);
+  }
+  // Rimuovi eventuale prefisso 39 iniziale per riaggiungerlo uniformemente
+  else if (cleaned.startsWith('39') && cleaned.length > 10) {
+    cleaned = cleaned.slice(2);
+  }
+  
+  // Se è un numero italiano (10 cifre che inizia con 3), aggiungi 39
+  if (cleaned.length === 10 && cleaned.startsWith('3')) {
+    return '39' + cleaned;
+  }
+  
+  // Se è già nel formato corretto (12 cifre che inizia con 39)
+  if (cleaned.length === 12 && cleaned.startsWith('39')) {
+    return cleaned;
+  }
+  
+  // Per altri formati, aggiungi 39 se sembra un numero italiano senza prefisso
+  if (cleaned.length === 10) {
+    return '39' + cleaned;
+  }
+  
+  return cleaned;
+}
+
 export async function sendWhatsAppMessage(to: string, body: string): Promise<{ success: boolean; messageId?: string; error?: string }> {
   if (!ULTRAMSG_INSTANCE_ID || !ULTRAMSG_API_KEY) {
     console.error("UltraMsg credentials not configured");
     return { success: false, error: "UltraMsg non configurato" };
   }
 
-  let phoneNumber = to.replace(/\D/g, '');
-  if (!phoneNumber.startsWith('39') && phoneNumber.length === 10) {
-    phoneNumber = '39' + phoneNumber;
-  }
+  const phoneNumber = normalizeItalianPhone(to);
+  console.log(`[WhatsApp] Normalizing phone: "${to}" -> "${phoneNumber}"`);
 
   const url = `https://api.ultramsg.com/${ULTRAMSG_INSTANCE_ID}/messages/chat`;
   
