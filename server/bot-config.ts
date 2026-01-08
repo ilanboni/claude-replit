@@ -194,15 +194,15 @@ export function checkForObjection(message: string): { found: boolean; handler?: 
 export const MIRRORING_PROMPT = `Genera il blocco di mirroring del messaggio WhatsApp rivolto a proprietari privati, con italiano naturale, istituzionale e credibile, basato esclusivamente su dati reali presenti nell'annuncio.
 
 TONO: istituzionale, sobrio, rispettoso
-STILE: italiano naturale, frasi semplici, nessun linguaggio pubblicitario
+STILE: italiano naturale, frasi semplici, nessun linguaggio commerciale
 PERSONA: assistente del Dott. Ilan Boni
 PRIORITÀ: credibilità assoluta
 
 REGOLE APERTURA:
 - Scrivi UNA SOLA frase di apertura
-- Formato preferito: "Ha notato il suo immobile in {{indirizzo_completo}}."
-- Formato fallback: "Ha notato il suo immobile."
-- L'indirizzo è OBBLIGATORIO se disponibile
+- Formato preferito: "Ha notato il suo immobile."
+- Usa indirizzo SOLO se COMPLETO: "Ha notato il suo immobile in {{indirizzo_completo}}."
+- MAI usare indirizzo parziale
 - MAI usare zona
 - MAI usare quartiere
 - MAI usare il titolo dell'annuncio
@@ -210,12 +210,9 @@ REGOLE APERTURA:
 - MAI mostrare errori
 
 FORMULA OBBLIGATORIA PER MIRRORING:
-"Dal suo annuncio si notano alcune caratteristiche, come {{dato_1}} e {{dato_2}}, che rendono l'immobile in linea con {{contesto_neutro}}."
+"Dal suo annuncio si notano alcune caratteristiche, come {{dato_1}} e {{dato_2}}, che rendono l'immobile in linea con alcune esigenze ricorrenti in questo periodo."
 
-CONTESTI AMMESSI (scegli uno):
-- "le richieste che stiamo seguendo in questo periodo"
-- "ciò che oggi viene maggiormente richiesto"
-- "alcune esigenze ricorrenti del mercato attuale"
+NOTA: Usa ESATTAMENTE questa formula. NON modificare la parte finale.
 
 FRASI VIETATE:
 - "Dal suo annuncio emerge"
@@ -225,8 +222,9 @@ FRASI VIETATE:
 - "Di pregio"
 - "Di lusso"
 
-INFORMAZIONI AMMESSE (solo se presenti):
-- ristrutturazione (con anno se indicato)
+CARATTERISTICHE AMMESSE (max 2, solo se presenti):
+- ristrutturazione
+- anno ristrutturazione
 - distribuzione interna
 - numero locali
 - balcone o terrazzo
@@ -246,11 +244,10 @@ VIETATO:
 - aggettivi superlativi
 - promesse
 
-STRUTTURA:
-1) Apertura con indirizzo o fallback
+STRUTTURA (max 3 frasi):
+1) Apertura con indirizzo completo o fallback
 2) Frase con formula "Dal suo annuncio si notano..."
-3) Eventuale frase tecnica di completamento
-4) Max 4 frasi totali
+3) Eventuale frase tecnica di completamento (facoltativa)
 
 PREVENZIONE ERRORI:
 - NO duplicati
@@ -261,8 +258,8 @@ PREVENZIONE ERRORI:
 - Temperature: 0
 
 ESEMPI BUONI:
-- "Ha notato il suo immobile in Via Torino 12. Dal suo annuncio si notano alcune caratteristiche, come la ristrutturazione completa e la presenza del balcone interno, che rendono l'immobile in linea con le richieste che stiamo seguendo in questo periodo. L'appartamento risulta inoltre dotato di impianto di climatizzazione e sistema di domotica, con pavimentazione in parquet."
-- "Ha notato il suo immobile. Dal suo annuncio si notano alcune caratteristiche, come la doppia esposizione e la distribuzione interna, che rendono l'immobile in linea con ciò che oggi viene maggiormente richiesto."
+- "Ha notato il suo immobile. Dal suo annuncio si notano alcune caratteristiche, come la ristrutturazione completa e la presenza del balcone, che rendono l'immobile in linea con alcune esigenze ricorrenti in questo periodo."
+- "Ha notato il suo immobile in Via Antonio Panizzi 15. Dal suo annuncio si notano alcune caratteristiche, come la doppia esposizione e la distribuzione interna, che rendono l'immobile in linea con alcune esigenze ricorrenti in questo periodo. L'appartamento risulta inoltre venduto arredato."
 
 ESEMPI SBAGLIATI:
 - "Dal suo annuncio emerge un appartamento molto interessante."
