@@ -3228,7 +3228,8 @@ FORMATO RISPOSTE:
   });
 
   // UltraMsg webhook for incoming messages and status updates
-  app.post("/api/webhook/ultramsg", async (req, res) => {
+  // Supports both /api/webhook/ultramsg and /api/whatsapp/webhook paths
+  const handleUltraMsgWebhook = async (req: Request, res: Response) => {
     try {
       console.log("UltraMsg Webhook received:", JSON.stringify(req.body, null, 2));
       
@@ -3378,7 +3379,11 @@ FORMATO RISPOSTE:
       console.error("UltraMsg webhook error:", error);
       res.status(500).json({ error: "Webhook processing error" });
     }
-  });
+  };
+  
+  // Register UltraMsg webhook on multiple paths for compatibility
+  app.post("/api/webhook/ultramsg", handleUltraMsgWebhook);
+  app.post("/api/whatsapp/webhook", handleUltraMsgWebhook);
 
   // Webhook verification for Meta WhatsApp Business API
   app.get("/api/webhook/whatsapp", (req, res) => {
