@@ -62,6 +62,7 @@ import type {
   Appuntamento, 
   Matching,
   AttivitaImmobile,
+  AttivitaCliente,
   DocumentoImmobile,
   PortaleImmobile,
   StoricoPrezzo,
@@ -606,6 +607,16 @@ function TabAttivita({ immobileId }: { immobileId: number }) {
     },
   });
 
+  // Attività cliente collegate a questo immobile
+  const { data: attivitaCliente = [] } = useQuery<(AttivitaCliente & { cliente?: Cliente })[]>({
+    queryKey: ["/api/attivita-cliente", "immobile", immobileId],
+    queryFn: async () => {
+      const res = await fetch(`/api/attivita-cliente?immobileId=${immobileId}`);
+      if (!res.ok) throw new Error("Failed to fetch");
+      return res.json();
+    },
+  });
+
   const createMutation = useMutation({
     mutationFn: async (data: typeof newTask) => {
       return apiRequest("POST", `/api/immobili/${immobileId}/attivita`, data);
@@ -714,6 +725,49 @@ function TabAttivita({ immobileId }: { immobileId: number }) {
               </CardContent>
             </Card>
           ))}
+        </div>
+      )}
+
+      {/* Sezione Richieste dai Clienti */}
+      {attivitaCliente.length > 0 && (
+        <div className="mt-6">
+          <h3 className="text-lg font-semibold mb-3">Richieste dai Clienti</h3>
+          <div className="space-y-2">
+            {attivitaCliente.map((task) => (
+              <Card key={`cliente-${task.id}`} className={task.stato === "fatto" ? "opacity-60" : ""}>
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-4">
+                    <Users className="h-5 w-5 text-muted-foreground mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className={`font-medium ${task.stato === "fatto" ? "line-through" : ""}`}>
+                          {task.titolo}
+                        </p>
+                        <Badge
+                          variant={
+                            task.stato === "fatto" ? "secondary" :
+                            task.stato === "in_corso" ? "default" : "outline"
+                          }
+                        >
+                          {task.stato === "fatto" ? "Fatto" : task.stato === "in_corso" ? "In Corso" : "Da Fare"}
+                        </Badge>
+                      </div>
+                      {task.descrizione && (
+                        <p className="text-sm text-muted-foreground mt-1">{task.descrizione}</p>
+                      )}
+                      {task.clienteId && (
+                        <Link href={`/clienti/${task.clienteId}`}>
+                          <Button variant="link" size="sm" className="p-0 h-auto mt-1">
+                            Vai al Cliente
+                          </Button>
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </div>
       )}
 

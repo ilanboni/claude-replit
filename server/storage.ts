@@ -83,7 +83,7 @@ export interface IStorage {
 
   // Attività Cliente
   getAttivitaCliente(clienteId: number): Promise<AttivitaCliente[]>;
-  getAllAttivitaCliente(stato?: string): Promise<AttivitaCliente[]>;
+  getAllAttivitaCliente(stato?: string, immobileId?: number): Promise<AttivitaCliente[]>;
   createAttivitaCliente(data: InsertAttivitaCliente): Promise<AttivitaCliente>;
   updateAttivitaCliente(id: number, data: Partial<InsertAttivitaCliente>): Promise<AttivitaCliente | undefined>;
   deleteAttivitaCliente(id: number): Promise<boolean>;
@@ -407,9 +407,16 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(attivitaCliente).where(eq(attivitaCliente.clienteId, clienteId)).orderBy(desc(attivitaCliente.createdAt));
   }
 
-  async getAllAttivitaCliente(stato?: string): Promise<AttivitaCliente[]> {
+  async getAllAttivitaCliente(stato?: string, immobileId?: number): Promise<AttivitaCliente[]> {
+    const conditions = [];
     if (stato) {
-      return db.select().from(attivitaCliente).where(eq(attivitaCliente.stato, stato)).orderBy(desc(attivitaCliente.createdAt));
+      conditions.push(eq(attivitaCliente.stato, stato));
+    }
+    if (immobileId) {
+      conditions.push(eq(attivitaCliente.immobileId, immobileId));
+    }
+    if (conditions.length > 0) {
+      return db.select().from(attivitaCliente).where(and(...conditions)).orderBy(desc(attivitaCliente.createdAt));
     }
     return db.select().from(attivitaCliente).orderBy(desc(attivitaCliente.createdAt));
   }

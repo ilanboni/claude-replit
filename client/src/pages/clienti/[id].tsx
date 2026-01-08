@@ -15,6 +15,9 @@ import {
   MessageSquare,
   CalendarDays,
   Send,
+  ClipboardList,
+  CheckCircle2,
+  Circle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -50,7 +53,7 @@ import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { ClienteForm } from "./cliente-form";
 import { RichiestaForm } from "../richieste/richiesta-form";
-import type { Cliente, Richiesta, Immobile, Comunicazione, Appuntamento } from "@shared/schema";
+import type { Cliente, Richiesta, Immobile, Comunicazione, Appuntamento, AttivitaCliente } from "@shared/schema";
 
 function ClienteHeader({ cliente, onEdit, onDelete }: { 
   cliente: Cliente; 
@@ -745,6 +748,116 @@ function TabAppuntamenti({ clienteId }: { clienteId: number }) {
   );
 }
 
+function TabAttivita({ clienteId }: { clienteId: number }) {
+  const { toast } = useToast();
+  
+  const { data: attivita = [], isLoading } = useQuery<AttivitaCliente[]>({
+    queryKey: ["/api/clienti", clienteId, "attivita"],
+    queryFn: async () => {
+      const res = await fetch(`/api/clienti/${clienteId}/attivita`);
+      if (!res.ok) throw new Error("Failed to fetch");
+      return res.json();
+    },
+  });
+
+  const toggleStatoMutation = useMutation({
+    mutationFn: async ({ id, stato }: { id: number; stato: string }) => {
+      return apiRequest("PATCH", `/api/attivita-cliente/${id}`, { stato });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clienti", clienteId, "attivita"] });
+      toast({ title: "Stato aggiornato" });
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        {[1, 2].map((i) => (
+          <Skeleton key={i} className="h-24 w-full" />
+        ))}
+      </div>
+    );
+  }
+
+  if (attivita.length === 0) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center py-12">
+          <ClipboardList className="h-12 w-12 text-muted-foreground/50 mb-3" />
+          <h3 className="text-lg font-medium">Nessuna attività</h3>
+          <p className="text-muted-foreground text-center mt-1">
+            Non ci sono attività registrate per questo cliente
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {attivita.map((task) => {
+        const isCompleted = task.stato === "fatto";
+        const isUrgent = task.titolo?.toLowerCase().includes("urgente");
+        return (
+          <Card key={task.id} className={isCompleted ? 'opacity-60' : ''}>
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <button
+                  onClick={() => toggleStatoMutation.mutate({ 
+                    id: task.id, 
+                    stato: isCompleted ? "da_fare" : "fatto" 
+                  })}
+                  className="mt-1 flex-shrink-0"
+                  data-testid={`button-toggle-attivita-${task.id}`}
+                >
+                  {isCompleted ? (
+                    <CheckCircle2 className="h-5 w-5 text-green-500" />
+                  ) : (
+                    <Circle className="h-5 w-5 text-muted-foreground hover:text-primary" />
+                  )}
+                </button>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className={`font-medium ${isCompleted ? 'line-through' : ''}`}>
+                      {task.titolo}
+                    </p>
+                    {isUrgent && (
+                      <Badge variant="destructive" className="text-xs">Urgente</Badge>
+                    )}
+                    {task.immobileId && (
+                      <Link href={`/immobili/${task.immobileId}`}>
+                        <Badge variant="outline" className="text-xs cursor-pointer">
+                          <Building2 className="h-3 w-3 mr-1" />
+                          Immobile #{task.immobileId}
+                        </Badge>
+                      </Link>
+                    )}
+                  </div>
+                  {task.descrizione && (
+                    <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                      {task.descrizione}
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-2">
+                    {new Date(task.createdAt).toLocaleDateString('it-IT', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function ClienteDetailPage() {
   const params = useParams<{ id: string }>();
   const [, navigate] = useLocation();
@@ -871,6 +984,13 @@ export default function ClienteDetailPage() {
           >
             Appuntamenti
           </TabsTrigger>
+          <TabsTrigger 
+            value="attivita"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+            data-testid="tab-attivita"
+          >
+            Attività
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="panoramica" className="mt-6">
@@ -887,6 +1007,9 @@ export default function ClienteDetailPage() {
         </TabsContent>
         <TabsContent value="appuntamenti" className="mt-6">
           <TabAppuntamenti clienteId={clienteId} />
+        </TabsContent>
+        <TabsContent value="attivita" className="mt-6">
+          <TabAttivita clienteId={clienteId} />
         </TabsContent>
       </Tabs>
 

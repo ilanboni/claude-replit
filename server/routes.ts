@@ -3443,11 +3443,12 @@ FORMATO RISPOSTE:
 
   // ==================== ATTIVITA CLIENTE ====================
   
-  // Get all client activities (with optional stato filter)
+  // Get all client activities (with optional stato/immobileId filter)
   app.get("/api/attivita-cliente", async (req, res) => {
     try {
       const stato = req.query.stato as string | undefined;
-      const attivita = await storage.getAllAttivitaCliente(stato);
+      const immobileId = req.query.immobileId ? parseInt(req.query.immobileId as string) : undefined;
+      const attivita = await storage.getAllAttivitaCliente(stato, immobileId);
       res.json(attivita);
     } catch (error) {
       console.error("Get attivita cliente error:", error);
