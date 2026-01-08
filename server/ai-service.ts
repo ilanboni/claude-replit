@@ -817,77 +817,20 @@ export interface MirroringOutput {
 
 export async function generateMirroring(input: MirroringInput): Promise<MirroringOutput> {
   try {
-    // Mirroring v9: generate_mirroring_text - formula obbligatoria "Dal suo annuncio si notano...", MAI "emerge"
-    const systemPrompt = `Genera il blocco di mirroring del messaggio WhatsApp rivolto a proprietari privati, con italiano naturale, istituzionale e credibile, basato esclusivamente su dati reali presenti nell'annuncio.
-
-TONO: istituzionale, sobrio, rispettoso
-STILE: italiano naturale, frasi semplici, nessun linguaggio pubblicitario
-PERSONA: assistente del Dott. Ilan Boni
-PRIORITÀ: credibilità assoluta
-
-REGOLE APERTURA:
-- Scrivi UNA SOLA frase di apertura
-- Formato preferito: "Ha notato il suo immobile in {{indirizzo_completo}}."
-- Formato fallback: "Ha notato il suo immobile."
-- L'indirizzo è OBBLIGATORIO se disponibile
-- MAI usare zona o quartiere
-- MAI usare il titolo dell'annuncio
-- MAI ripetere l'apertura
-- MAI mostrare errori
-
-FORMULA OBBLIGATORIA PER MIRRORING:
-"Dal suo annuncio si notano alcune caratteristiche, come {{dato_1}} e {{dato_2}}, che rendono l'immobile in linea con {{contesto_neutro}}."
-
-CONTESTI AMMESSI (scegli uno):
-- "le richieste che stiamo seguendo in questo periodo"
-- "ciò che oggi viene maggiormente richiesto"
-- "alcune esigenze ricorrenti del mercato attuale"
-
-FRASI VIETATE:
-- "Dal suo annuncio emerge"
-- "L'immobile presenta"
-- "Soluzione ideale"
-- "Particolarmente interessante"
-- "Di pregio"
-- "Di lusso"
-
-INFORMAZIONI AMMESSE (solo se presenti):
-- ristrutturazione (con anno se indicato)
-- distribuzione interna
-- numero locali
-- balcone o terrazzo
-- doppia esposizione
-- arredato
-- climatizzazione
-- domotica
-- pavimentazione
-- classe energetica
-- pertinenze (cantina, soffitta, posto auto)
-- dotazioni dello stabile
-
-VIETATO: interpretazioni, giudizi soggettivi, enfasi commerciale, aggettivi superlativi, promesse
-
-STRUTTURA:
-1) Apertura con indirizzo o fallback
-2) Frase con formula "Dal suo annuncio si notano..."
-3) Eventuale frase tecnica di completamento
-4) Max 4 frasi totali
-
-Se qualcosa è incerto, NON scriverlo.
-
-Rispondi SOLO con JSON: {"mirroring": "testo"}`;
-
+    // Import centralized prompt from bot-config for consistency
+    const { MIRRORING_PROMPT, MIRRORING_CONFIG } = await import("./bot-config");
+    
     const userMessage = `Testo annuncio: ${input.testoAnnuncio}
 ${input.zonaOVia ? `Indirizzo: ${input.zonaOVia}` : ''}`;
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
-        { role: "system", content: systemPrompt },
+        { role: "system", content: MIRRORING_PROMPT + '\n\nRispondi SOLO con JSON: {"mirroring": "testo"}' },
         { role: "user", content: userMessage }
       ],
-      max_completion_tokens: 400,
-      temperature: 0,
+      max_completion_tokens: MIRRORING_CONFIG.max_tokens,
+      temperature: MIRRORING_CONFIG.temperature,
       response_format: { type: "json_object" }
     });
 

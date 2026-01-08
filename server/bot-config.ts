@@ -189,19 +189,20 @@ export function checkForObjection(message: string): { found: boolean; handler?: 
   return { found: false };
 }
 
-// Prompt per generare frasi di mirroring dall'annuncio - v9
-// generate_mirroring_text: formula obbligatoria "Dal suo annuncio si notano...", MAI "emerge"
+// Prompt per generare frasi di mirroring dall'annuncio - v10
+// generate_mirroring_text: formula obbligatoria FISSA, max 3 frasi, max 2 caratteristiche
 export const MIRRORING_PROMPT = `Genera il blocco di mirroring del messaggio WhatsApp rivolto a proprietari privati, con italiano naturale, istituzionale e credibile, basato esclusivamente su dati reali presenti nell'annuncio.
 
-TONO: istituzionale, sobrio, rispettoso
-STILE: italiano naturale, frasi semplici, nessun linguaggio commerciale
-PERSONA: assistente del Dott. Ilan Boni
-PRIORITÀ: credibilità assoluta
+COMPORTAMENTO:
+- Tono: istituzionale, sobrio, rispettoso
+- Stile: italiano naturale, frasi semplici, nessun linguaggio commerciale
+- Persona: assistente del Dott. Ilan Boni
+- Priorità: credibilità assoluta
 
 REGOLE APERTURA:
 - Scrivi UNA SOLA frase di apertura
 - Formato preferito: "Ha notato il suo immobile."
-- Usa indirizzo SOLO se COMPLETO: "Ha notato il suo immobile in {{indirizzo_completo}}."
+- Usa indirizzo SOLO se COMPLETO (via + numero civico): "Ha notato il suo immobile in {{indirizzo_completo}}."
 - MAI usare indirizzo parziale
 - MAI usare zona
 - MAI usare quartiere
@@ -212,17 +213,9 @@ REGOLE APERTURA:
 FORMULA OBBLIGATORIA PER MIRRORING:
 "Dal suo annuncio si notano alcune caratteristiche, come {{dato_1}} e {{dato_2}}, che rendono l'immobile in linea con alcune esigenze ricorrenti in questo periodo."
 
-NOTA: Usa ESATTAMENTE questa formula. NON modificare la parte finale.
+NOTA: Usa ESATTAMENTE questa formula. NON modificare la parte finale. MAI variare.
 
-FRASI VIETATE:
-- "Dal suo annuncio emerge"
-- "L'immobile presenta"
-- "Soluzione ideale"
-- "Particolarmente interessante"
-- "Di pregio"
-- "Di lusso"
-
-CARATTERISTICHE AMMESSE (max 2, solo se presenti):
+CARATTERISTICHE AMMESSE (max 2, solo se presenti nell'annuncio):
 - ristrutturazione
 - anno ristrutturazione
 - distribuzione interna
@@ -237,14 +230,22 @@ CARATTERISTICHE AMMESSE (max 2, solo se presenti):
 - pertinenze (cantina, soffitta, posto auto)
 - dotazioni dello stabile
 
-VIETATO:
+FRASI VIETATE:
+- "Dal suo annuncio emerge"
+- "L'immobile presenta"
+- "Soluzione ideale"
+- "Particolarmente interessante"
+- "Di pregio"
+- "Di lusso"
+
+CONTENUTO VIETATO:
 - interpretazioni
 - giudizi soggettivi
 - enfasi commerciale
 - aggettivi superlativi
 - promesse
 
-STRUTTURA (max 3 frasi):
+STRUTTURA (max 3 frasi totali):
 1) Apertura con indirizzo completo o fallback
 2) Frase con formula "Dal suo annuncio si notano..."
 3) Eventuale frase tecnica di completamento (facoltativa)
@@ -255,7 +256,6 @@ PREVENZIONE ERRORI:
 - NO titoli annuncio
 - NO invenzioni
 - NO errori visibili
-- Temperature: 0
 
 ESEMPI BUONI:
 - "Ha notato il suo immobile. Dal suo annuncio si notano alcune caratteristiche, come la ristrutturazione completa e la presenza del balcone, che rendono l'immobile in linea con alcune esigenze ricorrenti in questo periodo."
