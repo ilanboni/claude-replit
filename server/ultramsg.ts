@@ -51,3 +51,67 @@ export async function sendWhatsAppMessage(to: string, body: string): Promise<{ s
 export function isUltraMsgConfigured(): boolean {
   return !!(ULTRAMSG_INSTANCE_ID && ULTRAMSG_API_KEY);
 }
+
+interface UltraMsgMessage {
+  id: number;
+  from: string;
+  to: string;
+  body: string;
+  type: string;
+  ack: string;
+  created_at: number;
+  sent_at?: number;
+  metadata?: Record<string, unknown>;
+}
+
+interface UltraMsgMessagesResponse {
+  total: number;
+  pages: number;
+  limit: number;
+  page: number;
+  messages: UltraMsgMessage[];
+}
+
+export async function fetchRecentMessages(limit: number = 20): Promise<{ success: boolean; messages?: UltraMsgMessage[]; error?: string }> {
+  if (!ULTRAMSG_INSTANCE_ID || !ULTRAMSG_API_KEY) {
+    return { success: false, error: "UltraMsg non configurato" };
+  }
+
+  const url = `https://api.ultramsg.com/${ULTRAMSG_INSTANCE_ID}/messages?token=${ULTRAMSG_API_KEY}&limit=${limit}&sort=desc`;
+  
+  try {
+    const response = await fetch(url);
+    const data = await response.json() as UltraMsgMessagesResponse;
+    
+    if (data.messages) {
+      return { success: true, messages: data.messages };
+    } else {
+      return { success: false, error: 'Nessun messaggio trovato' };
+    }
+  } catch (error) {
+    console.error("UltraMsg fetch messages error:", error);
+    return { success: false, error: String(error) };
+  }
+}
+
+export async function fetchChats(): Promise<{ success: boolean; chats?: any[]; error?: string }> {
+  if (!ULTRAMSG_INSTANCE_ID || !ULTRAMSG_API_KEY) {
+    return { success: false, error: "UltraMsg non configurato" };
+  }
+
+  const url = `https://api.ultramsg.com/${ULTRAMSG_INSTANCE_ID}/chats?token=${ULTRAMSG_API_KEY}`;
+  
+  try {
+    const response = await fetch(url);
+    const data = await response.json();
+    
+    if (Array.isArray(data)) {
+      return { success: true, chats: data };
+    } else {
+      return { success: false, error: 'Formato risposta non valido' };
+    }
+  } catch (error) {
+    console.error("UltraMsg fetch chats error:", error);
+    return { success: false, error: String(error) };
+  }
+}

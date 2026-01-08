@@ -24,7 +24,8 @@ import {
   Wifi,
   WifiOff,
   Plus,
-  X
+  X,
+  RefreshCw
 } from "lucide-react";
 import {
   Dialog,
@@ -198,6 +199,30 @@ export default function WhatsAppPage() {
     }
   });
 
+  const syncMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/whatsapp/sync", {});
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/conversations"] });
+      if (selectedConversationId) {
+        queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/conversations", selectedConversationId] });
+      }
+      toast({
+        title: "Sincronizzazione completata",
+        description: `${data.synced} nuovi messaggi sincronizzati`
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Errore",
+        description: "Impossibile sincronizzare i messaggi",
+        variant: "destructive"
+      });
+    }
+  });
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [conversationData?.messages]);
@@ -299,6 +324,16 @@ export default function WhatsAppPage() {
               <Badge variant="secondary">
                 {conversations.filter(c => (c.nonLetti ?? 0) > 0).length}
               </Badge>
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                onClick={() => syncMutation.mutate()}
+                disabled={syncMutation.isPending}
+                data-testid="button-sync"
+                title="Sincronizza messaggi da WhatsApp"
+              >
+                <RefreshCw className={`h-4 w-4 ${syncMutation.isPending ? "animate-spin" : ""}`} />
+              </Button>
               <Dialog open={newChatOpen} onOpenChange={setNewChatOpen}>
                 <DialogTrigger asChild>
                   <Button size="icon" variant="ghost" data-testid="button-new-chat">

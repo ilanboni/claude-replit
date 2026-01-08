@@ -2867,6 +2867,117 @@ FORMATO RISPOSTE:
     }
   });
 
+  // Sync messages from UltraMsg API (polling alternative to webhooks)
+  app.post("/api/whatsapp/sync", async (req, res) => {
+    try {
+      const { fetchRecentMessages } = await import("./ultramsg");
+      const result = await fetchRecentMessages(50);
+      
+      if (!result.success || !result.messages) {
+        return res.status(500).json({ error: result.error || "Errore nel recupero messaggi" });
+      }
+
+      const clienti = await storage.getClienti();
+      let syncedCount = 0;
+      let skippedCount = 0;
+
+      for (const msg of result.messages) {
+        // Determine if outbound or inbound based on from/to
+        const instancePhone = "390235981509"; // Instance phone without @c.us
+        const fromPhone = msg.from?.replace("@c.us", "").replace(/\D/g, '') || "";
+        const toPhone = msg.to?.replace("@c.us", "").replace(/\D/g, '') || "";
+        
+        const isOutbound = fromPhone === instancePhone || fromPhone.endsWith(instancePhone.slice(-9));
+        const contactPhone = isOutbound ? toPhone : fromPhone;
+        
+        if (!contactPhone || !msg.body) {
+          skippedCount++;
+          continue;
+        }
+
+        // Check if message already exists by UltraMsg ID
+        const existingConv = await storage.getWhatsappConversationByPhone(contactPhone);
+        if (existingConv) {
+          const existingMessages = await storage.getWhatsappMessages(existingConv.id);
+          const alreadyExists = existingMessages.some(m => 
+            m.whatsappMessageId === String(msg.id) || 
+            (m.content === msg.body && Math.abs(new Date(m.createdAt).getTime() - msg.created_at * 1000) < 60000)
+          );
+          if (alreadyExists) {
+            skippedCount++;
+            continue;
+          }
+        }
+
+        // Find matching client
+        const matchingClient = clienti.find(c => 
+          c.telefono && c.telefono.replace(/\D/g, '').includes(contactPhone.slice(-9))
+        );
+
+        // Find or create conversation
+        let conversation = await storage.getWhatsappConversationByPhone(contactPhone);
+        if (!conversation) {
+          conversation = await storage.createWhatsappConversation({
+            phoneNumber: contactPhone,
+            clienteId: matchingClient?.id || null,
+            immobileId: null,
+            nome: null,
+            ultimoMessaggio: msg.body.substring(0, 100),
+            ultimoMessaggioData: new Date(msg.created_at * 1000),
+            nonLetti: isOutbound ? 0 : 1,
+            stato: "attivo"
+          });
+        } else {
+          await storage.updateWhatsappConversation(conversation.id, {
+            ultimoMessaggio: msg.body.substring(0, 100),
+            ultimoMessaggioData: new Date(msg.created_at * 1000),
+            nonLetti: isOutbound ? (conversation.nonLetti || 0) : (conversation.nonLetti || 0) + 1,
+            clienteId: conversation.clienteId || matchingClient?.id || null
+          });
+        }
+
+        // Save message
+        await storage.createWhatsappMessage({
+          conversationId: conversation.id,
+          whatsappMessageId: String(msg.id),
+          direction: isOutbound ? "outbound" : "inbound",
+          messageType: msg.type || "text",
+          content: msg.body,
+          mediaUrl: null,
+          status: msg.ack || "sent"
+        });
+
+        // Create comunicazione
+        await storage.createComunicazione({
+          clienteId: conversation.clienteId,
+          immobileId: conversation.immobileId,
+          immobileEsternoId: null,
+          whatsappMessageId: null,
+          tipo: isOutbound ? "messaggio" : "risposta",
+          testo: msg.body,
+          canale: "whatsapp",
+          creatoDA: isOutbound ? "agente" : "cliente",
+          esito: null
+        });
+
+        syncedCount++;
+      }
+
+      // Notify WebSocket clients
+      whatsappWS.broadcast({ type: "sync_complete", syncedCount });
+
+      res.json({ 
+        success: true, 
+        synced: syncedCount, 
+        skipped: skippedCount,
+        total: result.messages.length 
+      });
+    } catch (error) {
+      console.error("WhatsApp sync error:", error);
+      res.status(500).json({ error: "Errore nella sincronizzazione" });
+    }
+  });
+
   // Get single conversation with messages
   app.get("/api/whatsapp/conversations/:id", async (req, res) => {
     try {
