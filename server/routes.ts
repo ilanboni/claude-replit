@@ -3006,8 +3006,8 @@ FORMATO RISPOSTE:
         return res.status(200).json({ status: "ignored", reason: "no data" });
       }
 
-      // Handle new messages first (message_create event)
-      if (event_type === "message_create" && data.body) {
+      // Handle new messages (message_create or message_received events)
+      if ((event_type === "message_create" || event_type === "message_received") && data.body) {
         const isFromMe = data.fromMe === true;
         // For outgoing messages, use "to" as the conversation phone; for incoming use "from"
         const rawPhone = isFromMe 
