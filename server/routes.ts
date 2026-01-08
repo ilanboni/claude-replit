@@ -351,9 +351,8 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         try {
           await storage.createAttivitaImmobile({
             immobileId,
-            tipo: canale === "whatsapp" ? "whatsapp_inviato" : "email_inviata",
-            descrizione: `${canale === "whatsapp" ? "WhatsApp" : "Email"} inviato a ${cliente.nome || ""} ${cliente.cognome || ""}`.trim(),
-            note: messaggio.slice(0, 500),
+            titolo: canale === "whatsapp" ? "WhatsApp inviato" : "Email inviata",
+            descrizione: `${canale === "whatsapp" ? "WhatsApp" : "Email"} inviato a ${cliente.nome || ""} ${cliente.cognome || ""}`.trim() + ": " + messaggio.slice(0, 300),
           });
         } catch (e) {
           console.error("Errore creazione attività immobile:", e);
@@ -364,9 +363,8 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
       try {
         await storage.createAttivitaCliente({
           clienteId,
-          tipo: canale === "whatsapp" ? "whatsapp_inviato" : "email_inviata",
-          descrizione: `${canale === "whatsapp" ? "WhatsApp" : "Email"} inviato`,
-          note: messaggio.slice(0, 500),
+          titolo: canale === "whatsapp" ? "WhatsApp inviato" : "Email inviata",
+          descrizione: messaggio.slice(0, 500),
         });
       } catch (e) {
         console.error("Errore creazione attività cliente:", e);

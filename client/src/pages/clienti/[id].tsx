@@ -14,6 +14,7 @@ import {
   FileText,
   MessageSquare,
   CalendarDays,
+  Send,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +44,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { ClienteForm } from "./cliente-form";
@@ -363,7 +366,165 @@ function TabImmobili({ clienteId }: { clienteId: number }) {
   );
 }
 
-function TabComunicazioni({ clienteId }: { clienteId: number }) {
+function CommunicationComposer({ clienteId, cliente }: { clienteId: number; cliente: Cliente }) {
+  const { toast } = useToast();
+  const [canale, setCanale] = useState<"whatsapp" | "email">("whatsapp");
+  const [messaggio, setMessaggio] = useState("");
+  const [immobileId, setImmobileId] = useState<string>("");
+  const [tipo, setTipo] = useState<string>("nota");
+
+  const { data: immobiliProprietario = [] } = useQuery<Immobile[]>({
+    queryKey: ["/api/immobili", "proprietario", clienteId],
+    queryFn: async () => {
+      const res = await fetch(`/api/immobili?proprietarioId=${clienteId}`);
+      if (!res.ok) throw new Error("Failed to fetch");
+      return res.json();
+    },
+  });
+
+  const sendMutation = useMutation({
+    mutationFn: async (data: { canale: string; messaggio: string; immobileId?: number; tipo: string }) => {
+      const res = await apiRequest("POST", `/api/clienti/${clienteId}/comunicazioni/invia`, data);
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Invio fallito");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/comunicazioni", "cliente", clienteId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/attivita", "cliente", clienteId] });
+      toast({ title: "Messaggio inviato", description: `${canale === "whatsapp" ? "WhatsApp" : "Email"} inviato con successo` });
+      setMessaggio("");
+      setImmobileId("");
+    },
+    onError: (error: Error) => {
+      toast({ title: "Errore invio", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const handleSend = () => {
+    if (!messaggio.trim()) {
+      toast({ title: "Messaggio vuoto", description: "Inserisci un messaggio", variant: "destructive" });
+      return;
+    }
+    sendMutation.mutate({
+      canale,
+      messaggio: messaggio.trim(),
+      immobileId: immobileId ? parseInt(immobileId) : undefined,
+      tipo,
+    });
+  };
+
+  const canSendWhatsApp = !!cliente.telefono;
+  const canSendEmail = !!cliente.email;
+
+  return (
+    <Card className="mb-6">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">Invia Comunicazione</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center gap-2">
+          <Button
+            variant={canale === "whatsapp" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setCanale("whatsapp")}
+            disabled={!canSendWhatsApp}
+            data-testid="button-channel-whatsapp"
+          >
+            <Phone className="h-4 w-4 mr-1" />
+            WhatsApp
+          </Button>
+          <Button
+            variant={canale === "email" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setCanale("email")}
+            disabled={!canSendEmail}
+            data-testid="button-channel-email"
+          >
+            <Mail className="h-4 w-4 mr-1" />
+            Email
+          </Button>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label>Tipo comunicazione</Label>
+            <Select value={tipo} onValueChange={setTipo}>
+              <SelectTrigger data-testid="select-communication-type">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="nota">Nota</SelectItem>
+                <SelectItem value="proposta">Proposta</SelectItem>
+                <SelectItem value="richiesta">Richiesta</SelectItem>
+                <SelectItem value="risposta">Risposta</SelectItem>
+                <SelectItem value="followup">Follow-up</SelectItem>
+                <SelectItem value="auguri">Auguri</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {immobiliProprietario.length > 0 && (
+            <div className="space-y-2">
+              <Label>Collega a immobile (opzionale)</Label>
+              <Select value={immobileId} onValueChange={setImmobileId}>
+                <SelectTrigger data-testid="select-property-link">
+                  <SelectValue placeholder="Nessun immobile" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Nessun immobile</SelectItem>
+                  {immobiliProprietario.map((imm) => (
+                    <SelectItem key={imm.id} value={String(imm.id)}>
+                      {imm.titolo}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <Label>Messaggio</Label>
+          <Textarea
+            value={messaggio}
+            onChange={(e) => setMessaggio(e.target.value)}
+            placeholder={`Scrivi il tuo messaggio ${canale === "whatsapp" ? "WhatsApp" : "email"}...`}
+            rows={4}
+            data-testid="input-message"
+          />
+        </div>
+
+        <div className="flex justify-end">
+          <Button
+            onClick={handleSend}
+            disabled={sendMutation.isPending || !messaggio.trim()}
+            data-testid="button-send-communication"
+          >
+            {sendMutation.isPending ? (
+              "Invio..."
+            ) : (
+              <>
+                <Send className="h-4 w-4 mr-2" />
+                Invia {canale === "whatsapp" ? "WhatsApp" : "Email"}
+              </>
+            )}
+          </Button>
+        </div>
+
+        {!canSendWhatsApp && !canSendEmail && (
+          <p className="text-sm text-muted-foreground">
+            Il cliente non ha telefono o email configurati
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function TabComunicazioni({ clienteId, cliente }: { clienteId: number; cliente: Cliente }) {
   const { toast } = useToast();
   const { data: comunicazioni = [], isLoading } = useQuery<Comunicazione[]>({
     queryKey: ["/api/comunicazioni", "cliente", clienteId],
@@ -418,20 +579,25 @@ function TabComunicazioni({ clienteId }: { clienteId: number }) {
 
   if (comunicazioni.length === 0) {
     return (
-      <Card>
-        <CardContent className="flex flex-col items-center justify-center py-12">
-          <MessageSquare className="h-12 w-12 text-muted-foreground/50 mb-3" />
-          <h3 className="text-lg font-medium">Nessuna comunicazione</h3>
-          <p className="text-muted-foreground text-center mt-1">
-            Non ci sono ancora comunicazioni con questo cliente
-          </p>
-        </CardContent>
-      </Card>
+      <div>
+        <CommunicationComposer clienteId={clienteId} cliente={cliente} />
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <MessageSquare className="h-12 w-12 text-muted-foreground/50 mb-3" />
+            <h3 className="text-lg font-medium">Nessuna comunicazione</h3>
+            <p className="text-muted-foreground text-center mt-1">
+              Non ci sono ancora comunicazioni con questo cliente
+            </p>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
   return (
-    <div className="space-y-3">
+    <div>
+      <CommunicationComposer clienteId={clienteId} cliente={cliente} />
+      <div className="space-y-3">
       {comunicazioni.map((com) => {
         const immobile = getImmobile(com.immobileId);
         const indirizzo = immobile ? `${immobile.indirizzo || immobile.zona || ""}, ${immobile.citta || ""}`.trim() : null;
@@ -492,6 +658,7 @@ function TabComunicazioni({ clienteId }: { clienteId: number }) {
           </Card>
         );
       })}
+      </div>
     </div>
   );
 }
@@ -716,7 +883,7 @@ export default function ClienteDetailPage() {
           <TabImmobili clienteId={clienteId} />
         </TabsContent>
         <TabsContent value="comunicazioni" className="mt-6">
-          <TabComunicazioni clienteId={clienteId} />
+          <TabComunicazioni clienteId={clienteId} cliente={cliente} />
         </TabsContent>
         <TabsContent value="appuntamenti" className="mt-6">
           <TabAppuntamenti clienteId={clienteId} />
