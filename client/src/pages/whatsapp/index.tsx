@@ -249,7 +249,12 @@ export default function WhatsAppPage() {
     });
   };
 
-  const getConversationName = (conversation: WhatsappConversation) => {
+  const getConversationName = (conversation: WhatsappConversation & { clienteNome?: string | null }) => {
+    // Use clienteNome from backend if available (includes linked client name)
+    if ((conversation as any).clienteNome) {
+      return (conversation as any).clienteNome;
+    }
+    // Fallback: try to find client locally
     if (conversation.clienteId) {
       const cliente = clienti.find(c => c.id === conversation.clienteId);
       if (cliente) return `${cliente.nome} ${cliente.cognome}`;
@@ -260,7 +265,7 @@ export default function WhatsAppPage() {
   const getInitials = (conversation: WhatsappConversation) => {
     const name = getConversationName(conversation);
     if (name.startsWith("+")) return <Phone className="h-4 w-4" />;
-    return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
+    return name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
   };
 
   const getMessageStatus = (status: string) => {

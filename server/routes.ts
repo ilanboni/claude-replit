@@ -2721,11 +2721,25 @@ FORMATO RISPOSTE:
 
   // ==================== WHATSAPP CHAT API ====================
   
-  // Get all WhatsApp conversations
+  // Get all WhatsApp conversations with client names
   app.get("/api/whatsapp/conversations", async (req, res) => {
     try {
       const conversations = await storage.getWhatsappConversations();
-      res.json(conversations);
+      const clienti = await storage.getClienti();
+      
+      // Enrich conversations with client names
+      const enrichedConversations = conversations.map(conv => {
+        let clienteNome = conv.nome || null;
+        if (conv.clienteId) {
+          const cliente = clienti.find(c => c.id === conv.clienteId);
+          if (cliente) {
+            clienteNome = `${cliente.nome} ${cliente.cognome}`.trim();
+          }
+        }
+        return { ...conv, clienteNome };
+      });
+      
+      res.json(enrichedConversations);
     } catch (error) {
       console.error("Get WhatsApp conversations error:", error);
       res.status(500).json({ error: "Errore nel recupero conversazioni" });
@@ -2834,9 +2848,9 @@ FORMATO RISPOSTE:
         status: "pending"
       });
 
-      // Create comunicazione record
+      // Create comunicazione record - use resolvedClienteId which is always set correctly
       await storage.createComunicazione({
-        clienteId: clienteId || conversation.clienteId,
+        clienteId: resolvedClienteId || conversation.clienteId,
         immobileId: immobileId || conversation.immobileId,
         immobileEsternoId: null,
         whatsappMessageId: message.id,
