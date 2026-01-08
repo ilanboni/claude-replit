@@ -3133,15 +3133,15 @@ FORMATO RISPOSTE:
         return res.status(200).json({ status: "ignored", reason: "no data" });
       }
 
-      // Handle incoming messages only (message_create or message_received events)
+      // Handle messages (message_create or message_received events)
       if ((event_type === "message_create" || event_type === "message_received") && data.body) {
-        // Skip outbound messages - they are already created by /api/whatsapp/send
-        if (data.fromMe === true) {
-          return res.status(200).json({ status: "ignored", reason: "outbound message handled by send endpoint" });
-        }
+        const isOutbound = data.fromMe === true;
         
+        // For outbound messages (fromMe=true), use "to" as the conversation phone
         // For incoming messages, use "from" as the conversation phone
-        const rawPhone = data.from?.replace("@c.us", "") || "";
+        const rawPhone = isOutbound 
+          ? (data.to?.replace("@c.us", "") || "")
+          : (data.from?.replace("@c.us", "") || "");
         const phoneNumber = rawPhone.replace(/\D/g, '');
         const body = data.body;
         const profileName = data.pushname || null;
@@ -3177,7 +3177,7 @@ FORMATO RISPOSTE:
             nome: profileName,
             ultimoMessaggio: body.substring(0, 100),
             ultimoMessaggioData: new Date(),
-            nonLetti: 1,
+            nonLetti: isOutbound ? 0 : 1,
             stato: "attivo"
           });
         } else {
@@ -3186,34 +3186,34 @@ FORMATO RISPOSTE:
           await storage.updateWhatsappConversation(conversation.id, {
             ultimoMessaggio: body.substring(0, 100),
             ultimoMessaggioData: new Date(),
-            nonLetti: (conversation.nonLetti || 0) + 1,
+            nonLetti: isOutbound ? (conversation.nonLetti || 0) : (conversation.nonLetti || 0) + 1,
             nome: profileName || conversation.nome,
             clienteId: newClienteId
           });
           conversation = { ...conversation, clienteId: newClienteId };
         }
 
-        // Save incoming message
+        // Save message (inbound or outbound)
         const message = await storage.createWhatsappMessage({
           conversationId: conversation.id,
           whatsappMessageId: messageId,
-          direction: "inbound",
+          direction: isOutbound ? "outbound" : "inbound",
           messageType: data.type || "text",
           content: body,
           mediaUrl: data.media || null,
-          status: "received"
+          status: isOutbound ? "sent" : "received"
         });
 
-        // Create comunicazione for incoming message
+        // Create comunicazione
         await storage.createComunicazione({
           clienteId: conversation.clienteId,
           immobileId: conversation.immobileId,
           immobileEsternoId: null,
           whatsappMessageId: message.id,
-          tipo: "risposta",
+          tipo: isOutbound ? "messaggio" : "risposta",
           testo: body,
           canale: "whatsapp",
-          creatoDA: "cliente",
+          creatoDA: isOutbound ? "agente" : "cliente",
           esito: null
         });
 
