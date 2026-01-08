@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import {
   Plus,
   Search,
@@ -217,6 +217,7 @@ function ImmobileCardSkeleton() {
 
 export default function ImmobiliPage() {
   const { toast } = useToast();
+  const [location, setLocation] = useLocation();
   const [search, setSearch] = useState("");
   const [filterStato, setFilterStato] = useState<string>("tutti");
   const [showForm, setShowForm] = useState(false);
@@ -226,6 +227,19 @@ export default function ImmobiliPage() {
   const { data: immobili = [], isLoading } = useQuery<Immobile[]>({
     queryKey: ["/api/immobili"],
   });
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const editId = params.get("edit");
+    if (editId && immobili.length > 0) {
+      const immobileToEdit = immobili.find(i => i.id === parseInt(editId));
+      if (immobileToEdit) {
+        setEditingImmobile(immobileToEdit);
+        setShowForm(true);
+        setLocation("/immobili", { replace: true });
+      }
+    }
+  }, [immobili, setLocation]);
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
