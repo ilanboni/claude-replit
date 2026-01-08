@@ -1,0 +1,78 @@
+webhook
+⚙️ IMPOSTAZIONI ULTRAMSG
+Vai su ultramsg.com → La tua Instance → Settings → Webhook
+
+Impostazione	Valore
+Webhook URL	https://tuo-progetto.replit.app/api/whatsapp/webhook
+Webhook on Received messages	✅ ON
+Webhook on Create/Send messages	✅ ON
+Webhook on Message Ack/Status	✅ ON (opzionale, per delivery status)
+⚠️ IMPORTANTE: Il secondo checkbox ("Create/Send") è quello che ti permette di vedere i messaggi che invii dal cellulare nel CRM.
+
+📋 SECRETS NECESSARI
+ULTRAMSG_INSTANCE_ID=tua_instance_id
+ULTRAMSG_TOKEN=tuo_token
+🔧 ENDPOINT WEBHOOK (server/routes.ts)
+Ecco il codice base del webhook handler:
+
+app.post('/api/whatsapp/webhook', async (req: Request, res: Response) => {
+  try {
+    const webhookData = req.body;
+    console.log("[WEBHOOK] Ricevuto:", JSON.stringify(webhookData, null, 2));
+    
+    // Normalizza formato (UltraMsg usa formati diversi)
+    let normalizedWebhook = {
+      event_type: 'message',
+      from_me: false,
+      from: '',
+      to: '',
+      body: ''
+    };
+    
+    // Formato con data object (message_received / message_create)
+    if (webhookData.event_type === 'message_received' && webhookData.data) {
+      normalizedWebhook.from_me = false;
+      normalizedWebhook.from = webhookData.data.from?.replace(/@c\.us$/, '') || '';
+      normalizedWebhook.to = webhookData.data.to?.replace(/@c\.us$/, '') || '';
+      normalizedWebhook.body = webhookData.data.body || '';
+    } 
+    else if (webhookData.event_type === 'message_create' && webhookData.data) {
+      // Messaggi IN USCITA dal cellulare
+      normalizedWebhook.from_me = true;
+      normalizedWebhook.from = webhookData.data.from?.replace(/@c\.us$/, '') || '';
+      normalizedWebhook.to = webhookData.data.to?.replace(/@c\.us$/, '') || '';
+      normalizedWebhook.body = webhookData.data.body || '';
+    }
+    else {
+      // Formato legacy
+      normalizedWebhook.from_me = webhookData.from_me === true || webhookData.fromMe === true;
+      normalizedWebhook.from = webhookData.from || '';
+      normalizedWebhook.to = webhookData.to || '';
+      normalizedWebhook.body = webhookData.body || '';
+    }
+    
+    // Numero cliente: da "to" se outbound, da "from" se inbound
+    const clientPhone = normalizedWebhook.from_me 
+      ? normalizedWebhook.to 
+      : normalizedWebhook.from;
+    
+    // Normalizza numero (rimuovi @c.us, +, spazi)
+    const phone = clientPhone
+      .replace(/@c\.us$/i, '')
+      .replace(/^\+/, '')
+      .replace(/[\s\-\(\)]/g, '');
+    
+    // Salva comunicazione nel database
+    // ... logica per salvare in tabella communications ...
+    
+    res.json({ ok: true });
+  } catch (error) {
+    console.error("[WEBHOOK] Errore:", error);
+    res.status(500).json({ ok: false });
+  }
+});
+🔄 COSA SUCCEDE IN TEMPO REALE
+Tu invii messaggio dal cellulare → UltraMsg invia webhook message_create → CRM salva come comunicazione outbound
+Cliente ti risponde → UltraMsg invia webhook message_received → CRM salva come comunicazione inbound
+Il CRM mostra tutto nella scheda cliente/comunicazioni
+Vuoi che ti esporti l'intero file server/lib/ultramsg.ts con la funzione processIncomingWebhook completa da copiare nel nuovo progetto
