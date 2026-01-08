@@ -27,8 +27,8 @@ import type { Cliente } from "@shared/schema";
 
 const formSchema = z.object({
   appellativo: z.string().optional(),
-  nome: z.string().min(1, "Il nome è obbligatorio"),
-  cognome: z.string().min(1, "Il cognome è obbligatorio"),
+  nome: z.string().optional(),
+  cognome: z.string().optional(),
   telefono: z.string().optional(),
   email: z.string().email("Email non valida").optional().or(z.literal("")),
   compleanno: z.string().optional(),
@@ -36,6 +36,7 @@ const formSchema = z.object({
   note: z.string().optional(),
   tipoCliente: z.enum(["compratore", "venditore", "entrambi"]),
   ratingCliente: z.number().min(1).max(5),
+  clienteAmico: z.boolean(),
   attivo: z.boolean(),
 });
 
@@ -64,6 +65,7 @@ export function ClienteForm({ cliente, onSuccess, onCancel }: ClienteFormProps) 
       note: cliente?.note ?? "",
       tipoCliente: (cliente?.tipoCliente as "compratore" | "venditore" | "entrambi") ?? "compratore",
       ratingCliente: cliente?.ratingCliente ?? 3,
+      clienteAmico: cliente?.clienteAmico ?? false,
       attivo: cliente?.attivo ?? true,
     },
   });
@@ -118,13 +120,11 @@ export function ClienteForm({ cliente, onSuccess, onCancel }: ClienteFormProps) 
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="Sig.">Sig.</SelectItem>
-                    <SelectItem value="Sig.ra">Sig.ra</SelectItem>
-                    <SelectItem value="Dott.">Dott.</SelectItem>
-                    <SelectItem value="Dott.ssa">Dott.ssa</SelectItem>
-                    <SelectItem value="Ing.">Ing.</SelectItem>
-                    <SelectItem value="Avv.">Avv.</SelectItem>
-                    <SelectItem value="Prof.">Prof.</SelectItem>
+                    <SelectItem value="Gent.mo Sig.">Gent.mo Sig.</SelectItem>
+                    <SelectItem value="Egr. Dott.">Egr. Dott.</SelectItem>
+                    <SelectItem value="Egr. Avv.to">Egr. Avv.to</SelectItem>
+                    <SelectItem value="Gent.ma Sig.ra">Gent.ma Sig.ra</SelectItem>
+                    <SelectItem value="Ciao">Ciao</SelectItem>
                   </SelectContent>
                 </Select>
                 <FormMessage />
@@ -162,7 +162,7 @@ export function ClienteForm({ cliente, onSuccess, onCancel }: ClienteFormProps) 
             name="nome"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Nome *</FormLabel>
+                <FormLabel>Nome</FormLabel>
                 <FormControl>
                   <Input placeholder="Mario" {...field} data-testid="input-nome" />
                 </FormControl>
@@ -176,7 +176,7 @@ export function ClienteForm({ cliente, onSuccess, onCancel }: ClienteFormProps) 
             name="cognome"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Cognome *</FormLabel>
+                <FormLabel>Cognome</FormLabel>
                 <FormControl>
                   <Input placeholder="Rossi" {...field} data-testid="input-cognome" />
                 </FormControl>
@@ -324,27 +324,51 @@ export function ClienteForm({ cliente, onSuccess, onCancel }: ClienteFormProps) 
           )}
         />
 
-        <FormField
-          control={form.control}
-          name="attivo"
-          render={({ field }) => (
-            <FormItem className="flex items-center justify-between rounded-md border p-4">
-              <div>
-                <FormLabel className="text-base">Cliente Attivo</FormLabel>
-                <p className="text-sm text-muted-foreground">
-                  I clienti inattivi non appariranno nelle ricerche
-                </p>
-              </div>
-              <FormControl>
-                <Switch
-                  checked={field.value}
-                  onCheckedChange={field.onChange}
-                  data-testid="switch-attivo"
-                />
-              </FormControl>
-            </FormItem>
-          )}
-        />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FormField
+            control={form.control}
+            name="clienteAmico"
+            render={({ field }) => (
+              <FormItem className="flex items-center justify-between rounded-md border p-4">
+                <div>
+                  <FormLabel className="text-base">Cliente Amico</FormLabel>
+                  <p className="text-sm text-muted-foreground">
+                    Messaggi con tono informale (Ciao + Nome)
+                  </p>
+                </div>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                    data-testid="switch-cliente-amico"
+                  />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="attivo"
+            render={({ field }) => (
+              <FormItem className="flex items-center justify-between rounded-md border p-4">
+                <div>
+                  <FormLabel className="text-base">Cliente Attivo</FormLabel>
+                  <p className="text-sm text-muted-foreground">
+                    I clienti inattivi non appariranno nelle ricerche
+                  </p>
+                </div>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                    data-testid="switch-attivo"
+                  />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+        </div>
 
         <div className="flex justify-end gap-3">
           <Button type="button" variant="outline" onClick={onCancel} data-testid="button-cancel">

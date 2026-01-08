@@ -21,9 +21,9 @@ export const messages = pgTable("messages", {
 // CLIENTI - Clients table
 export const clienti = pgTable("clienti", {
   id: serial("id").primaryKey(),
-  appellativo: text("appellativo"), // Mr, Mrs, Dr, etc.
-  nome: text("nome").notNull(),
-  cognome: text("cognome").notNull(),
+  appellativo: text("appellativo"), // Gent.mo Sig., Egr. Dott., Egr. Avv.to, Gent.ma Sig.ra, Ciao
+  nome: text("nome"), // opzionale
+  cognome: text("cognome"), // opzionale
   telefono: text("telefono"),
   email: text("email"),
   compleanno: text("compleanno"), // stored as string for simplicity
@@ -31,6 +31,7 @@ export const clienti = pgTable("clienti", {
   note: text("note"),
   tipoCliente: text("tipo_cliente").notNull().default("compratore"), // compratore, venditore, entrambi
   ratingCliente: integer("rating_cliente").default(3), // 1-5
+  clienteAmico: boolean("cliente_amico").default(false), // Per tono messaggi: amico = informale, non amico = formale
   linkImmobile: text("link_immobile"), // Link all'annuncio immobile per proprietari
   attivo: boolean("attivo").default(true),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
