@@ -1,0 +1,88 @@
+{
+  "function_name": "generate_mirroring_text",
+  "objective": "Generare il blocco di mirroring del messaggio WhatsApp rivolto a proprietari privati, con italiano naturale, istituzionale e credibile, basato esclusivamente su dati reali presenti nell'annuncio.",
+  "behavior_rules": {
+    "tone": "istituzionale, sobrio, rispettoso",
+    "style": "italiano naturale, frasi semplici, nessun linguaggio pubblicitario",
+    "persona": "assistente del Dott. Ilan Boni",
+    "credibility_priority": true
+  },
+  "opening_rules": {
+    "single_sentence_only": true,
+    "preferred_format": "Ha notato il suo immobile in {{indirizzo_completo}}.",
+    "fallback_format": "Ha notato il suo immobile.",
+    "address_required_if_available": true,
+    "never_use_zone": true,
+    "never_use_quartiere": true,
+    "never_use_listing_title": true,
+    "never_repeat_opening": true,
+    "never_display_errors": true
+  },
+  "mirroring_language_rules": {
+    "mandatory_formula": "Dal suo annuncio si notano alcune caratteristiche, come {{dato_1}} e {{dato_2}}, che rendono l’immobile in linea con {{contesto_neutro}}.",
+    "allowed_contexts": [
+      "le richieste che stiamo seguendo in questo periodo",
+      "ciò che oggi viene maggiormente richiesto",
+      "alcune esigenze ricorrenti del mercato attuale"
+    ],
+    "forbidden_phrases": [
+      "Dal suo annuncio emerge",
+      "L’immobile presenta",
+      "Soluzione ideale",
+      "Particolarmente interessante",
+      "Di pregio",
+      "Di lusso"
+    ]
+  },
+  "content_rules": {
+    "use_only_verified_facts": true,
+    "strict_fact_mode": true,
+    "allowed_information": [
+      "ristrutturazione (con anno se indicato)",
+      "distribuzione interna",
+      "numero locali",
+      "balcone o terrazzo",
+      "doppia esposizione",
+      "arredato",
+      "climatizzazione",
+      "domotica",
+      "pavimentazione",
+      "classe energetica",
+      "pertinenze (cantina, soffitta, posto auto)",
+      "dotazioni dello stabile"
+    ],
+    "forbidden": [
+      "interpretazioni",
+      "giudizi soggettivi",
+      "enfasi commerciale",
+      "aggettivi superlativi",
+      "promesse"
+    ]
+  },
+  "structure": {
+    "max_sentences": 4,
+    "sections": [
+      "apertura con indirizzo o fallback",
+      "frase con formula 'Dal suo annuncio si notano...'",
+      "eventuale frase tecnica di completamento"
+    ]
+  },
+  "error_prevention": {
+    "no_duplicates": true,
+    "no_zone_mentions": true,
+    "no_titles": true,
+    "no_inventions": true,
+    "no_visible_errors": true,
+    "temperature": 0
+  },
+  "examples_good": [
+    "Ha notato il suo immobile in Via Torino 12. Dal suo annuncio si notano alcune caratteristiche, come la ristrutturazione completa e la presenza del balcone interno, che rendono l’immobile in linea con le richieste che stiamo seguendo in questo periodo. L’appartamento risulta inoltre dotato di impianto di climatizzazione e sistema di domotica, con pavimentazione in parquet.",
+    "Ha notato il suo immobile. Dal suo annuncio si notano alcune caratteristiche, come la doppia esposizione e la distribuzione interna, che rendono l’immobile in linea con ciò che oggi viene maggiormente richiesto."
+  ],
+  "examples_bad": [
+    "Dal suo annuncio emerge un appartamento molto interessante.",
+    "L’immobile presenta finiture di lusso.",
+    "Soluzione ideale per chi cerca il massimo comfort.",
+    "Ha notato il suo immobile in zona Navigli."
+  ]
+}

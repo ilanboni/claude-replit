@@ -189,57 +189,68 @@ export function checkForObjection(message: string): { found: boolean; handler?: 
   return { found: false };
 }
 
-// Prompt per generare frasi di mirroring dall'annuncio - v8
-// generate_mirroring_text: SOLO fatti reali, fallback neutro, MAI diagnostica
-export const MIRRORING_PROMPT = `Scrivi la parte di mirroring del messaggio WhatsApp basandoti solo su informazioni reali presenti nell'annuncio immobiliare, mantenendo credibilità e tono istituzionale.
+// Prompt per generare frasi di mirroring dall'annuncio - v9
+// generate_mirroring_text: formula obbligatoria "Dal suo annuncio si notano...", MAI "emerge"
+export const MIRRORING_PROMPT = `Genera il blocco di mirroring del messaggio WhatsApp rivolto a proprietari privati, con italiano naturale, istituzionale e credibile, basato esclusivamente su dati reali presenti nell'annuncio.
 
-TONO: professionale, calmo, istituzionale
-STILE: italiano corretto, frasi brevi, zero marketing
+TONO: istituzionale, sobrio, rispettoso
+STILE: italiano naturale, frasi semplici, nessun linguaggio pubblicitario
 PERSONA: assistente del Dott. Ilan Boni
 PRIORITÀ: credibilità assoluta
 
-GESTIONE INDIRIZZO:
-- Usa sempre l'indirizzo se presente
-- Se l'indirizzo non è disponibile o non è certo: NON scrivere errori, NON menzionare zone
-- Fallback: "Ha notato il suo immobile."
-
 REGOLE APERTURA:
 - Scrivi UNA SOLA frase di apertura
-- Formato preferito: "Ha notato il suo immobile in {{indirizzo}}."
+- Formato preferito: "Ha notato il suo immobile in {{indirizzo_completo}}."
 - Formato fallback: "Ha notato il suo immobile."
+- L'indirizzo è OBBLIGATORIO se disponibile
 - MAI usare zona
 - MAI usare quartiere
 - MAI usare il titolo dell'annuncio
 - MAI ripetere l'apertura
 - MAI mostrare errori
-- MAI scrivere messaggi diagnostici o tecnici
+
+FORMULA OBBLIGATORIA PER MIRRORING:
+"Dal suo annuncio si notano alcune caratteristiche, come {{dato_1}} e {{dato_2}}, che rendono l'immobile in linea con {{contesto_neutro}}."
+
+CONTESTI AMMESSI (scegli uno):
+- "le richieste che stiamo seguendo in questo periodo"
+- "ciò che oggi viene maggiormente richiesto"
+- "alcune esigenze ricorrenti del mercato attuale"
+
+FRASI VIETATE:
+- "Dal suo annuncio emerge"
+- "L'immobile presenta"
+- "Soluzione ideale"
+- "Particolarmente interessante"
+- "Di pregio"
+- "Di lusso"
 
 INFORMAZIONI AMMESSE (solo se presenti):
+- ristrutturazione (con anno se indicato)
+- distribuzione interna
 - numero locali
-- composizione interna
-- anno ristrutturazione
+- balcone o terrazzo
+- doppia esposizione
 - arredato
-- balcone/terrazzo
-- soffitta/cantina
-- ascensore
-- riqualificazione stabile
-- cappotto termico
+- climatizzazione
+- domotica
+- pavimentazione
 - classe energetica
-- libero al rogito
-- vicinanza metro SOLO se indicata esplicitamente
+- pertinenze (cantina, soffitta, posto auto)
+- dotazioni dello stabile
 
 VIETATO:
 - interpretazioni
-- opinioni
 - giudizi soggettivi
-- frasi commerciali
+- enfasi commerciale
+- aggettivi superlativi
 - promesse
-- abbellimenti
 
 STRUTTURA:
-1) Apertura
-2) Descrizione fatta solo di fatti reali
-3) Max 4 frasi totali
+1) Apertura con indirizzo o fallback
+2) Frase con formula "Dal suo annuncio si notano..."
+3) Eventuale frase tecnica di completamento
+4) Max 4 frasi totali
 
 PREVENZIONE ERRORI:
 - NO duplicati
@@ -247,19 +258,19 @@ PREVENZIONE ERRORI:
 - NO titoli annuncio
 - NO invenzioni
 - NO errori visibili
-- Se qualcosa è incerto, NON scriverlo
+- Temperature: 0
 
 ESEMPI BUONI:
-- "Ha notato il suo immobile in Via Antonio Panizzi 15. Dal suo annuncio emerge un bilocale ristrutturato nel 2017, venduto arredato e libero al rogito. L'appartamento risulta con esposizione interna e dispone di balcone e soffitta. Lo stabile è indicato come riqualificato nel 2024 con cappotto termico, nuovi balconi, caldaia e ascensore, oltre all'accesso disabili."
-- "Ha notato il suo immobile. Dal suo annuncio emerge un bilocale ristrutturato nel 2017 e venduto arredato, con balcone e soffitta. Lo stabile risulta riqualificato di recente con interventi importanti e presenza di ascensore."
+- "Ha notato il suo immobile in Via Torino 12. Dal suo annuncio si notano alcune caratteristiche, come la ristrutturazione completa e la presenza del balcone interno, che rendono l'immobile in linea con le richieste che stiamo seguendo in questo periodo. L'appartamento risulta inoltre dotato di impianto di climatizzazione e sistema di domotica, con pavimentazione in parquet."
+- "Ha notato il suo immobile. Dal suo annuncio si notano alcune caratteristiche, come la doppia esposizione e la distribuzione interna, che rendono l'immobile in linea con ciò che oggi viene maggiormente richiesto."
 
 ESEMPI SBAGLIATI:
-- "Ha notato il suo immobile in Trilocale luminoso Navigli." (titolo)
-- "Ha notato il suo immobile in zona Navigli." (zona)
-- "Errore: manca indirizzo." (errore visibile)
-- Qualsiasi messaggio diagnostico o tecnico`;
+- "Dal suo annuncio emerge un appartamento molto interessante."
+- "L'immobile presenta finiture di lusso."
+- "Soluzione ideale per chi cerca il massimo comfort."
+- "Ha notato il suo immobile in zona Navigli."`;
 
-// Mirroring configuration for structured calls - v8
+// Mirroring configuration for structured calls - v9
 export const MIRRORING_CONFIG = {
   temperature: 0,
   max_tokens: 400

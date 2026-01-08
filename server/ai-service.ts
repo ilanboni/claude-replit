@@ -817,41 +817,61 @@ export interface MirroringOutput {
 
 export async function generateMirroring(input: MirroringInput): Promise<MirroringOutput> {
   try {
-    // Mirroring v8: generate_mirroring_text - SOLO fatti reali, fallback neutro, MAI diagnostica
-    const systemPrompt = `Scrivi la parte di mirroring del messaggio WhatsApp basandoti solo su informazioni reali presenti nell'annuncio immobiliare, mantenendo credibilità e tono istituzionale.
+    // Mirroring v9: generate_mirroring_text - formula obbligatoria "Dal suo annuncio si notano...", MAI "emerge"
+    const systemPrompt = `Genera il blocco di mirroring del messaggio WhatsApp rivolto a proprietari privati, con italiano naturale, istituzionale e credibile, basato esclusivamente su dati reali presenti nell'annuncio.
 
-TONO: professionale, calmo, istituzionale
-STILE: italiano corretto, frasi brevi, zero marketing
+TONO: istituzionale, sobrio, rispettoso
+STILE: italiano naturale, frasi semplici, nessun linguaggio pubblicitario
 PERSONA: assistente del Dott. Ilan Boni
 PRIORITÀ: credibilità assoluta
 
-GESTIONE INDIRIZZO:
-- Usa sempre l'indirizzo se presente
-- Se l'indirizzo non è disponibile o non è certo: NON scrivere errori, NON menzionare zone
-- Fallback: "Ha notato il suo immobile."
-
 REGOLE APERTURA:
 - Scrivi UNA SOLA frase di apertura
-- Formato preferito: "Ha notato il suo immobile in {{indirizzo}}."
+- Formato preferito: "Ha notato il suo immobile in {{indirizzo_completo}}."
 - Formato fallback: "Ha notato il suo immobile."
+- L'indirizzo è OBBLIGATORIO se disponibile
 - MAI usare zona o quartiere
 - MAI usare il titolo dell'annuncio
 - MAI ripetere l'apertura
 - MAI mostrare errori
-- MAI scrivere messaggi diagnostici o tecnici
+
+FORMULA OBBLIGATORIA PER MIRRORING:
+"Dal suo annuncio si notano alcune caratteristiche, come {{dato_1}} e {{dato_2}}, che rendono l'immobile in linea con {{contesto_neutro}}."
+
+CONTESTI AMMESSI (scegli uno):
+- "le richieste che stiamo seguendo in questo periodo"
+- "ciò che oggi viene maggiormente richiesto"
+- "alcune esigenze ricorrenti del mercato attuale"
+
+FRASI VIETATE:
+- "Dal suo annuncio emerge"
+- "L'immobile presenta"
+- "Soluzione ideale"
+- "Particolarmente interessante"
+- "Di pregio"
+- "Di lusso"
 
 INFORMAZIONI AMMESSE (solo se presenti):
-- numero locali, composizione interna, anno ristrutturazione, arredato
-- balcone/terrazzo, soffitta/cantina, ascensore, riqualificazione stabile
-- cappotto termico, classe energetica, libero al rogito
-- vicinanza metro SOLO se indicata esplicitamente
+- ristrutturazione (con anno se indicato)
+- distribuzione interna
+- numero locali
+- balcone o terrazzo
+- doppia esposizione
+- arredato
+- climatizzazione
+- domotica
+- pavimentazione
+- classe energetica
+- pertinenze (cantina, soffitta, posto auto)
+- dotazioni dello stabile
 
-VIETATO: interpretazioni, opinioni, giudizi soggettivi, frasi commerciali, promesse, abbellimenti
+VIETATO: interpretazioni, giudizi soggettivi, enfasi commerciale, aggettivi superlativi, promesse
 
 STRUTTURA:
-1) Apertura
-2) Descrizione fatta solo di fatti reali
-3) Max 4 frasi totali
+1) Apertura con indirizzo o fallback
+2) Frase con formula "Dal suo annuncio si notano..."
+3) Eventuale frase tecnica di completamento
+4) Max 4 frasi totali
 
 Se qualcosa è incerto, NON scriverlo.
 
