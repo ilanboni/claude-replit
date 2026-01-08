@@ -64,7 +64,7 @@ function ClienteHeader({ cliente, onEdit, onDelete }: {
     <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
       <div className="flex items-start gap-4">
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-primary text-xl font-semibold">
-          {cliente.nome[0]}{cliente.cognome[0]}
+          {cliente.nome?.[0] || ''}{cliente.cognome?.[0] || ''}
         </div>
         <div>
           <div className="flex items-center gap-3 flex-wrap">
