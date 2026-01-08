@@ -3121,14 +3121,15 @@ FORMATO RISPOSTE:
     try {
       console.log("UltraMsg Webhook received:", JSON.stringify(req.body, null, 2));
       
-      const { event_type, data } = req.body;
+      const { event_type, event, data } = req.body;
+      const eventName = event_type || event; // UltraMsg uses "event" field
       
       if (!data) {
         return res.status(200).json({ status: "ignored", reason: "no data" });
       }
 
       // Handle messages (message_create or message_received events)
-      if ((event_type === "message_create" || event_type === "message_received") && data.body) {
+      if ((eventName === "message_create" || eventName === "message_received") && data.body) {
         const isOutbound = data.fromMe === true;
         
         // For outbound messages (fromMe=true), use "to" as the conversation phone
@@ -3222,7 +3223,7 @@ FORMATO RISPOSTE:
       }
 
       // Handle message acknowledgment (delivery/read status) - only for message_ack events
-      if (event_type === "message_ack" && data.ack !== undefined && data.ack !== "") {
+      if (eventName === "message_ack" && data.ack !== undefined && data.ack !== "") {
         let newStatus = "sent";
         
         // UltraMsg ack string values: "server"=sent, "device"=delivered, "read"=read
