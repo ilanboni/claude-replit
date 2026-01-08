@@ -33,6 +33,7 @@ const formSchema = z.object({
   descrizione: z.string().optional(),
   indirizzo: z.string().optional(),
   zona: z.string().optional(),
+  idPortale: z.string().optional().nullable(),
   mq: z.number().optional().nullable(),
   prezzo: z.string().optional(),
   piano: z.number().optional().nullable(),
@@ -79,6 +80,7 @@ export function ImmobileForm({ immobile, preselectedProprietarioId, onSuccess, o
       descrizione: immobile?.descrizione ?? "",
       indirizzo: immobile?.indirizzo ?? "",
       zona: immobile?.zona ?? "",
+      idPortale: immobile?.idPortale ?? "",
       mq: immobile?.mq ?? null,
       prezzo: immobile?.prezzo?.toString() ?? "",
       piano: immobile?.piano ?? null,
@@ -213,6 +215,28 @@ export function ImmobileForm({ immobile, preselectedProprietarioId, onSuccess, o
             )}
           />
         </div>
+
+        <FormField
+          control={form.control}
+          name="idPortale"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>ID Portale</FormLabel>
+              <FormControl>
+                <Input 
+                  placeholder="Es: Prima (per Via Primaticcio)" 
+                  {...field} 
+                  value={field.value ?? ""}
+                  data-testid="input-id-portale" 
+                />
+              </FormControl>
+              <FormDescription>
+                Identificativo breve per matching richieste dai portali (Idealista, Immobiliare.it)
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         <div className="grid gap-4 sm:grid-cols-3">
           <FormField
