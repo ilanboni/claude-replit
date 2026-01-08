@@ -557,14 +557,13 @@ RICORDA:
 - Rispettare i tempi del proprietario
 - Nessuna pressione, solo disponibilità`;
 
-// Default acquisition message template
+// Default acquisition message template - usa {{mirroring}} per il blocco di mirroring generato da AI
 export const DEFAULT_ACQUISITION_MESSAGE = `Gentile Proprietario,
 sono l'assistente del Dott. Ilan Boni.
 
 Il Dott. Boni è agente immobiliare da oltre trent'anni, proprietario di due agenzie a Milano e Vicepresidente della Comunità Ebraica di Milano. La sua attività lo porta ogni giorno a confrontarsi con investitori italiani e stranieri che guardano a Milano come a un'opportunità concreta, spesso legata alla flat tax.
 
-Ha notato il suo immobile in {{via}}.
-Caratteristiche come {{caratteristiche}} sono oggi molto richieste da chi cerca immobili con potenzialità immediate, sia in termini di rendimento sia di stabilità del valore nel tempo.
+{{mirroring}}
 
 Il Dott. Boni vorrebbe capire se il suo immobile può inserirsi in un percorso di lavoro molto preciso.
 Nel 2025 ha concluso 14 vendite e, negli ultimi anni, il suo metodo gli ha permesso di chiudere positivamente il 94% dei mandati affidati, mettendo gli acquirenti in concorrenza tra loro e non al ribasso contro il proprietario.

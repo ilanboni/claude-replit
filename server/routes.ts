@@ -1726,7 +1726,7 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
       }
 
       // First, generate mirroring phrases from the listing
-      const { MIRRORING_PROMPT, MIRRORING_CONFIG } = await import("./bot-config");
+      const { MIRRORING_PROMPT, MIRRORING_CONFIG, DEFAULT_ACQUISITION_MESSAGE } = await import("./bot-config");
       
       // Build mirroring context using the new schema
       const testoAnnuncio = immobile.descrizione || immobile.titolo || 'Nessun testo disponibile';
@@ -1803,8 +1803,8 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         }
       }
 
-      // Now generate the full message with mirroring included
-      const message = await generateAcquisitionMessage(immobile, template, mirroringText);
+      // Build the complete message using the unified template
+      const message = DEFAULT_ACQUISITION_MESSAGE.replace(/\{\{mirroring\}\}/g, mirroringText);
       res.json({ message });
     } catch (error) {
       console.error("Generate message error:", error);
@@ -2638,7 +2638,7 @@ Assistente del Dott. Ilan Boni`;
         return res.status(400).json({ error: "Testo annuncio richiesto" });
       }
 
-      const { MIRRORING_PROMPT, MIRRORING_CONFIG } = await import("./bot-config");
+      const { MIRRORING_PROMPT, MIRRORING_CONFIG, DEFAULT_ACQUISITION_MESSAGE } = await import("./bot-config");
       
       // Build context for mirroring
       let context = `Testo annuncio:\n"${testoAnnuncio}"`;
@@ -2676,27 +2676,8 @@ Assistente del Dott. Ilan Boni`;
         }
       }
 
-      // Build the complete message with mirroring (AI handles the opening)
-      const message = `Gentile Proprietario,
-sono l'assistente del Dott. Ilan Boni.
-
-Il Dott. Boni è agente immobiliare da oltre trent'anni, proprietario di due agenzie a Milano e Vicepresidente della Comunità Ebraica di Milano. La sua attività lo porta ogni giorno a confrontarsi con investitori italiani e stranieri che guardano a Milano come a un'opportunità concreta, spesso legata alla flat tax.
-
-${mirroringText}
-
-Il Dott. Boni vorrebbe capire se il suo immobile può inserirsi in un percorso di lavoro molto preciso.
-Nel 2025 ha concluso 14 vendite e, negli ultimi anni, il suo metodo gli ha permesso di chiudere positivamente il 94% dei mandati affidati, mettendo gli acquirenti in concorrenza tra loro e non al ribasso contro il proprietario.
-
-Se per Lei può essere utile, il Dott. Boni è disponibile per un breve incontro direttamente presso l'immobile: una decina di minuti per ascoltare la sua situazione, vedere l'appartamento e mostrarle la domanda reale sulla zona.
-
-Nel frattempo può trovare informazioni sulla sua attività immobiliare e istituzionale anche online.
-
-Può rispondere direttamente a questo messaggio, oppure contattarci allo 02 35981509 o a info@cavourimmobiliare.it.
-
-Un cordiale saluto,
-
-Sara
-Assistente del Dott. Ilan Boni`;
+      // Build the complete message using the unified template
+      const message = DEFAULT_ACQUISITION_MESSAGE.replace(/\{\{mirroring\}\}/g, mirroringText);
 
       res.json({ message });
     } catch (error) {
