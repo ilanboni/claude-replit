@@ -1726,7 +1726,7 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
       }
 
       // First, generate mirroring phrases from the listing
-      const { MIRRORING_PROMPT } = await import("./bot-config");
+      const { MIRRORING_PROMPT, MIRRORING_CONFIG } = await import("./bot-config");
       
       // Build mirroring context using the new schema
       const testoAnnuncio = immobile.descrizione || immobile.titolo || 'Nessun testo disponibile';
@@ -1783,14 +1783,25 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
       const mirroringResponse = await openaiClient.chat.completions.create({
         model: "gpt-4o",
         messages: [
-          { role: "system", content: MIRRORING_PROMPT },
+          { role: "system", content: MIRRORING_PROMPT + '\n\nRispondi SOLO con JSON: {"mirroring": "testo"}' },
           { role: "user", content: context }
         ],
-        temperature: 0.3,
-        max_tokens: 300
+        temperature: MIRRORING_CONFIG.temperature,
+        max_tokens: MIRRORING_CONFIG.max_tokens,
+        response_format: { type: "json_object" }
       });
 
-      const mirroringText = mirroringResponse.choices[0]?.message?.content?.trim() || "";
+      let mirroringText = mirroringResponse.choices[0]?.message?.content?.trim() || "";
+      
+      // Parse JSON response
+      if (mirroringText.startsWith('{')) {
+        try {
+          const parsed = JSON.parse(mirroringText);
+          mirroringText = parsed.mirroring || mirroringText;
+        } catch {
+          // Not JSON, use as-is
+        }
+      }
 
       // Now generate the full message with mirroring included
       const message = await generateAcquisitionMessage(immobile, template, mirroringText);
