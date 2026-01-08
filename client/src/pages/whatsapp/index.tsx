@@ -365,47 +365,102 @@ export default function WhatsAppPage() {
               Nessuna conversazione
             </div>
           ) : (
-            filteredConversations.map((conversation) => (
-              <div
-                key={conversation.id}
-                className={`flex items-center gap-3 p-3 cursor-pointer hover-elevate ${
-                  selectedConversationId === conversation.id ? "bg-accent" : ""
-                }`}
-                onClick={() => setSelectedConversationId(conversation.id)}
-                data-testid={`conversation-item-${conversation.id}`}
-              >
-                <Avatar>
-                  <AvatarFallback className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
-                    {getInitials(conversation)}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-medium truncate">
-                      {getConversationName(conversation)}
-                    </span>
-                    <span className="text-xs text-muted-foreground whitespace-nowrap">
-                      {conversation.ultimoMessaggioData && 
-                        formatDistanceToNow(new Date(conversation.ultimoMessaggioData), { 
-                          addSuffix: false, 
-                          locale: it 
-                        })
-                      }
-                    </span>
+            (() => {
+              // Raggruppa conversazioni per clienteId (se presente)
+              const grouped = new Map<string, typeof filteredConversations>();
+              const ungrouped: typeof filteredConversations = [];
+              
+              filteredConversations.forEach(conv => {
+                if (conv.clienteId) {
+                  const key = `cliente-${conv.clienteId}`;
+                  if (!grouped.has(key)) {
+                    grouped.set(key, []);
+                  }
+                  grouped.get(key)!.push(conv);
+                } else {
+                  ungrouped.push(conv);
+                }
+              });
+
+              // Ordina i gruppi per data più recente
+              const sortedGroups = Array.from(grouped.entries()).sort((a, b) => {
+                const aDate = Math.max(...a[1].map(c => new Date(c.ultimoMessaggioData || 0).getTime()));
+                const bDate = Math.max(...b[1].map(c => new Date(c.ultimoMessaggioData || 0).getTime()));
+                return bDate - aDate;
+              });
+
+              const renderConversation = (conversation: WhatsappConversation & { clienteNome?: string | null }, isSubItem = false) => {
+                const hasUnread = (conversation.nonLetti ?? 0) > 0;
+                return (
+                  <div
+                    key={conversation.id}
+                    className={`flex items-center gap-3 p-3 cursor-pointer hover-elevate ${
+                      selectedConversationId === conversation.id 
+                        ? "bg-accent" 
+                        : hasUnread 
+                          ? "bg-green-50 dark:bg-green-950/30" 
+                          : ""
+                    } ${isSubItem ? "pl-6 border-l-2 border-green-200 dark:border-green-800 ml-3" : ""}`}
+                    onClick={() => setSelectedConversationId(conversation.id)}
+                    data-testid={`conversation-item-${conversation.id}`}
+                  >
+                    <Avatar className={isSubItem ? "h-8 w-8" : ""}>
+                      <AvatarFallback className={`bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 ${isSubItem ? "text-xs" : ""}`}>
+                        {isSubItem ? <Phone className="h-3 w-3" /> : getInitials(conversation)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={`font-medium truncate ${isSubItem ? "text-sm" : ""}`}>
+                          {isSubItem ? `+${conversation.phoneNumber}` : getConversationName(conversation)}
+                        </span>
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">
+                          {conversation.ultimoMessaggioData && 
+                            formatDistanceToNow(new Date(conversation.ultimoMessaggioData), { 
+                              addSuffix: false, 
+                              locale: it 
+                            })
+                          }
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm text-muted-foreground truncate">
+                          {conversation.ultimoMessaggio || "Nessun messaggio"}
+                        </span>
+                        {hasUnread && (
+                          <Badge className="bg-green-500 text-white shrink-0">
+                            {conversation.nonLetti}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm text-muted-foreground truncate">
-                      {conversation.ultimoMessaggio || "Nessun messaggio"}
-                    </span>
-                    {(conversation.nonLetti ?? 0) > 0 && (
-                      <Badge className="bg-green-500 text-white shrink-0">
-                        {conversation.nonLetti}
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))
+                );
+              };
+
+              return (
+                <>
+                  {sortedGroups.map(([key, convs]) => {
+                    if (convs.length === 1) {
+                      return renderConversation(convs[0]);
+                    }
+                    // Ordina per data più recente
+                    const sorted = [...convs].sort((a, b) => 
+                      new Date(b.ultimoMessaggioData || 0).getTime() - new Date(a.ultimoMessaggioData || 0).getTime()
+                    );
+                    const totalUnread = sorted.reduce((sum, c) => sum + (c.nonLetti ?? 0), 0);
+                    const hasUnread = totalUnread > 0;
+                    
+                    return (
+                      <div key={key} className={`${hasUnread ? "bg-green-50/50 dark:bg-green-950/20" : ""}`}>
+                        {sorted.map((conv, idx) => renderConversation(conv, idx > 0))}
+                      </div>
+                    );
+                  })}
+                  {ungrouped.map(conv => renderConversation(conv))}
+                </>
+              );
+            })()
           )}
         </ScrollArea>
       </div>
