@@ -1,50 +1,29 @@
 import { google } from 'googleapis';
 
-let connectionSettings: any;
+// OAuth2 client with manual credentials for full Gmail access
+let oauth2Client: ReturnType<typeof google.auth.OAuth2.prototype.constructor> | null = null;
 
-async function getAccessToken() {
-  if (connectionSettings && connectionSettings.settings.expires_at && new Date(connectionSettings.settings.expires_at).getTime() > Date.now()) {
-    return connectionSettings.settings.access_token;
-  }
-  
-  const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
-  const xReplitToken = process.env.REPL_IDENTITY 
-    ? 'repl ' + process.env.REPL_IDENTITY 
-    : process.env.WEB_REPL_RENEWAL 
-    ? 'depl ' + process.env.WEB_REPL_RENEWAL 
-    : null;
+function getOAuth2Client() {
+  if (!oauth2Client) {
+    const clientId = process.env.GMAIL_CLIENT_ID;
+    const clientSecret = process.env.GMAIL_CLIENT_SECRET;
+    const refreshToken = process.env.GMAIL_REFRESH_TOKEN;
 
-  if (!xReplitToken) {
-    throw new Error('X_REPLIT_TOKEN not found for repl/depl');
-  }
-
-  connectionSettings = await fetch(
-    'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=google-mail',
-    {
-      headers: {
-        'Accept': 'application/json',
-        'X_REPLIT_TOKEN': xReplitToken
-      }
+    if (!clientId || !clientSecret || !refreshToken) {
+      throw new Error('Gmail credentials not configured. Set GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN');
     }
-  ).then(res => res.json()).then(data => data.items?.[0]);
 
-  const accessToken = connectionSettings?.settings?.access_token || connectionSettings.settings?.oauth?.credentials?.access_token;
-
-  if (!connectionSettings || !accessToken) {
-    throw new Error('Gmail not connected');
+    oauth2Client = new google.auth.OAuth2(clientId, clientSecret);
+    oauth2Client.setCredentials({
+      refresh_token: refreshToken
+    });
   }
-  return accessToken;
+  return oauth2Client;
 }
 
-async function getUncachableGmailClient() {
-  const accessToken = await getAccessToken();
-
-  const oauth2Client = new google.auth.OAuth2();
-  oauth2Client.setCredentials({
-    access_token: accessToken
-  });
-
-  return google.gmail({ version: 'v1', auth: oauth2Client });
+async function getGmailClient() {
+  const auth = getOAuth2Client();
+  return google.gmail({ version: 'v1', auth });
 }
 
 export interface EmailMessage {
@@ -58,7 +37,7 @@ export interface EmailMessage {
 }
 
 export async function getUnreadEmails(maxResults: number = 10): Promise<EmailMessage[]> {
-  const gmail = await getUncachableGmailClient();
+  const gmail = await getGmailClient();
   
   const response = await gmail.users.messages.list({
     userId: 'me',
@@ -115,7 +94,7 @@ export async function getUnreadEmails(maxResults: number = 10): Promise<EmailMes
 }
 
 export async function markAsRead(messageId: string): Promise<void> {
-  const gmail = await getUncachableGmailClient();
+  const gmail = await getGmailClient();
   
   await gmail.users.messages.modify({
     userId: 'me',
@@ -127,7 +106,7 @@ export async function markAsRead(messageId: string): Promise<void> {
 }
 
 export async function getEmailsByQuery(query: string, maxResults: number = 20): Promise<EmailMessage[]> {
-  const gmail = await getUncachableGmailClient();
+  const gmail = await getGmailClient();
   
   const response = await gmail.users.messages.list({
     userId: 'me',
@@ -241,7 +220,7 @@ export function parsePortalEmail(email: EmailMessage): ParsedPortalEmail {
 
 export async function sendEmail(to: string, subject: string, body: string): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
-    const gmail = await getUncachableGmailClient();
+    const gmail = await getGmailClient();
     
     const message = [
       `To: ${to}`,
@@ -274,8 +253,10 @@ export async function sendEmail(to: string, subject: string, body: string): Prom
 
 export async function isGmailConfigured(): Promise<boolean> {
   try {
-    await getAccessToken();
-    return true;
+    const clientId = process.env.GMAIL_CLIENT_ID;
+    const clientSecret = process.env.GMAIL_CLIENT_SECRET;
+    const refreshToken = process.env.GMAIL_REFRESH_TOKEN;
+    return !!(clientId && clientSecret && refreshToken);
   } catch {
     return false;
   }
