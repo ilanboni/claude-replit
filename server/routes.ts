@@ -335,6 +335,56 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         return res.status(500).json({ error: sendResult.error || "Invio fallito" });
       }
       
+      // Se è WhatsApp, registra anche nella sezione WhatsApp Chat
+      if (canale === "whatsapp" && cliente.telefono) {
+        try {
+          const normalizedPhone = cliente.telefono.replace(/\D/g, '').replace(/^(0039|39)/, '');
+          
+          // Trova o crea conversazione
+          let conversation = await storage.getWhatsappConversationByPhone(normalizedPhone);
+          if (!conversation) {
+            conversation = await storage.createWhatsappConversation({
+              phoneNumber: normalizedPhone,
+              clienteId: clienteId,
+              immobileId: immobileId || null,
+              nome: `${cliente.nome || ""} ${cliente.cognome || ""}`.trim() || null,
+              ultimoMessaggio: messaggio.slice(0, 100),
+              ultimoMessaggioData: new Date(),
+              nonLetti: 0,
+              stato: "attivo",
+            });
+          } else {
+            // Aggiorna conversazione esistente
+            await storage.updateWhatsappConversation(conversation.id, {
+              ultimoMessaggio: messaggio.slice(0, 100),
+              ultimoMessaggioData: new Date(),
+              clienteId: conversation.clienteId || clienteId,
+            });
+          }
+          
+          // Crea messaggio WhatsApp
+          await storage.createWhatsappMessage({
+            conversationId: conversation.id,
+            mittente: "agente",
+            testo: messaggio,
+            fromMe: true,
+            status: "sent",
+            messageId: sendResult.messageId || null,
+          });
+          
+          // Notifica WebSocket
+          if (whatsappWss) {
+            whatsappWss.clients.forEach((client: any) => {
+              if (client.readyState === 1) {
+                client.send(JSON.stringify({ type: "conversation_updated", conversationId: conversation!.id }));
+              }
+            });
+          }
+        } catch (e) {
+          console.error("Errore salvataggio messaggio WhatsApp Chat:", e);
+        }
+      }
+      
       // Registra comunicazione lato cliente
       const comunicazione = await storage.createComunicazione({
         clienteId,
