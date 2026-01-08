@@ -3638,6 +3638,24 @@ FORMATO RISPOSTE:
 
   // ==================== GMAIL INTEGRATION ====================
 
+  // Debug Gmail credentials
+  app.get("/api/gmail/debug", async (req, res) => {
+    const clientId = process.env.GMAIL_CLIENT_ID || '';
+    const clientSecret = process.env.GMAIL_CLIENT_SECRET || '';
+    const refreshToken = process.env.GMAIL_REFRESH_TOKEN || '';
+    
+    res.json({
+      clientId: clientId ? `${clientId.slice(0, 20)}...${clientId.slice(-30)}` : 'MISSING',
+      clientIdLength: clientId.length,
+      clientIdEndsWithApps: clientId.endsWith('.apps.googleusercontent.com'),
+      clientSecret: clientSecret ? `${clientSecret.slice(0, 10)}...` : 'MISSING',
+      clientSecretLength: clientSecret.length,
+      refreshToken: refreshToken ? `${refreshToken.slice(0, 10)}...` : 'MISSING',
+      refreshTokenLength: refreshToken.length,
+      refreshTokenStartsWith1: refreshToken.startsWith('1//'),
+    });
+  });
+
   // Get unread emails
   app.get("/api/gmail/unread", async (req, res) => {
     try {
