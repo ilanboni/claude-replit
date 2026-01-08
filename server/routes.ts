@@ -365,11 +365,11 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
           // Crea messaggio WhatsApp
           await storage.createWhatsappMessage({
             conversationId: conversation.id,
-            mittente: "agente",
-            testo: messaggio,
-            fromMe: true,
+            direction: "outbound",
+            content: messaggio,
+            messageType: "text",
             status: "sent",
-            messageId: sendResult.messageId || null,
+            whatsappMessageId: sendResult.messageId?.toString() || null,
           });
           
           // Notifica WebSocket
