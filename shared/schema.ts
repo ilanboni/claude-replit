@@ -639,3 +639,12 @@ export type InsertWhatsappConversation = z.infer<typeof insertWhatsappConversati
 export const insertWhatsappMessageSchema = createInsertSchema(whatsappMessages).omit({ id: true, createdAt: true });
 export type WhatsappMessage = typeof whatsappMessages.$inferSelect;
 export type InsertWhatsappMessage = z.infer<typeof insertWhatsappMessageSchema>;
+
+// Schema per invio comunicazione da scheda cliente
+export const sendCommunicationSchema = z.object({
+  canale: z.enum(["whatsapp", "email"]),
+  messaggio: z.string().min(1, "Il messaggio è obbligatorio"),
+  immobileId: z.number().optional(),
+  tipo: z.enum(["proposta", "richiesta", "risposta", "followup", "auguri", "nota"]).default("nota"),
+});
+export type SendCommunicationInput = z.infer<typeof sendCommunicationSchema>;
