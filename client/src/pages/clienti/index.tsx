@@ -66,13 +66,12 @@ function ClienteCard({ cliente, onEdit, onDelete }: {
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 text-primary font-medium">
-              {cliente.nome[0]}{cliente.cognome[0]}
+              {(cliente.nome?.[0] || "")}{(cliente.cognome?.[0] || "?")}
             </div>
             <div>
               <Link href={`/clienti/${cliente.id}`}>
                 <h3 className="font-medium hover:underline cursor-pointer" data-testid={`text-client-name-${cliente.id}`}>
-                  {cliente.appellativo && `${cliente.appellativo} `}
-                  {cliente.nome} {cliente.cognome}
+                  {cliente.nome ? `${cliente.nome} ` : ""}{cliente.cognome || ""}
                 </h3>
               </Link>
               <div className="flex items-center gap-2 mt-1">
@@ -207,8 +206,8 @@ export default function ClientiPage() {
 
   const filteredClienti = clienti.filter((cliente) => {
     const matchSearch = 
-      cliente.nome.toLowerCase().includes(search.toLowerCase()) ||
-      cliente.cognome.toLowerCase().includes(search.toLowerCase()) ||
+      cliente.nome?.toLowerCase().includes(search.toLowerCase()) ||
+      cliente.cognome?.toLowerCase().includes(search.toLowerCase()) ||
       cliente.email?.toLowerCase().includes(search.toLowerCase()) ||
       cliente.telefono?.includes(search);
     
