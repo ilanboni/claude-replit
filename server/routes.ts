@@ -373,13 +373,7 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
           });
           
           // Notifica WebSocket
-          if (whatsappWss) {
-            whatsappWss.clients.forEach((client: any) => {
-              if (client.readyState === 1) {
-                client.send(JSON.stringify({ type: "conversation_updated", conversationId: conversation!.id }));
-              }
-            });
-          }
+          whatsappWS.notifyConversationUpdate({ conversationId: conversation!.id });
         } catch (e) {
           console.error("Errore salvataggio messaggio WhatsApp Chat:", e);
         }
