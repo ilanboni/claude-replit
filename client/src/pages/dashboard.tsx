@@ -226,7 +226,7 @@ function RecentActivityCard({
               <Link key={cliente.id} href={`/clienti/${cliente.id}`}>
                 <div className="flex items-center gap-3 rounded-md p-2 hover-elevate cursor-pointer">
                   <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary text-sm font-medium">
-                    {cliente.nome[0]}{cliente.cognome[0]}
+                    {cliente.nome?.[0] || ''}{cliente.cognome?.[0] || ''}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate" data-testid={`text-client-name-${cliente.id}`}>
