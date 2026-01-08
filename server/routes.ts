@@ -2787,12 +2787,22 @@ FORMATO RISPOSTE:
       // Normalize phone number
       const normalizedPhone = phoneNumber.replace(/\D/g, '');
 
+      // Try to find matching client by phone if clienteId not provided
+      let resolvedClienteId = clienteId || null;
+      if (!resolvedClienteId) {
+        const clienti = await storage.getClienti();
+        const matchingClient = clienti.find(c => 
+          c.telefono && c.telefono.replace(/\D/g, '').includes(normalizedPhone.slice(-9))
+        );
+        resolvedClienteId = matchingClient?.id || null;
+      }
+
       // Get or create conversation
       let conversation = await storage.getWhatsappConversationByPhone(normalizedPhone);
       if (!conversation) {
         conversation = await storage.createWhatsappConversation({
           phoneNumber: normalizedPhone,
-          clienteId: clienteId || null,
+          clienteId: resolvedClienteId,
           immobileId: immobileId || null,
           nome: null,
           ultimoMessaggio: content.substring(0, 100),
@@ -2801,13 +2811,16 @@ FORMATO RISPOSTE:
           stato: "attivo"
         });
       } else {
-        // Update conversation with last message
+        // Update conversation with last message and link client if found
+        const newClienteId = resolvedClienteId || conversation.clienteId;
         await storage.updateWhatsappConversation(conversation.id, {
           ultimoMessaggio: content.substring(0, 100),
           ultimoMessaggioData: new Date(),
-          clienteId: clienteId || conversation.clienteId,
+          clienteId: newClienteId,
           immobileId: immobileId || conversation.immobileId
         });
+        // Update local reference for comunicazione
+        conversation = { ...conversation, clienteId: newClienteId };
       }
 
       // Create message record
@@ -2896,15 +2909,15 @@ FORMATO RISPOSTE:
       // Normalize phone number
       const phoneNumber = from.replace(/\D/g, '');
 
+      // Try to find matching client by phone
+      const clienti = await storage.getClienti();
+      const matchingClient = clienti.find(c => 
+        c.telefono && c.telefono.replace(/\D/g, '').includes(phoneNumber.slice(-9))
+      );
+
       // Find or create conversation
       let conversation = await storage.getWhatsappConversationByPhone(phoneNumber);
       if (!conversation) {
-        // Try to find matching client by phone
-        const clienti = await storage.getClienti();
-        const matchingClient = clienti.find(c => 
-          c.telefono && c.telefono.replace(/\D/g, '').includes(phoneNumber.slice(-9))
-        );
-
         conversation = await storage.createWhatsappConversation({
           phoneNumber,
           clienteId: matchingClient?.id || null,
@@ -2916,13 +2929,16 @@ FORMATO RISPOSTE:
           stato: "attivo"
         });
       } else {
-        // Update conversation
+        // Update conversation and link client if not already linked
+        const newClienteId = conversation.clienteId || matchingClient?.id || null;
         await storage.updateWhatsappConversation(conversation.id, {
           ultimoMessaggio: body.substring(0, 100),
           ultimoMessaggioData: new Date(),
           nonLetti: (conversation.nonLetti || 0) + 1,
-          nome: profileName || conversation.nome
+          nome: profileName || conversation.nome,
+          clienteId: newClienteId
         });
+        conversation = { ...conversation, clienteId: newClienteId };
       }
 
       // Save the incoming message
@@ -3002,14 +3018,15 @@ FORMATO RISPOSTE:
           }
         }
 
+        // Try to find matching client by phone
+        const clienti = await storage.getClienti();
+        const matchingClient = clienti.find(c => 
+          c.telefono && c.telefono.replace(/\D/g, '').includes(phoneNumber.slice(-9))
+        );
+
         // Find or create conversation
         let conversation = await storage.getWhatsappConversationByPhone(phoneNumber);
         if (!conversation) {
-          const clienti = await storage.getClienti();
-          const matchingClient = clienti.find(c => 
-            c.telefono && c.telefono.replace(/\D/g, '').includes(phoneNumber.slice(-9))
-          );
-
           conversation = await storage.createWhatsappConversation({
             phoneNumber,
             clienteId: matchingClient?.id || null,
@@ -3021,12 +3038,16 @@ FORMATO RISPOSTE:
             stato: "attivo"
           });
         } else {
+          // Update and link client if not already linked
+          const newClienteId = conversation.clienteId || matchingClient?.id || null;
           await storage.updateWhatsappConversation(conversation.id, {
             ultimoMessaggio: body.substring(0, 100),
             ultimoMessaggioData: new Date(),
             nonLetti: isFromMe ? (conversation.nonLetti || 0) : (conversation.nonLetti || 0) + 1,
-            nome: isFromMe ? conversation.nome : (profileName || conversation.nome)
+            nome: isFromMe ? conversation.nome : (profileName || conversation.nome),
+            clienteId: newClienteId
           });
+          conversation = { ...conversation, clienteId: newClienteId };
         }
 
         // Save message
