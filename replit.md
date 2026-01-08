@@ -123,13 +123,43 @@ Preferred communication style: Simple, everyday language.
 - Environment variables: `AI_INTEGRATIONS_OPENAI_API_KEY`, `AI_INTEGRATIONS_OPENAI_BASE_URL`
 
 ### Communication Integrations
-- **WhatsApp Chat** - Full WhatsApp-style messaging interface with:
-  - `/api/whatsapp/conversations` - Conversation management
-  - `/api/whatsapp/send` - Send outbound messages
-  - `/api/webhook/whatsapp` - Receive incoming messages (secured with token)
-  - WebSocket `/ws/whatsapp` - Real-time updates for new messages
-  - Automatic client matching by phone number
-  - Message delivery status tracking (pending, sent, delivered, read)
+
+#### UltraMsg WhatsApp Integration (Instance 87870)
+**Configurazione funzionante per sincronizzazione bidirezionale:**
+
+| Impostazione | Valore |
+|--------------|--------|
+| **Instance ID** | 87870 |
+| **Instance Phone** | 390235981509 |
+| **Webhook URL** | `https://<project-url>/api/whatsapp/webhook` |
+| **Webhook on Received** | ✅ ON |
+| **Webhook on Create/Send** | ✅ ON (cattura messaggi dal telefono!) |
+| **Webhook on Message Ack** | ✅ ON (per stati consegna) |
+
+**Secrets richiesti:**
+- `ULTRAMSG_INSTANCE_ID` - ID istanza UltraMsg
+- `ULTRAMSG_API_KEY` - Token API UltraMsg
+
+**Endpoints WhatsApp:**
+- `GET /api/whatsapp/conversations` - Lista conversazioni con clienteNome
+- `GET /api/whatsapp/conversations/:id` - Dettaglio conversazione con messaggi
+- `POST /api/whatsapp/send` - Invia messaggio (crea conversazione se non esiste)
+- `POST /api/whatsapp/sync` - Sincronizza messaggi da UltraMsg API (polling manuale)
+- `POST /api/whatsapp/webhook` - Webhook UltraMsg per ricezione real-time
+- `POST /api/webhook/ultramsg` - Alias webhook (stesso handler)
+- `POST /api/whatsapp/conversations/:id/read` - Segna come letta
+- `DELETE /api/whatsapp/conversations/:id` - Elimina conversazione
+- `WebSocket /ws/whatsapp` - Aggiornamenti real-time
+
+**Eventi webhook gestiti:**
+- `message_received` - Messaggi in arrivo dai clienti
+- `message_create` - Messaggi inviati dal telefono (fromMe: true)
+- `message_ack` - Stati consegna (sent, delivered, read)
+
+**Logica di matching:**
+- I messaggi vengono associati automaticamente ai clienti confrontando il numero di telefono
+- Conversazioni raggruppate per clienteId nell'UI
+
 - **Gmail** - OAuth-based email integration (architecture prepared)
 
 ### UI Libraries
