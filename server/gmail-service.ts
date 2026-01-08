@@ -238,3 +238,45 @@ export function parsePortalEmail(email: EmailMessage): ParsedPortalEmail {
     dataRichiesta: email.date
   };
 }
+
+export async function sendEmail(to: string, subject: string, body: string): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  try {
+    const gmail = await getUncachableGmailClient();
+    
+    const message = [
+      `To: ${to}`,
+      `Subject: ${subject}`,
+      'Content-Type: text/plain; charset=utf-8',
+      '',
+      body
+    ].join('\n');
+    
+    const encodedMessage = Buffer.from(message)
+      .toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+    
+    const result = await gmail.users.messages.send({
+      userId: 'me',
+      requestBody: {
+        raw: encodedMessage
+      }
+    });
+    
+    console.log(`Email sent to ${to}:`, result.data);
+    return { success: true, messageId: result.data.id || undefined };
+  } catch (error) {
+    console.error("Gmail send error:", error);
+    return { success: false, error: String(error) };
+  }
+}
+
+export async function isGmailConfigured(): Promise<boolean> {
+  try {
+    await getAccessToken();
+    return true;
+  } catch {
+    return false;
+  }
+}

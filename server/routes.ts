@@ -5,12 +5,12 @@ import {
   insertClienteSchema, insertRichiestaSchema, insertImmobileSchema,
   insertComunicazioneSchema, insertAppuntamentoSchema, insertMatchingSchema,
   insertImmobileEsternoSchema, insertWhatsappCampaignSchema, insertCampaignMessageSchema,
-  insertAttivitaClienteSchema
+  insertAttivitaClienteSchema, sendCommunicationSchema
 } from "@shared/schema";
 import { parseRequestWithAI, calculateMatchScore, generateAICoachMessage, parsePropertyListingWithAI, parsePropertyImageWithAI, generateAcquisitionMessage, generateMirroring, extractPropertyFacts } from "./ai-service";
 import { whatsappWS } from "./websocket";
 import { sendWhatsAppMessage, isUltraMsgConfigured } from "./ultramsg";
-import { getUnreadEmails, searchPortalEmails, parsePortalEmail, markAsRead, EmailMessage } from "./gmail-service";
+import { getUnreadEmails, searchPortalEmails, parsePortalEmail, markAsRead, EmailMessage, sendEmail, isGmailConfigured } from "./gmail-service";
 import { exec } from "child_process";
 import { promisify } from "util";
 import * as fs from "fs";
@@ -289,6 +289,93 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
     } catch (error) {
       console.error("Delete cliente error:", error);
       res.status(500).json({ error: "Errore nell'eliminazione del cliente" });
+    }
+  });
+
+  // Invio comunicazione (WhatsApp/Email) da scheda cliente
+  app.post("/api/clienti/:id/comunicazioni/invia", async (req, res) => {
+    try {
+      const clienteId = parseInt(req.params.id);
+      const parsed = sendCommunicationSchema.safeParse(req.body);
+      
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Dati non validi", details: parsed.error });
+      }
+      
+      const { canale, messaggio, immobileId, tipo } = parsed.data;
+      
+      // Recupera cliente
+      const cliente = await storage.getCliente(clienteId);
+      if (!cliente) {
+        return res.status(404).json({ error: "Cliente non trovato" });
+      }
+      
+      let sendResult: { success: boolean; messageId?: string; error?: string };
+      
+      if (canale === "whatsapp") {
+        if (!isUltraMsgConfigured()) {
+          return res.status(400).json({ error: "WhatsApp non configurato" });
+        }
+        if (!cliente.telefono) {
+          return res.status(400).json({ error: "Il cliente non ha un numero di telefono" });
+        }
+        sendResult = await sendWhatsAppMessage(cliente.telefono, messaggio);
+      } else {
+        const gmailOk = await isGmailConfigured();
+        if (!gmailOk) {
+          return res.status(400).json({ error: "Gmail non configurato" });
+        }
+        if (!cliente.email) {
+          return res.status(400).json({ error: "Il cliente non ha un indirizzo email" });
+        }
+        sendResult = await sendEmail(cliente.email, "Comunicazione ImmoGest", messaggio);
+      }
+      
+      if (!sendResult.success) {
+        return res.status(500).json({ error: sendResult.error || "Invio fallito" });
+      }
+      
+      // Registra comunicazione lato cliente
+      const comunicazione = await storage.createComunicazione({
+        clienteId,
+        immobileId: immobileId || null,
+        tipo,
+        testo: messaggio,
+        canale,
+        creatoDA: "agente",
+        esito: null,
+      });
+      
+      // Se c'è un immobile collegato, registra anche un'attività sull'immobile
+      if (immobileId) {
+        try {
+          await storage.createAttivitaImmobile({
+            immobileId,
+            tipo: canale === "whatsapp" ? "whatsapp_inviato" : "email_inviata",
+            descrizione: `${canale === "whatsapp" ? "WhatsApp" : "Email"} inviato a ${cliente.nome || ""} ${cliente.cognome || ""}`.trim(),
+            note: messaggio.slice(0, 500),
+          });
+        } catch (e) {
+          console.error("Errore creazione attività immobile:", e);
+        }
+      }
+      
+      // Registra anche attività cliente
+      try {
+        await storage.createAttivitaCliente({
+          clienteId,
+          tipo: canale === "whatsapp" ? "whatsapp_inviato" : "email_inviata",
+          descrizione: `${canale === "whatsapp" ? "WhatsApp" : "Email"} inviato`,
+          note: messaggio.slice(0, 500),
+        });
+      } catch (e) {
+        console.error("Errore creazione attività cliente:", e);
+      }
+      
+      res.json({ success: true, comunicazione });
+    } catch (error) {
+      console.error("Send communication error:", error);
+      res.status(500).json({ error: "Errore nell'invio della comunicazione" });
     }
   });
 
