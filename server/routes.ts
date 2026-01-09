@@ -71,9 +71,10 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
   // ==================== NOTIFICHE ====================
   app.get("/api/notifiche", async (req, res) => {
     try {
-      const [clienti, appuntamenti] = await Promise.all([
+      const [clienti, appuntamenti, notificheDB] = await Promise.all([
         storage.getClienti(),
         storage.getAppuntamenti(),
+        storage.getNotifiche(false),
       ]);
 
       const oggi = new Date();
@@ -94,6 +95,7 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
           messaggio: `Appuntamento ${a.confermato ? 'confermato' : 'da confermare'}`,
           dettaglio: a.luogo || 'Luogo da definire',
           data: a.dataOra,
+          letta: false,
         }));
 
       // Compleanni prossimi 7 giorni
@@ -117,15 +119,83 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
             messaggio: `Compleanno di ${c.nome} ${c.cognome}`,
             dettaglio: questAnno.toDateString() === oggi.toDateString() ? 'Oggi!' : questAnno.toLocaleDateString('it-IT'),
             data: questAnno.toISOString(),
+            letta: false,
           };
         });
 
-      res.json([...appuntamentiImminenti, ...compleanni].sort((a, b) => 
-        new Date(a.data).getTime() - new Date(b.data).getTime()
+      // Notifiche persistenti dal database (richieste visita, etc)
+      const notifichePersistenti = notificheDB.map(n => ({
+        tipo: n.tipo as string,
+        id: n.id,
+        messaggio: n.titolo,
+        dettaglio: n.messaggio || '',
+        data: n.createdAt.toISOString(),
+        letta: n.letta,
+        clienteId: n.clienteId,
+        immobileId: n.immobileId,
+        priorita: n.priorita,
+      }));
+
+      res.json([...notifichePersistenti, ...appuntamentiImminenti, ...compleanni].sort((a, b) => 
+        new Date(b.data).getTime() - new Date(a.data).getTime()
       ));
     } catch (error) {
       console.error("Notifiche error:", error);
       res.status(500).json({ error: "Errore nel recupero delle notifiche" });
+    }
+  });
+
+  app.get("/api/notifiche/non-lette", async (req, res) => {
+    try {
+      const notifiche = await storage.getNotificheNonLette();
+      res.json(notifiche);
+    } catch (error) {
+      console.error("Notifiche non lette error:", error);
+      res.status(500).json({ error: "Errore nel recupero delle notifiche" });
+    }
+  });
+
+  app.patch("/api/notifiche/:id/letta", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const notifica = await storage.updateNotifica(id, { letta: true });
+      res.json(notifica);
+    } catch (error) {
+      console.error("Marca notifica letta error:", error);
+      res.status(500).json({ error: "Errore nell'aggiornamento della notifica" });
+    }
+  });
+
+  app.patch("/api/notifiche/:id/archivia", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const notifica = await storage.updateNotifica(id, { archiviata: true });
+      res.json(notifica);
+    } catch (error) {
+      console.error("Archivia notifica error:", error);
+      res.status(500).json({ error: "Errore nell'archiviazione della notifica" });
+    }
+  });
+
+  app.delete("/api/notifiche/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteNotifica(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Elimina notifica error:", error);
+      res.status(500).json({ error: "Errore nell'eliminazione della notifica" });
+    }
+  });
+
+  app.post("/api/notifiche/import-email", async (req, res) => {
+    try {
+      const { manualImportEmails } = await import("./email-import-worker");
+      const result = await manualImportEmails();
+      res.json(result);
+    } catch (error) {
+      console.error("Import email error:", error);
+      res.status(500).json({ error: "Errore nell'importazione delle email" });
     }
   });
 

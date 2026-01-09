@@ -436,6 +436,22 @@ export const appointmentConfirmations = pgTable("appointment_confirmations", {
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
+// NOTIFICHE - Persistent notifications/alerts
+export const notifiche = pgTable("notifiche", {
+  id: serial("id").primaryKey(),
+  tipo: text("tipo").notNull(), // richiesta_visita, nuovo_cliente, follow_up, scadenza, sistema
+  titolo: text("titolo").notNull(),
+  messaggio: text("messaggio"),
+  clienteId: integer("cliente_id").references(() => clienti.id, { onDelete: "cascade" }),
+  immobileId: integer("immobile_id").references(() => immobili.id, { onDelete: "cascade" }),
+  emailId: text("email_id"), // Gmail message ID to prevent duplicates
+  letta: boolean("letta").default(false),
+  archiviata: boolean("archiviata").default(false),
+  priorita: integer("priorita").default(2), // 1=alta, 2=media, 3=bassa
+  scadenza: timestamp("scadenza"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
 // Relations
 export const clientiRelations = relations(clienti, ({ many }) => ({
   richieste: many(richieste),
@@ -731,3 +747,8 @@ export type InsertCalendarEvent = z.infer<typeof insertCalendarEventSchema>;
 export const insertAppointmentConfirmationSchema = createInsertSchema(appointmentConfirmations).omit({ id: true, createdAt: true });
 export type AppointmentConfirmation = typeof appointmentConfirmations.$inferSelect;
 export type InsertAppointmentConfirmation = z.infer<typeof insertAppointmentConfirmationSchema>;
+
+// Notifiche types
+export const insertNotificaSchema = createInsertSchema(notifiche).omit({ id: true, createdAt: true });
+export type Notifica = typeof notifiche.$inferSelect;
+export type InsertNotifica = z.infer<typeof insertNotificaSchema>;

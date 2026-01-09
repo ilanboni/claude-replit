@@ -3,7 +3,7 @@ import {
   attivitaImmobile, attivitaCliente, documentiImmobile, portaliImmobile, storicoPrezzo,
   whatsappCampaigns, campaignMessages, botConversationLogs, scheduledBotMessages,
   whatsappConversations, whatsappMessages,
-  oauthTokens, calendarEvents, appointmentConfirmations,
+  oauthTokens, calendarEvents, appointmentConfirmations, notifiche,
   type Cliente, type InsertCliente,
   type Richiesta, type InsertRichiesta,
   type Immobile, type InsertImmobile,
@@ -25,6 +25,7 @@ import {
   type OauthToken, type InsertOauthToken,
   type CalendarEvent, type InsertCalendarEvent,
   type AppointmentConfirmation, type InsertAppointmentConfirmation,
+  type Notifica, type InsertNotifica,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql, lte } from "drizzle-orm";
@@ -716,6 +717,57 @@ export class DatabaseStorage implements IStorage {
   async updateAppointmentConfirmation(id: number, data: Partial<InsertAppointmentConfirmation>): Promise<AppointmentConfirmation | undefined> {
     const [conf] = await db.update(appointmentConfirmations).set(data).where(eq(appointmentConfirmations.id, id)).returning();
     return conf;
+  }
+
+  // Notifiche
+  async getNotifiche(includeArchived: boolean = false): Promise<Notifica[]> {
+    if (includeArchived) {
+      return db.select().from(notifiche).orderBy(desc(notifiche.createdAt));
+    }
+    return db.select().from(notifiche).where(eq(notifiche.archiviata, false)).orderBy(desc(notifiche.createdAt));
+  }
+
+  async getNotificheNonLette(): Promise<Notifica[]> {
+    return db.select().from(notifiche)
+      .where(and(eq(notifiche.letta, false), eq(notifiche.archiviata, false)))
+      .orderBy(desc(notifiche.createdAt));
+  }
+
+  async getNotificaByEmailId(emailId: string): Promise<Notifica | undefined> {
+    const [notifica] = await db.select().from(notifiche).where(eq(notifiche.emailId, emailId));
+    return notifica;
+  }
+
+  async createNotifica(data: InsertNotifica): Promise<Notifica> {
+    const [notifica] = await db.insert(notifiche).values(data).returning();
+    return notifica;
+  }
+
+  async updateNotifica(id: number, data: Partial<InsertNotifica>): Promise<Notifica | undefined> {
+    const [notifica] = await db.update(notifiche).set(data).where(eq(notifiche.id, id)).returning();
+    return notifica;
+  }
+
+  async deleteNotifica(id: number): Promise<boolean> {
+    await db.delete(notifiche).where(eq(notifiche.id, id));
+    return true;
+  }
+
+  async getClienteByEmailOrPhone(email?: string, telefono?: string): Promise<Cliente | undefined> {
+    if (email) {
+      const [cliente] = await db.select().from(clienti).where(eq(clienti.email, email));
+      if (cliente) return cliente;
+    }
+    if (telefono) {
+      const [cliente] = await db.select().from(clienti).where(eq(clienti.telefono, telefono));
+      if (cliente) return cliente;
+    }
+    return undefined;
+  }
+
+  async getImmobileByIdPortale(idPortale: string): Promise<Immobile | undefined> {
+    const [immobile] = await db.select().from(immobili).where(eq(immobili.idPortale, idPortale));
+    return immobile;
   }
 }
 

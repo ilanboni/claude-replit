@@ -4,6 +4,7 @@ import { serveStatic } from "./static";
 import { createServer } from "http";
 import { whatsappWS } from "./websocket";
 import { startScheduledMessageWorker } from "./services/scheduledMessageWorker";
+import { startEmailImportWorker } from "./email-import-worker";
 
 const app = express();
 const httpServer = createServer(app);
@@ -101,6 +102,9 @@ app.use((req, res, next) => {
       
       // Start the scheduled message worker for delayed bot responses
       startScheduledMessageWorker();
+      
+      // Start the email import worker (checks every 5 minutes)
+      startEmailImportWorker(5);
     },
   );
 })();
