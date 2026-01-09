@@ -142,7 +142,8 @@ Preferred communication style: Simple, everyday language.
 - `server/google-calendar-service.ts` - Google Calendar OAuth and event sync
 
 **Google Calendar Integration:**
-- OAuth 2.0 flow using Gmail credentials (GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET)
+- OAuth 2.0 flow using **separate** Calendar credentials (CALENDAR_CLIENT_ID, CALENDAR_CLIENT_SECRET)
+- Calendar can be on a different Google account than Gmail (email import)
 - `GET /api/calendar/auth` - Redirect to Google OAuth consent screen
 - `GET /api/calendar/callback` - Handle OAuth callback, store tokens
 - `GET /api/calendar/auth-status` - Check if calendar is connected
