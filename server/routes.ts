@@ -1908,11 +1908,49 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
 
       console.log(`[Acquisizione] Created campaign_message ${campaignMessage.id} for phone ${normalizedPhone}`);
 
+      // Create WhatsApp conversation and message so it appears in WhatsApp Chat tab
+      let conversation = await storage.getWhatsappConversationByPhone(normalizedPhone);
+      if (!conversation) {
+        conversation = await storage.createWhatsappConversation({
+          phoneNumber: normalizedPhone,
+          clienteId: cliente.id,
+          ultimoMessaggio: message.substring(0, 100),
+          ultimoMessaggioData: new Date(),
+          nonLetto: false,
+        });
+        console.log(`[Acquisizione] Created WhatsApp conversation ${conversation.id} for ${normalizedPhone}`);
+      }
+
+      // Save the outbound message
+      await storage.createWhatsappMessage({
+        conversationId: conversation.id,
+        whatsappMessageId: result.messageId || null,
+        direction: "outbound",
+        messageType: "chat",
+        content: message,
+        mediaUrl: null,
+        status: "sent",
+      });
+
+      // Update conversation with last message
+      await storage.updateWhatsappConversation(conversation.id, {
+        ultimoMessaggio: message.substring(0, 100),
+        ultimoMessaggioData: new Date(),
+        clienteId: cliente.id,
+      });
+
+      // Notify WebSocket
+      const finalConversation = await storage.getWhatsappConversation(conversation.id);
+      if (finalConversation) {
+        whatsappWS.notifyConversationUpdate({ ...finalConversation, conversationId: finalConversation.id });
+      }
+
       res.json({ 
         success: true, 
         messageId: result.messageId,
         cliente: cliente,
         campaignMessageId: campaignMessage.id,
+        conversationId: conversation.id,
       });
     } catch (error) {
       console.error("Send WhatsApp error:", error);
