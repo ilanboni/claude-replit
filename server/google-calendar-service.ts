@@ -209,5 +209,5 @@ export async function syncEventToGoogleCalendar(
 }
 
 export function isGoogleCalendarConfigured(): boolean {
-  return !!(process.env.GMAIL_CLIENT_ID && process.env.GMAIL_CLIENT_SECRET);
+  return !!(process.env.CALENDAR_CLIENT_ID && process.env.CALENDAR_CLIENT_SECRET);
 }

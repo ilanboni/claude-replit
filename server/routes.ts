@@ -4232,11 +4232,13 @@ FORMATO RISPOSTE:
       const formattedDate = appointmentDate.toLocaleDateString("it-IT", { 
         weekday: "long", 
         day: "numeric", 
-        month: "long" 
+        month: "long",
+        timeZone: "Europe/Rome"
       });
       const formattedTime = appointmentDate.toLocaleTimeString("it-IT", { 
         hour: "2-digit", 
-        minute: "2-digit" 
+        minute: "2-digit",
+        timeZone: "Europe/Rome"
       });
 
       // 1. Send WhatsApp message (required - fail if not sent)
@@ -4316,9 +4318,11 @@ FORMATO RISPOSTE:
       });
 
       // Sync to Google Calendar with reminders
+      let calendarSynced = false;
       try {
         const { syncEventToGoogleCalendar } = await import("./google-calendar-service");
-        await syncEventToGoogleCalendar(event.id, {
+        console.log("[Calendar] Syncing event", event.id, "to Google Calendar...");
+        const syncResult = await syncEventToGoogleCalendar(event.id, {
           reminders: [
             { method: "popup", minutes: 2880 },  // 2 days = 2880 minutes
             { method: "email", minutes: 2880 },  // 2 days email
@@ -4326,8 +4330,13 @@ FORMATO RISPOSTE:
             { method: "email", minutes: 120 },   // 2 hours email
           ],
         });
+        console.log("[Calendar] Sync result:", syncResult);
+        calendarSynced = syncResult.success;
+        if (!syncResult.success) {
+          console.error("[Calendar] Sync failed:", syncResult.error);
+        }
       } catch (syncError) {
-        console.error("Calendar sync error:", syncError);
+        console.error("[Calendar] Sync error:", syncError);
       }
 
       // 5. Update confirmation status
