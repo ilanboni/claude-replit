@@ -4522,14 +4522,33 @@ FORMATO RISPOSTE:
         return res.status(401).json({ error: "Non autorizzato" });
       }
 
-      const { clienti } = req.body;
+      const { clienti, deleteNotInSource } = req.body;
       if (!clienti || !Array.isArray(clienti)) {
         return res.status(400).json({ error: "Dati clienti mancanti o non validi" });
       }
 
       let imported = 0;
       let updated = 0;
-      let skipped = 0;
+      let deleted = 0;
+
+      // Build set of source phone/email for deletion check
+      const sourcePhones = new Set(clienti.map((c: any) => c.telefono?.replace(/\D/g, '')).filter(Boolean));
+      const sourceEmails = new Set(clienti.map((c: any) => c.email?.toLowerCase()).filter(Boolean));
+
+      // Delete clients not in source if requested
+      if (deleteNotInSource) {
+        const esistenti = await storage.getClienti();
+        for (const esistente of esistenti) {
+          const phoneNorm = esistente.telefono?.replace(/\D/g, '');
+          const emailNorm = esistente.email?.toLowerCase();
+          const inSource = (phoneNorm && sourcePhones.has(phoneNorm)) || 
+                          (emailNorm && sourceEmails.has(emailNorm));
+          if (!inSource) {
+            await storage.deleteCliente(esistente.id);
+            deleted++;
+          }
+        }
+      }
 
       for (const cliente of clienti) {
         const esistenti = await storage.getClienti();
@@ -4577,10 +4596,10 @@ FORMATO RISPOSTE:
 
       res.json({ 
         success: true, 
-        message: `Import completato: ${imported} nuovi, ${updated} aggiornati`,
+        message: `Import completato: ${imported} nuovi, ${updated} aggiornati, ${deleted} eliminati`,
         imported,
         updated,
-        skipped,
+        deleted,
       });
     } catch (error: any) {
       console.error("Import error:", error);
@@ -4606,14 +4625,14 @@ FORMATO RISPOSTE:
       // Get local data
       const clienti = await storage.getClienti();
 
-      // Send to production
+      // Send to production with delete flag
       const response = await fetch(`${productionUrl}/api/admin/import`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
           'x-sync-secret': syncSecret 
         },
-        body: JSON.stringify({ clienti }),
+        body: JSON.stringify({ clienti, deleteNotInSource: true }),
       });
 
       if (!response.ok) {

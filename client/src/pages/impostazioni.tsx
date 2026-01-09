@@ -10,6 +10,7 @@ type SyncResult = {
   imported?: number;
   updated?: number;
   skipped?: number;
+  deleted?: number;
 };
 
 export default function Impostazioni() {
@@ -209,6 +210,7 @@ export default function Impostazioni() {
                       <div className="mt-2 text-sm text-muted-foreground">
                         <p>Nuovi: {syncToResult.imported}</p>
                         <p>Aggiornati: {syncToResult.updated}</p>
+                        <p>Eliminati: {syncToResult.deleted}</p>
                       </div>
                     )}
                   </div>
