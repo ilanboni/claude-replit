@@ -66,7 +66,6 @@ async function importPortalEmails(): Promise<{ imported: number; errors: string[
             canale: "email",
             tipo: "richiesta",
             testo: parsed.testoRichiesta || "Richiesta informazioni via email",
-            direzione: "in_entrata",
           });
         }
 

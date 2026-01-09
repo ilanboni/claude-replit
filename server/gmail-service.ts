@@ -73,7 +73,7 @@ export async function getUnreadEmails(maxResults: number = 10): Promise<EmailMes
           const htmlPart = payload.parts.find(p => p.mimeType === 'text/html');
           if (htmlPart?.body?.data) {
             body = Buffer.from(htmlPart.body.data, 'base64').toString('utf-8');
-            body = body.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+            body = convertHtmlToText(body);
           }
         }
       }
@@ -91,6 +91,26 @@ export async function getUnreadEmails(maxResults: number = 10): Promise<EmailMes
   }
 
   return messages;
+}
+
+function convertHtmlToText(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<\/div>/gi, '\n')
+    .replace(/<\/tr>/gi, '\n')
+    .replace(/<\/li>/gi, '\n')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n\s+/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
 
 export async function markAsRead(messageId: string): Promise<void> {
@@ -142,7 +162,7 @@ export async function getEmailsByQuery(query: string, maxResults: number = 20): 
           const htmlPart = payload.parts.find(p => p.mimeType === 'text/html');
           if (htmlPart?.body?.data) {
             body = Buffer.from(htmlPart.body.data, 'base64').toString('utf-8');
-            body = body.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+            body = convertHtmlToText(body);
           }
         }
       }
@@ -196,24 +216,118 @@ export function parsePortalEmail(email: EmailMessage): ParsedPortalEmail {
   else if (email.from.includes('subito.it')) portale = 'Subito.it';
   
   const emailRegex = /[\w.-]+@[\w.-]+\.\w+/g;
-  const phoneRegex = /(?:\+39\s?)?(?:3\d{2}[\s.-]?\d{6,7}|\d{2,4}[\s.-]?\d{6,8})/g;
+  const phoneRegex = /(?:\+39\s?)?(?:3\d{2}[\s.-]?\d{3,4}[\s.-]?\d{3,4}|3\d{8,9}|\d{2,4}[\s.-]?\d{6,8})/g;
   
   const emails = body.match(emailRegex) || [];
   const phones = body.match(phoneRegex) || [];
   
-  const clientEmail = emails.find(e => !e.includes('immobiliare.it') && !e.includes('casa.it') && !e.includes('idealista.it') && !e.includes('subito.it'));
+  const excludedDomains = ['immobiliare.it', 'casa.it', 'idealista.it', 'subito.it', 'tools.it'];
+  const clientEmail = emails.find(e => !excludedDomains.some(d => e.includes(d)));
   const clientPhone = phones[0]?.replace(/[\s.-]/g, '');
   
-  const nomeMatch = body.match(/(?:Nome|Da|From|Mittente)[:\s]+([A-Za-zÀ-ÿ\s]+)/i);
-  const rifMatch = body.match(/(?:Rif|Riferimento|Codice)[.:\s]+(\w+)/i);
+  let nomeCliente: string | undefined;
+  
+  // Idealista format: nome cognome on its own line, followed by phone and email
+  // Pattern: "messaggio in attesa di risposta\n\nNome Cognome\n3xx xxx xxxx\nemail@..."
+  const idealistaNamePattern = /(?:messaggio in attesa di risposta|nuovo messaggio)\s*\n+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\s]+)\n\s*(?:\+?3|\d{2,3}[\s.-]?\d)/i;
+  const idealistaMatch = body.match(idealistaNamePattern);
+  if (idealistaMatch) {
+    nomeCliente = idealistaMatch[1].trim();
+  }
+  
+  // Alternative: look for name before phone number on separate lines
+  if (!nomeCliente) {
+    const lines = body.split('\n').map(l => l.trim()).filter(l => l);
+    for (let i = 0; i < lines.length - 1; i++) {
+      const line = lines[i];
+      const nextLine = lines[i + 1];
+      // If current line looks like a name (2-3 words, only letters) and next line is phone
+      if (/^[A-Za-zÀ-ÿ]+(\s+[A-Za-zÀ-ÿ]+){0,2}$/.test(line) && 
+          /^[\d\s+.-]{8,}$/.test(nextLine) &&
+          !line.toLowerCase().includes('grazie') &&
+          !line.toLowerCase().includes('ciao') &&
+          !line.toLowerCase().includes('salve')) {
+        nomeCliente = line;
+        break;
+      }
+    }
+  }
+  
+  // Immobiliare.it format: "Nome: xxx" or "Mittente: xxx"
+  if (!nomeCliente) {
+    const nomeMatch = body.match(/(?:Nome|Da|From|Mittente)[:\s]+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\s]+?)(?:\n|Email|Telefono|$)/i);
+    if (nomeMatch) {
+      nomeCliente = nomeMatch[1].trim();
+    }
+  }
+  
+  // Fallback for single-line body: look for name pattern before email/phone
+  // Pattern: "Nome Cognome email@domain.com 3xx xxx xxxx"
+  if (!nomeCliente && clientEmail) {
+    const beforeEmail = body.split(clientEmail)[0];
+    // Look for capitalized words (name) right before the email
+    const nameBeforeEmail = beforeEmail.match(/([A-ZÀ-Ÿ][a-zà-ÿ]+(?:\s+[A-ZÀ-Ÿ][a-zà-ÿ]+){0,2})\s*$/);
+    if (nameBeforeEmail) {
+      const potentialName = nameBeforeEmail[1].trim();
+      // Exclude common words that aren't names
+      const excludeWords = ['risposta', 'messaggio', 'attesa', 'grazie', 'ciao', 'salve', 'buongiorno'];
+      if (!excludeWords.some(w => potentialName.toLowerCase().includes(w))) {
+        nomeCliente = potentialName;
+      }
+    }
+  }
+  
+  // Extract reference number - multiple patterns
+  let riferimentoImmobile: string | undefined;
+  
+  // Pattern 1: "Ref. Prima" or "Ref: Prima"
+  const refMatch = body.match(/Ref[.:\s]+([A-Za-z0-9_-]+)/i);
+  if (refMatch) {
+    riferimentoImmobile = refMatch[1];
+  }
+  
+  // Pattern 2: "Riferimento: xxx" or "Codice: xxx"
+  if (!riferimentoImmobile) {
+    const rifMatch = body.match(/(?:Riferimento|Codice)[.:\s]+([A-Za-z0-9_-]+)/i);
+    if (rifMatch) {
+      riferimentoImmobile = rifMatch[1];
+    }
+  }
+  
+  // Pattern 3: "Codice dell'annuncio: xxx"
+  if (!riferimentoImmobile) {
+    const codiceMatch = body.match(/Codice dell['']annuncio[:\s]+(\d+)/i);
+    if (codiceMatch) {
+      riferimentoImmobile = codiceMatch[1];
+    }
+  }
+
+  // Extract message content - look for the actual message between name/contact info and property details
+  let testoRichiesta = '';
+  const messagePatterns = [
+    /(?:email@|\.com|\.it)\s*\n([\s\S]*?)(?:Rispondi|Trilocale|Bilocale|Appartamento|Ref\.|$)/i,
+    /Messaggio[:\s]*([\s\S]*?)(?:Rispondi|Trilocale|Bilocale|$)/i,
+  ];
+  
+  for (const pattern of messagePatterns) {
+    const match = body.match(pattern);
+    if (match && match[1]?.trim()) {
+      testoRichiesta = match[1].trim();
+      break;
+    }
+  }
+  
+  if (!testoRichiesta) {
+    testoRichiesta = body.slice(0, 2000);
+  }
 
   return {
-    nomeCliente: nomeMatch?.[1]?.trim(),
+    nomeCliente,
     emailCliente: clientEmail,
     telefonoCliente: clientPhone,
     portale,
-    testoRichiesta: body.slice(0, 2000),
-    riferimentoImmobile: rifMatch?.[1],
+    testoRichiesta,
+    riferimentoImmobile,
     dataRichiesta: email.date
   };
 }
