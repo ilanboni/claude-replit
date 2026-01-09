@@ -425,6 +425,7 @@ export const appointmentConfirmations = pgTable("appointment_confirmations", {
   id: serial("id").primaryKey(),
   whatsappMessageId: integer("whatsapp_message_id").references(() => whatsappMessages.id, { onDelete: "set null" }),
   clienteId: integer("cliente_id").references(() => clienti.id, { onDelete: "set null" }),
+  immobileId: integer("immobile_id").references(() => immobili.id, { onDelete: "set null" }),
   clientName: text("client_name"),
   clientPhone: text("client_phone"),
   salutation: text("salutation"), // Dott., Sig., Sig.ra, etc.
