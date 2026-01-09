@@ -65,7 +65,7 @@ async function importPortalEmails(): Promise<{ imported: number; errors: string[
             immobileId: immobile?.id || null,
             canale: "email",
             tipo: "richiesta",
-            contenuto: parsed.testoRichiesta,
+            testo: parsed.testoRichiesta || "Richiesta informazioni via email",
             direzione: "in_entrata",
           });
         }
