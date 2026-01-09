@@ -10,9 +10,24 @@ const SCOPES = [
 let oauth2Client: any = null;
 let lastClientId: string | undefined = undefined;
 
+function getRedirectUri(): string {
+  // In production deployment, use APP_URL or fallback to replit.app domain
+  if (process.env.REPLIT_DEPLOYMENT === '1') {
+    // Production: use APP_URL env var or default production domain
+    const appUrl = process.env.APP_URL || 'https://cavour.replit.app';
+    return `${appUrl}/api/calendar/callback`;
+  }
+  // Development: use REPLIT_DEV_DOMAIN
+  if (process.env.REPLIT_DEV_DOMAIN) {
+    return `https://${process.env.REPLIT_DEV_DOMAIN}/api/calendar/callback`;
+  }
+  return 'http://localhost:5000/api/calendar/callback';
+}
+
 function getOAuth2Client() {
   const clientId = process.env.CALENDAR_CLIENT_ID;
   const clientSecret = process.env.CALENDAR_CLIENT_SECRET;
+  const redirectUri = getRedirectUri();
   
   // Recreate client if credentials changed
   if (!oauth2Client || lastClientId !== clientId) {
@@ -22,10 +37,12 @@ function getOAuth2Client() {
       throw new Error("Google Calendar OAuth credentials not configured (CALENDAR_CLIENT_ID, CALENDAR_CLIENT_SECRET)");
     }
 
+    console.log('[Calendar] Using redirect URI:', redirectUri);
+    
     oauth2Client = new google.auth.OAuth2(
       clientId,
       clientSecret,
-      `${process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : 'http://localhost:5000'}/api/calendar/callback`
+      redirectUri
     );
   }
   return oauth2Client;
