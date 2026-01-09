@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import { storage } from "../storage";
 import type { WhatsappCampaign, CampaignMessage, BotConversationLog, ImmobileEsterno } from "@shared/schema";
-import { BOT_CONFIG, checkForObjection, generateBotSystemPrompt } from "../bot-config";
+import { BOT_CONFIG, FOLLOWUP_BOT_CONFIG, checkForObjection, generateBotSystemPrompt } from "../bot-config";
 
 interface BotContext {
   campaign: WhatsappCampaign;
@@ -98,10 +98,83 @@ Se il cliente usa termini tecnici, usali anche tu. Se è sintetico, sii sintetic
 
 function buildSystemPrompt(context: BotContext, currentUserMessage?: string): string {
   const { propertyDetails, conversationHistory } = context;
-  const cfg = BOT_CONFIG;
   
   // Analizza la personalità del cliente per il mirroring (include messaggio corrente)
   const personalityAnalysis = analyzeClientPersonality(conversationHistory, currentUserMessage);
+  
+  // Determina quale configurazione usare basandosi sulla storia della conversazione:
+  // - Se c'è già una storia (follow-up) -> usa FOLLOWUP_BOT_CONFIG con framework EARA
+  // - Se è il primo messaggio del cliente -> usa BOT_CONFIG originale
+  const isFollowUp = conversationHistory.length > 0;
+  
+  console.log(`[ChatBot] Building prompt with ${isFollowUp ? 'FOLLOWUP_BOT_CONFIG (EARA)' : 'BOT_CONFIG (initial)'} - history: ${conversationHistory.length} messages`);
+  
+  // Per i follow-up (risposte ai messaggi successivi dei clienti) usa FOLLOWUP_BOT_CONFIG con framework EARA
+  if (isFollowUp) {
+    const cfg = FOLLOWUP_BOT_CONFIG;
+    
+    const priceStr = propertyDetails.price ? `€${propertyDetails.price.toLocaleString("it-IT")}` : "Da definire";
+    const sizeStr = propertyDetails.size ? `${propertyDetails.size}m²` : "Non specificata";
+    const allowedActions = cfg.conversation_rules.allowed_actions.map(a => `- ${a}`).join("\n");
+    const forbiddenActions = cfg.conversation_rules.forbidden_actions.map(a => `- ${a}`).join("\n");
+    const earaSteps = cfg.objection_framework.steps.map(s => `**${s.step} - ${s.label}:** ${s.examples[0]}`).join("\n");
+    const objectionResponses = cfg.auto_objections.map(obj => `Se dice: ${obj.keywords.slice(0, 3).join(", ")}...
+Rispondi: "${obj.response.substring(0, 150)}..."`).join("\n\n");
+    
+    return `Sei ${cfg.bot_profile.identity.role}.
+${cfg.bot_profile.identity.positioning}
+
+=== IDENTITÀ ===
+Se ti chiedono se sei un'IA: "${cfg.bot_profile.identity.transparency_if_asked_ai}"
+
+=== IMMOBILE IN DISCUSSIONE ===
+- Indirizzo: ${propertyDetails.address || "Non specificato"}
+- Prezzo: ${priceStr}
+- Dimensione: ${sizeStr}
+
+=== STILE DI COMUNICAZIONE ===
+- Formalità: ${cfg.bot_profile.voice.formality}
+- Tono: ${cfg.bot_profile.voice.tone}
+- Stile: ${cfg.bot_profile.voice.style}
+- MAI: ${cfg.bot_profile.voice.never.join(", ")}
+${personalityAnalysis}
+
+=== OBIETTIVI ===
+- Primario: ${cfg.conversation_rules.primary_goal}
+- Secondario: ${cfg.conversation_rules.secondary_goal}
+
+=== METODO CONVERSAZIONE ===
+- Rapporto ascolto/parlare: ${cfg.conversation_rules.method.listen_ratio}
+- Usa validazione e parafrasi
+
+=== AZIONI PERMESSE ===
+${allowedActions}
+
+=== AZIONI VIETATE ===
+${forbiddenActions}
+
+=== FRAMEWORK OBIEZIONI: EARA ===
+Quando il proprietario solleva un'obiezione, segui questi passaggi:
+${earaSteps}
+
+=== RISPOSTE OBIEZIONI ===
+${objectionResponses}
+
+=== ESCALATION ===
+Passa al Dott. Boni se: ${cfg.handoff_rules.when_to_escalate_to_human.join(", ")}
+Messaggio: "${cfg.handoff_rules.handoff_message}"
+
+=== ISTRUZIONI FINALI ===
+1. Rispondi SOLO in italiano
+2. Messaggi BREVI (max 3-4 frasi, stile WhatsApp)
+3. Segui SEMPRE il framework EARA per le obiezioni
+4. NON inventare informazioni
+5. L'obiettivo è SEMPRE proporre un incontro breve
+6. USA IL MIRRORING: Adatta il tuo linguaggio allo stile del cliente`;
+  }
+  
+  // Per il primo messaggio usa BOT_CONFIG originale
+  const cfg = BOT_CONFIG;
   
   return `Sei "${cfg.bot_name}". ${cfg.identity.presentation}
 

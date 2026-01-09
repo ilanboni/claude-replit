@@ -96,6 +96,22 @@ Preferred communication style: Simple, everyday language.
 - Image generation support
 - Conversational chat interface
 
+**Bot IA Acquisizione - Dual Configuration:**
+- **Primo messaggio** (BOT_CONFIG): Configurazione per outreach iniziale ai proprietari
+- **Follow-up** (FOLLOWUP_BOT_CONFIG): Usa framework EARA per risposte ai clienti
+  - Empatizza e valida
+  - Approfondisci con domande aperte
+  - Riformula e rispondi brevemente
+  - Avanza con proposta appuntamento
+- **auto_objections**: 8 handler per obiezioni comuni (no_agenzie, prezzo, provvigione, etc.)
+- **handoff_rules**: Escalation al Dott. Boni per richieste legali/fiscali o conversazioni lunghe
+
+**Sistema Delay Persistente:**
+- Messaggi bot schedulati con delay 4-25 minuti (simulazione timing umano)
+- Tabella `scheduled_bot_messages` per persistenza (sopravvive restart server)
+- Worker background ogni 30 secondi per processare messaggi programmati
+- Retry automatico fino a 3 tentativi in caso di errore
+
 **Integration Modules:**
 - `server/ai-service.ts` - Core AI functions for CRM operations
 - `server/replit_integrations/chat/` - Chat conversation management
