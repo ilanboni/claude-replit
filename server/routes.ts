@@ -4607,6 +4607,39 @@ FORMATO RISPOSTE:
     }
   });
 
+  // Delete clients by phone pattern (for cleanup)
+  app.post("/api/admin/delete-by-pattern", async (req, res) => {
+    try {
+      const syncSecret = process.env.SESSION_SECRET;
+      const providedSecret = req.headers['x-sync-secret'] as string;
+      
+      if (!providedSecret || providedSecret !== syncSecret) {
+        return res.status(401).json({ error: "Non autorizzato" });
+      }
+
+      const { phonePattern } = req.body;
+      if (!phonePattern) {
+        return res.status(400).json({ error: "Pattern telefono mancante" });
+      }
+
+      const clienti = await storage.getClienti();
+      const regex = new RegExp(phonePattern);
+      let deleted = 0;
+
+      for (const cliente of clienti) {
+        if (cliente.telefono && regex.test(cliente.telefono)) {
+          await storage.deleteCliente(cliente.id);
+          deleted++;
+        }
+      }
+
+      res.json({ success: true, deleted });
+    } catch (error: any) {
+      console.error("Delete by pattern error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Push local data to production (only available in development)
   app.post("/api/admin/sync-to-production", async (req, res) => {
     try {
@@ -4621,6 +4654,18 @@ FORMATO RISPOSTE:
       if (!syncSecret) {
         return res.status(500).json({ error: "Configurazione sync secret mancante" });
       }
+
+      // First, delete invalid phone numbers in production
+      const deleteResponse = await fetch(`${productionUrl}/api/admin/delete-by-pattern`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-sync-secret': syncSecret 
+        },
+        body: JSON.stringify({ phonePattern: '^[15]' }),
+      });
+      const deleteResult = await deleteResponse.json().catch(() => ({}));
+      console.log('[Sync] Deleted invalid phones in production:', deleteResult);
 
       // Get local data
       const clienti = await storage.getClienti();

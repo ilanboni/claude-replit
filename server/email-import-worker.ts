@@ -28,7 +28,11 @@ async function importPortalEmails(): Promise<{ imported: number; errors: string[
         
         let cliente = await storage.getClienteByEmailOrPhone(parsed.emailCliente, parsed.telefonoCliente);
         
-        if (!cliente && (parsed.nomeCliente || parsed.emailCliente || parsed.telefonoCliente)) {
+        // Skip clients with invalid phone numbers (not starting with 3 or +)
+        const telefono = parsed.telefonoCliente || "";
+        const isInvalidPhone = telefono && /^[15]/.test(telefono);
+        
+        if (!cliente && (parsed.nomeCliente || parsed.emailCliente || parsed.telefonoCliente) && !isInvalidPhone) {
           const nomeCompleto = parsed.nomeCliente || "";
           const parti = nomeCompleto.split(" ");
           const nome = parti[0] || null;
@@ -43,6 +47,8 @@ async function importPortalEmails(): Promise<{ imported: number; errors: string[
             note: `Contatto da ${parsed.portale}`,
           });
           console.log(`[EmailImportWorker] Created new client: ${cliente.nome} ${cliente.cognome}`);
+        } else if (isInvalidPhone) {
+          console.log(`[EmailImportWorker] Skipping client with invalid phone: ${telefono}`);
         }
 
         let immobile: Awaited<ReturnType<typeof storage.getImmobileByIdPortale>> | undefined;
