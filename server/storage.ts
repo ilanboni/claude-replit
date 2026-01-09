@@ -719,6 +719,11 @@ export class DatabaseStorage implements IStorage {
     return conf;
   }
 
+  async deleteAppointmentConfirmation(id: number): Promise<boolean> {
+    await db.delete(appointmentConfirmations).where(eq(appointmentConfirmations.id, id));
+    return true;
+  }
+
   // Notifiche
   async getNotifiche(includeArchived: boolean = false): Promise<Notifica[]> {
     if (includeArchived) {

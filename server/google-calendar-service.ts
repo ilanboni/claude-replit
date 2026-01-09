@@ -122,7 +122,19 @@ export async function isCalendarConnected(): Promise<{ connected: boolean; email
   return { connected: true, email };
 }
 
-export async function createGoogleCalendarEvent(event: CalendarEvent): Promise<{ success: boolean; googleEventId?: string; error?: string }> {
+type ReminderOverride = {
+  method: "popup" | "email";
+  minutes: number;
+};
+
+type CreateEventOptions = {
+  reminders?: ReminderOverride[];
+};
+
+export async function createGoogleCalendarEvent(
+  event: CalendarEvent, 
+  options?: CreateEventOptions
+): Promise<{ success: boolean; googleEventId?: string; error?: string }> {
   const client = await getAuthenticatedClient();
   if (!client) {
     return { success: false, error: "Not authenticated with Google Calendar" };
@@ -131,21 +143,31 @@ export async function createGoogleCalendarEvent(event: CalendarEvent): Promise<{
   const calendar = google.calendar({ version: "v3", auth: client });
   
   try {
+    const requestBody: any = {
+      summary: event.title,
+      description: event.description || undefined,
+      location: event.location || undefined,
+      start: {
+        dateTime: new Date(event.startDate).toISOString(),
+        timeZone: "Europe/Rome",
+      },
+      end: {
+        dateTime: event.endDate ? new Date(event.endDate).toISOString() : new Date(new Date(event.startDate).getTime() + 60 * 60 * 1000).toISOString(),
+        timeZone: "Europe/Rome",
+      },
+    };
+
+    // Add custom reminders if provided
+    if (options?.reminders && options.reminders.length > 0) {
+      requestBody.reminders = {
+        useDefault: false,
+        overrides: options.reminders,
+      };
+    }
+
     const response = await calendar.events.insert({
       calendarId: "primary",
-      requestBody: {
-        summary: event.title,
-        description: event.description || undefined,
-        location: event.location || undefined,
-        start: {
-          dateTime: new Date(event.startDate).toISOString(),
-          timeZone: "Europe/Rome",
-        },
-        end: {
-          dateTime: event.endDate ? new Date(event.endDate).toISOString() : new Date(new Date(event.startDate).getTime() + 60 * 60 * 1000).toISOString(),
-          timeZone: "Europe/Rome",
-        },
-      },
+      requestBody,
     });
     
     return { success: true, googleEventId: response.data.id || undefined };
@@ -155,7 +177,10 @@ export async function createGoogleCalendarEvent(event: CalendarEvent): Promise<{
   }
 }
 
-export async function syncEventToGoogleCalendar(eventId: number): Promise<{ success: boolean; error?: string }> {
+export async function syncEventToGoogleCalendar(
+  eventId: number, 
+  options?: CreateEventOptions
+): Promise<{ success: boolean; error?: string }> {
   const event = await storage.getCalendarEvent(eventId);
   if (!event) {
     return { success: false, error: "Event not found" };
@@ -165,7 +190,7 @@ export async function syncEventToGoogleCalendar(eventId: number): Promise<{ succ
     return { success: true };
   }
   
-  const result = await createGoogleCalendarEvent(event);
+  const result = await createGoogleCalendarEvent(event, options);
   
   if (result.success && result.googleEventId) {
     await storage.updateCalendarEvent(eventId, {

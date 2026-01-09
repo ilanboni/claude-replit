@@ -3,150 +3,254 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
 import { 
   CalendarCheck, 
-  Send, 
-  RefreshCw, 
+  Plus,
+  Send,
+  UserPlus,
+  Trash2,
   Clock, 
   MapPin, 
   User, 
   Phone,
-  AlertCircle,
   CheckCircle2,
-  XCircle,
-  Calendar,
   Loader2,
-  Link as LinkIcon
+  Link as LinkIcon,
+  Building
 } from "lucide-react";
-import type { AppointmentConfirmation, CalendarEvent } from "@shared/schema";
+import type { AppointmentConfirmation, Cliente, Immobile } from "@shared/schema";
+
+type FormData = {
+  clienteId: string;
+  immobileId: string;
+  salutation: string;
+  cognome: string;
+  telefono: string;
+  dataOra: string;
+  indirizzo: string;
+};
+
+const initialFormData: FormData = {
+  clienteId: "manual",
+  immobileId: "manual",
+  salutation: "",
+  cognome: "",
+  telefono: "",
+  dataOra: "",
+  indirizzo: "",
+};
 
 export default function ConfermaAppuntamentiPage() {
   const { toast } = useToast();
-  const [messageText, setMessageText] = useState("");
-  const [extractedData, setExtractedData] = useState<any>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [formData, setFormData] = useState<FormData>(initialFormData);
 
   const { data: confirmations = [], isLoading: isLoadingConfirmations } = useQuery<AppointmentConfirmation[]>({
     queryKey: ["/api/appointment-confirmations"],
   });
 
-  const { data: calendarEvents = [], isLoading: isLoadingEvents } = useQuery<CalendarEvent[]>({
-    queryKey: ["/api/calendar-events"],
+  const { data: clienti = [] } = useQuery<Cliente[]>({
+    queryKey: ["/api/clienti"],
+  });
+
+  const { data: immobili = [] } = useQuery<Immobile[]>({
+    queryKey: ["/api/immobili"],
   });
 
   const { data: authStatus } = useQuery<{ connected: boolean; email?: string }>({
     queryKey: ["/api/calendar/auth-status"],
   });
 
-  const extractMutation = useMutation({
-    mutationFn: async (message: string) => {
-      const res = await apiRequest("POST", "/api/appointment-confirmations/extract", { message });
+  const createConfirmationMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await apiRequest("POST", "/api/appointment-confirmations", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Conferma creata",
+        description: "La conferma appuntamento è stata creata.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/appointment-confirmations"] });
+      setDialogOpen(false);
+      setFormData(initialFormData);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Errore",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const sendConfirmationMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("POST", `/api/appointment-confirmations/${id}/send`);
       return res.json();
     },
     onSuccess: (data) => {
-      setExtractedData(data);
       toast({
-        title: "Dati estratti",
-        description: "I dati dell'appuntamento sono stati estratti dal messaggio.",
+        title: "Messaggio inviato",
+        description: data.message || "Il messaggio WhatsApp è stato inviato e l'evento creato nel calendario.",
       });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Errore estrazione",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  const createEventMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const res = await apiRequest("POST", "/api/calendar-events", data);
-      return res.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Evento creato",
-        description: "L'appuntamento è stato aggiunto al calendario.",
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/calendar-events"] });
       queryClient.invalidateQueries({ queryKey: ["/api/appointment-confirmations"] });
-      setExtractedData(null);
-      setMessageText("");
+      queryClient.invalidateQueries({ queryKey: ["/api/calendar-events"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/attivita-clienti"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/attivita-immobili"] });
     },
     onError: (error: Error) => {
       toast({
-        title: "Errore creazione evento",
+        title: "Errore invio",
         description: error.message,
         variant: "destructive",
       });
     },
   });
 
-  const syncMutation = useMutation({
-    mutationFn: async (eventId: number) => {
-      const res = await apiRequest("POST", `/api/calendar-events/${eventId}/sync`);
-      return res.json();
+  const createClientMutation = useMutation({
+    mutationFn: async (confirmation: AppointmentConfirmation) => {
+      const res = await apiRequest("POST", "/api/clienti", {
+        nome: confirmation.clientName,
+        telefono: confirmation.clientPhone,
+        tipo: "acquirente",
+      });
+      const cliente = await res.json();
+      await apiRequest("PATCH", `/api/appointment-confirmations/${confirmation.id}`, {
+        clienteId: cliente.id,
+      });
+      return cliente;
     },
     onSuccess: () => {
       toast({
-        title: "Sincronizzazione completata",
-        description: "L'evento è stato sincronizzato con Google Calendar.",
+        title: "Cliente creato",
+        description: "Il cliente è stato creato e collegato alla conferma.",
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/calendar-events"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/appointment-confirmations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/clienti"] });
     },
     onError: (error: Error) => {
       toast({
-        title: "Errore sincronizzazione",
+        title: "Errore",
         description: error.message,
         variant: "destructive",
       });
     },
   });
 
-  const handleExtract = () => {
-    if (!messageText.trim()) {
+  const deleteConfirmationMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/appointment-confirmations/${id}`);
+    },
+    onSuccess: () => {
       toast({
-        title: "Messaggio vuoto",
-        description: "Inserisci un messaggio WhatsApp da analizzare.",
+        title: "Conferma eliminata",
+        description: "La conferma appuntamento è stata eliminata.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/appointment-confirmations"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Errore",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleClienteChange = (value: string) => {
+    setFormData(prev => ({ ...prev, clienteId: value }));
+    if (value !== "manual") {
+      const cliente = clienti.find(c => c.id.toString() === value);
+      if (cliente) {
+        // Build full name: prefer cognome + nome, fallback to just nome or cognome
+        let fullName = "";
+        if (cliente.cognome && cliente.nome) {
+          fullName = `${cliente.cognome}`;  // Just surname for formal Italian usage
+        } else {
+          fullName = cliente.cognome || cliente.nome || "";
+        }
+        setFormData(prev => ({
+          ...prev,
+          clienteId: value,
+          salutation: cliente.appellativo || "",
+          cognome: fullName,
+          telefono: cliente.telefono || "",
+        }));
+      }
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        clienteId: value,
+        salutation: "",
+        cognome: "",
+        telefono: "",
+      }));
+    }
+  };
+
+  const handleImmobileChange = (value: string) => {
+    setFormData(prev => ({ ...prev, immobileId: value }));
+    if (value !== "manual") {
+      const immobile = immobili.find(i => i.id.toString() === value);
+      if (immobile) {
+        setFormData(prev => ({
+          ...prev,
+          immobileId: value,
+          indirizzo: immobile.indirizzo || "",
+        }));
+      }
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        immobileId: value,
+        indirizzo: "",
+      }));
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.dataOra) {
+      toast({
+        title: "Errore",
+        description: "Inserisci la data e ora dell'appuntamento.",
         variant: "destructive",
       });
       return;
     }
-    extractMutation.mutate(messageText);
-  };
 
-  const handleCreateEvent = () => {
-    if (!extractedData) return;
-    createEventMutation.mutate({
-      title: `${extractedData.clientName} - ${extractedData.clientPhone || ""}`,
-      description: extractedData.originalMessage,
-      startDate: extractedData.appointmentDate,
-      endDate: new Date(new Date(extractedData.appointmentDate).getTime() + 60 * 60 * 1000), // +1h
-      location: extractedData.address,
-      clientName: extractedData.clientName,
-      clientPhone: extractedData.clientPhone,
-      salutation: extractedData.salutation,
+    createConfirmationMutation.mutate({
+      clienteId: formData.clienteId !== "manual" ? parseInt(formData.clienteId) : null,
+      immobileId: formData.immobileId !== "manual" ? parseInt(formData.immobileId) : null,
+      salutation: formData.salutation,
+      clientName: formData.cognome,
+      clientPhone: formData.telefono,
+      appointmentDate: new Date(formData.dataOra).toISOString(),
+      address: formData.indirizzo,
+      status: "pending",
     });
   };
 
-  const getSyncStatusBadge = (status: string | null) => {
+  const getStatusBadge = (status: string | null) => {
     switch (status) {
-      case "synced":
-        return <Badge variant="default" className="bg-green-500"><CheckCircle2 className="h-3 w-3 mr-1" /> Sincronizzato</Badge>;
+      case "sent":
+        return <Badge variant="default" className="bg-green-500">Inviato</Badge>;
       case "pending":
-        return <Badge variant="secondary"><Clock className="h-3 w-3 mr-1" /> In attesa</Badge>;
-      case "failed":
-        return <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" /> Fallito</Badge>;
-      case "needs_auth":
-        return <Badge variant="outline" className="border-amber-500 text-amber-500"><AlertCircle className="h-3 w-3 mr-1" /> Auth richiesta</Badge>;
+        return <Badge variant="outline" className="border-amber-500 text-amber-500">Da inviare</Badge>;
+      case "synced":
+        return <Badge variant="default" className="bg-blue-500">Sincronizzato</Badge>;
       default:
-        return <Badge variant="outline">Sconosciuto</Badge>;
+        return <Badge variant="outline" className="border-amber-500 text-amber-500">Da inviare</Badge>;
     }
   };
 
@@ -156,264 +260,249 @@ export default function ConfermaAppuntamentiPage() {
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <CalendarCheck className="h-6 w-6" />
-            Conferma Appuntamenti
+            Conferme Appuntamenti
           </h1>
           <p className="text-muted-foreground">
-            Estrai appuntamenti da messaggi WhatsApp e sincronizza con Google Calendar
+            Gestisci e invia conferme appuntamenti tramite WhatsApp automatico
           </p>
         </div>
         <div className="flex items-center gap-2">
           {authStatus?.connected ? (
             <Badge variant="default" className="bg-green-500">
               <CheckCircle2 className="h-3 w-3 mr-1" />
-              Google Calendar collegato
-              {authStatus.email && ` (${authStatus.email})`}
+              Calendar collegato
             </Badge>
           ) : (
-            <Button variant="outline" asChild>
+            <Button variant="outline" size="sm" asChild>
               <a href="/api/calendar/auth" data-testid="button-connect-calendar">
                 <LinkIcon className="h-4 w-4 mr-2" />
-                Collega Google Calendar
+                Collega Calendar
               </a>
             </Button>
           )}
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button data-testid="button-nuova-conferma">
+                <Plus className="h-4 w-4 mr-2" />
+                Nuova Conferma
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Nuova Conferma Appuntamento</DialogTitle>
+                <DialogDescription>
+                  Compila i dati per creare una nuova conferma appuntamento
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="cliente">Cliente</Label>
+                  <Select value={formData.clienteId} onValueChange={handleClienteChange}>
+                    <SelectTrigger data-testid="select-cliente">
+                      <SelectValue placeholder="Seleziona cliente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="manual">Inserimento manuale</SelectItem>
+                      {clienti.map(cliente => (
+                        <SelectItem key={cliente.id} value={cliente.id.toString()}>
+                          {cliente.appellativo ? `${cliente.appellativo} ` : ""}{cliente.cognome || cliente.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="immobile">Immobile</Label>
+                  <Select value={formData.immobileId} onValueChange={handleImmobileChange}>
+                    <SelectTrigger data-testid="select-immobile">
+                      <SelectValue placeholder="Seleziona immobile" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="manual">Inserimento manuale</SelectItem>
+                      {immobili.map(immobile => (
+                        <SelectItem key={immobile.id} value={immobile.id.toString()}>
+                          {immobile.titolo} {immobile.indirizzo ? `(${immobile.indirizzo})` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="salutation">Intestazione</Label>
+                  <Select 
+                    value={formData.salutation} 
+                    onValueChange={(v) => setFormData(prev => ({ ...prev, salutation: v }))}
+                  >
+                    <SelectTrigger data-testid="select-intestazione">
+                      <SelectValue placeholder="Seleziona intestazione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Egr. Dott.">Egr. Dott.</SelectItem>
+                      <SelectItem value="Gent.ma Sig.ra">Gent.ma Sig.ra</SelectItem>
+                      <SelectItem value="Gent.mo Sig.">Gent.mo Sig.</SelectItem>
+                      <SelectItem value="Egr. Sig.">Egr. Sig.</SelectItem>
+                      <SelectItem value="Gent.ma Dott.ssa">Gent.ma Dott.ssa</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="cognome">Cognome</Label>
+                  <Input
+                    id="cognome"
+                    value={formData.cognome}
+                    onChange={(e) => setFormData(prev => ({ ...prev, cognome: e.target.value }))}
+                    placeholder="Inserisci cognome"
+                    data-testid="input-cognome"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="telefono">Numero di telefono</Label>
+                  <Input
+                    id="telefono"
+                    value={formData.telefono}
+                    onChange={(e) => setFormData(prev => ({ ...prev, telefono: e.target.value }))}
+                    placeholder="Inserisci numero di telefono"
+                    data-testid="input-telefono"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="dataOra">Data e ora appuntamento</Label>
+                  <Input
+                    id="dataOra"
+                    type="datetime-local"
+                    value={formData.dataOra}
+                    onChange={(e) => setFormData(prev => ({ ...prev, dataOra: e.target.value }))}
+                    data-testid="input-data-ora"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="indirizzo">Indirizzo appuntamento</Label>
+                  <Input
+                    id="indirizzo"
+                    value={formData.indirizzo}
+                    onChange={(e) => setFormData(prev => ({ ...prev, indirizzo: e.target.value }))}
+                    placeholder="es. viale Abruzzi 78"
+                    data-testid="input-indirizzo"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-4">
+                  <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+                    Annulla
+                  </Button>
+                  <Button 
+                    type="submit" 
+                    disabled={createConfirmationMutation.isPending}
+                    data-testid="button-crea-conferma"
+                  >
+                    {createConfirmationMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                    Crea Conferma
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
-      <Tabs defaultValue="extract" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="extract" data-testid="tab-extract">
-            <Send className="h-4 w-4 mr-2" />
-            Estrai da Messaggio
-          </TabsTrigger>
-          <TabsTrigger value="events" data-testid="tab-events">
-            <Calendar className="h-4 w-4 mr-2" />
-            Eventi ({calendarEvents.length})
-          </TabsTrigger>
-          <TabsTrigger value="history" data-testid="tab-history">
-            <Clock className="h-4 w-4 mr-2" />
-            Storico ({confirmations.length})
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="extract" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Messaggio WhatsApp</CardTitle>
-                <CardDescription>
-                  Incolla il messaggio di conferma appuntamento inviato al cliente
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Textarea
-                  placeholder="Gentile Dott.ssa Bianchi,
-Le confermo l'appuntamento di Venerdì 20/6, alle ore 11:00 
-in Via Montenapoleone 8, Milano.
-La ringrazio per la disponibilità.
-Cordiali saluti"
-                  value={messageText}
-                  onChange={(e) => setMessageText(e.target.value)}
-                  rows={10}
-                  className="font-mono text-sm"
-                  data-testid="textarea-message"
-                />
-                <Button 
-                  onClick={handleExtract} 
-                  disabled={extractMutation.isPending || !messageText.trim()}
-                  className="w-full"
-                  data-testid="button-extract"
-                >
-                  {extractMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <Send className="h-4 w-4 mr-2" />
-                  )}
-                  Estrai Dati Appuntamento
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Dati Estratti</CardTitle>
-                <CardDescription>
-                  Verifica i dati estratti prima di creare l'evento
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {extractedData ? (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1">
-                        <span className="text-xs text-muted-foreground">Cliente</span>
-                        <div className="flex items-center gap-2">
-                          <User className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-medium">
-                            {extractedData.salutation} {extractedData.clientName}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <span className="text-xs text-muted-foreground">Telefono</span>
-                        <div className="flex items-center gap-2">
-                          <Phone className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-medium">{extractedData.clientPhone || "Non trovato"}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <span className="text-xs text-muted-foreground">Data e Ora</span>
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-medium">
-                          {extractedData.appointmentDate 
-                            ? format(new Date(extractedData.appointmentDate), "EEEE d MMMM yyyy, HH:mm", { locale: it })
-                            : "Non trovata"}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <span className="text-xs text-muted-foreground">Indirizzo</span>
-                      <div className="flex items-center gap-2">
-                        <MapPin className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-medium">{extractedData.address || "Non trovato"}</span>
-                      </div>
-                    </div>
-                    <Button 
-                      onClick={handleCreateEvent}
-                      disabled={createEventMutation.isPending || !authStatus?.connected || !extractedData?.appointmentDate}
-                      className="w-full"
-                      data-testid="button-create-event"
-                    >
-                      {createEventMutation.isPending ? (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      ) : (
-                        <CalendarCheck className="h-4 w-4 mr-2" />
-                      )}
-                      Crea Evento in Google Calendar
-                    </Button>
-                    {!authStatus?.connected && (
-                      <p className="text-xs text-amber-500 text-center">
-                        Collega Google Calendar per creare eventi
-                      </p>
-                    )}
-                    {authStatus?.connected && !extractedData?.appointmentDate && (
-                      <p className="text-xs text-destructive text-center">
-                        Impossibile creare evento: data appuntamento non estratta
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center h-40 text-muted-foreground">
-                    <CalendarCheck className="h-12 w-12 mb-2 opacity-20" />
-                    <p className="text-sm">Estrai i dati dal messaggio</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="events" className="space-y-4">
-          {isLoadingEvents ? (
-            <div className="flex items-center justify-center p-8">
-              <Loader2 className="h-6 w-6 animate-spin" />
-            </div>
-          ) : calendarEvents.length === 0 ? (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center p-8 text-muted-foreground">
-                <Calendar className="h-12 w-12 mb-2 opacity-20" />
-                <p>Nessun evento nel calendario</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {calendarEvents.map((event) => (
-                <Card key={event.id} data-testid={`card-event-${event.id}`}>
-                  <CardHeader className="pb-2">
-                    <div className="flex items-start justify-between">
-                      <CardTitle className="text-base">{event.title}</CardTitle>
-                      {getSyncStatusBadge(event.syncStatus)}
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <span>
-                        {format(new Date(event.startDate), "d MMM yyyy, HH:mm", { locale: it })}
-                      </span>
-                    </div>
-                    {event.location && (
-                      <div className="flex items-center gap-2 text-sm">
-                        <MapPin className="h-4 w-4 text-muted-foreground" />
-                        <span className="truncate">{event.location}</span>
-                      </div>
-                    )}
-                    {event.syncStatus !== "synced" && authStatus?.connected && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full mt-2"
-                        onClick={() => syncMutation.mutate(event.id)}
-                        disabled={syncMutation.isPending}
-                        data-testid={`button-sync-${event.id}`}
-                      >
-                        {syncMutation.isPending ? (
-                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                        ) : (
-                          <RefreshCw className="h-3 w-3 mr-1" />
-                        )}
-                        Sincronizza
-                      </Button>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="history" className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Clock className="h-5 w-5" />
+            Elenco Conferme Appuntamenti
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
           {isLoadingConfirmations ? (
             <div className="flex items-center justify-center p-8">
               <Loader2 className="h-6 w-6 animate-spin" />
             </div>
           ) : confirmations.length === 0 ? (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center p-8 text-muted-foreground">
-                <Clock className="h-12 w-12 mb-2 opacity-20" />
-                <p>Nessuna conferma appuntamento</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-2">
-              {confirmations.map((conf) => (
-                <Card key={conf.id} data-testid={`card-confirmation-${conf.id}`}>
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div>
-                          <p className="font-medium">
-                            {conf.salutation} {conf.clientName}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            {conf.appointmentDate && format(new Date(conf.appointmentDate), "d MMM yyyy, HH:mm", { locale: it })}
-                            {conf.address && ` - ${conf.address}`}
-                          </p>
-                        </div>
-                      </div>
-                      <Badge variant={conf.status === "synced" ? "default" : "secondary"}>
-                        {conf.status}
-                      </Badge>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+            <div className="flex flex-col items-center justify-center p-8 text-muted-foreground">
+              <CalendarCheck className="h-12 w-12 mb-2 opacity-20" />
+              <p>Nessuna conferma appuntamento</p>
+              <p className="text-sm">Clicca "Nuova Conferma" per crearne una</p>
             </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Intestazione</TableHead>
+                  <TableHead>Cognome</TableHead>
+                  <TableHead>Telefono</TableHead>
+                  <TableHead>Data e Ora</TableHead>
+                  <TableHead>Indirizzo</TableHead>
+                  <TableHead>Stato</TableHead>
+                  <TableHead className="text-right">Azioni</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {confirmations.map((conf) => (
+                  <TableRow key={conf.id} data-testid={`row-confirmation-${conf.id}`}>
+                    <TableCell>{conf.salutation || "-"}</TableCell>
+                    <TableCell className="font-medium">{conf.clientName || "-"}</TableCell>
+                    <TableCell>{conf.clientPhone || "-"}</TableCell>
+                    <TableCell>
+                      {conf.appointmentDate 
+                        ? format(new Date(conf.appointmentDate), "EEEE d/MM, 'alle ore' HH:mm", { locale: it })
+                        : "-"}
+                    </TableCell>
+                    <TableCell>{conf.address || "-"}</TableCell>
+                    <TableCell>{getStatusBadge(conf.status)}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center justify-end gap-2">
+                        {conf.status !== "sent" && (
+                          <Button
+                            size="sm"
+                            onClick={() => sendConfirmationMutation.mutate(conf.id)}
+                            disabled={sendConfirmationMutation.isPending}
+                            className="bg-green-500 hover:bg-green-600"
+                            data-testid={`button-invia-${conf.id}`}
+                          >
+                            {sendConfirmationMutation.isPending ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <Send className="h-3 w-3 mr-1" />
+                            )}
+                            Invia
+                          </Button>
+                        )}
+                        {!conf.clienteId && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => createClientMutation.mutate(conf)}
+                            disabled={createClientMutation.isPending}
+                            data-testid={`button-crea-cliente-${conf.id}`}
+                          >
+                            <UserPlus className="h-3 w-3 mr-1" />
+                            Crea cliente
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => deleteConfirmationMutation.mutate(conf.id)}
+                          disabled={deleteConfirmationMutation.isPending}
+                          data-testid={`button-elimina-${conf.id}`}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
-        </TabsContent>
-      </Tabs>
+        </CardContent>
+      </Card>
     </div>
   );
 }

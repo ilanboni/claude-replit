@@ -4173,4 +4173,176 @@ FORMATO RISPOSTE:
       res.status(500).json({ error: error.message });
     }
   });
+
+  // Create new appointment confirmation
+  app.post("/api/appointment-confirmations", async (req, res) => {
+    try {
+      const { clienteId, immobileId, salutation, clientName, clientPhone, appointmentDate, address, status } = req.body;
+      const confirmation = await storage.createAppointmentConfirmation({
+        clienteId: clienteId || null,
+        immobileId: immobileId || null,
+        salutation,
+        clientName,
+        clientPhone,
+        appointmentDate: new Date(appointmentDate),
+        address,
+        status: status || "pending",
+      });
+      res.json(confirmation);
+    } catch (error: any) {
+      console.error("Create appointment confirmation error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Update appointment confirmation
+  app.patch("/api/appointment-confirmations/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const confirmation = await storage.updateAppointmentConfirmation(id, req.body);
+      res.json(confirmation);
+    } catch (error: any) {
+      console.error("Update appointment confirmation error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Delete appointment confirmation
+  app.delete("/api/appointment-confirmations/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteAppointmentConfirmation(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Delete appointment confirmation error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Send confirmation: WhatsApp message + activity records + calendar event with reminders
+  app.post("/api/appointment-confirmations/:id/send", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const confirmation = await storage.getAppointmentConfirmation(id);
+      if (!confirmation) {
+        return res.status(404).json({ error: "Conferma non trovata" });
+      }
+
+      const appointmentDate = new Date(confirmation.appointmentDate);
+      const formattedDate = appointmentDate.toLocaleDateString("it-IT", { 
+        weekday: "long", 
+        day: "numeric", 
+        month: "long" 
+      });
+      const formattedTime = appointmentDate.toLocaleTimeString("it-IT", { 
+        hour: "2-digit", 
+        minute: "2-digit" 
+      });
+
+      // 1. Send WhatsApp message (required - fail if not sent)
+      let whatsappSent = false;
+      if (!confirmation.clientPhone) {
+        return res.status(400).json({ error: "Numero di telefono mancante" });
+      }
+      if (!process.env.ULTRAMSG_INSTANCE_ID || !process.env.ULTRAMSG_API_KEY) {
+        return res.status(500).json({ error: "WhatsApp non configurato. Contatta l'amministratore." });
+      }
+      
+      const messageText = `${confirmation.salutation || ""} ${confirmation.clientName || ""},\n\nLe confermo l'appuntamento di ${formattedDate} alle ore ${formattedTime}${confirmation.address ? ` in ${confirmation.address}` : ""}.\n\nLa ringrazio per la disponibilità.\nCordiali saluti,\nDott. Ilan Boni\nCavour Immobiliare`;
+      
+      try {
+        const phone = confirmation.clientPhone.replace(/\D/g, "");
+        const response = await fetch(`https://api.ultramsg.com/${process.env.ULTRAMSG_INSTANCE_ID}/messages/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            token: process.env.ULTRAMSG_API_KEY,
+            to: phone.startsWith("39") ? phone : `39${phone}`,
+            body: messageText,
+          }),
+        });
+        const result = await response.json();
+        if (result.sent === "true" || result.sent === true) {
+          whatsappSent = true;
+          console.log("WhatsApp message sent successfully to:", phone);
+        } else {
+          console.error("WhatsApp send failed:", result);
+          return res.status(500).json({ error: `Invio WhatsApp fallito: ${result.error || "errore sconosciuto"}` });
+        }
+      } catch (whatsappError: any) {
+        console.error("WhatsApp send error:", whatsappError);
+        return res.status(500).json({ error: `Errore invio WhatsApp: ${whatsappError.message}` });
+      }
+
+      // 2. Create client activity if clienteId exists
+      if (confirmation.clienteId) {
+        const activityTitle = `Appuntamento in ${confirmation.address || "sede da definire"}`;
+        await storage.createAttivitaCliente({
+          clienteId: confirmation.clienteId,
+          immobileId: confirmation.immobileId || null,
+          titolo: activityTitle,
+          descrizione: `Appuntamento confermato per ${formattedDate} alle ${formattedTime}`,
+          stato: "da_fare",
+          scadenza: appointmentDate,
+        });
+      }
+
+      // 3. Create property activity if immobileId exists
+      if (confirmation.immobileId) {
+        const activityTitle = `Appuntamento con ${confirmation.salutation || ""} ${confirmation.clientName || "cliente"}`;
+        await storage.createAttivitaImmobile({
+          immobileId: confirmation.immobileId,
+          titolo: activityTitle,
+          descrizione: `Visita programmata per ${formattedDate} alle ${formattedTime}`,
+          stato: "da_fare",
+          scadenza: appointmentDate,
+        });
+      }
+
+      // 4. Create calendar event with reminders (2 days before + 2 hours before, push + email)
+      const eventTitle = `${confirmation.clientName || "Cliente"} - ${confirmation.clientPhone || ""}`;
+      const endDate = new Date(appointmentDate.getTime() + 60 * 60 * 1000); // +1 hour
+      
+      const event = await storage.createCalendarEvent({
+        title: eventTitle,
+        description: `Appuntamento con ${confirmation.salutation || ""} ${confirmation.clientName || ""}`,
+        startDate: appointmentDate,
+        endDate: endDate,
+        location: confirmation.address || "",
+        clienteId: confirmation.clienteId || null,
+        immobileId: confirmation.immobileId || null,
+        appointmentConfirmationId: confirmation.id,
+        syncStatus: "pending",
+      });
+
+      // Sync to Google Calendar with reminders
+      try {
+        const { syncEventToGoogleCalendar } = await import("./google-calendar-service");
+        await syncEventToGoogleCalendar(event.id, {
+          reminders: [
+            { method: "popup", minutes: 2880 },  // 2 days = 2880 minutes
+            { method: "email", minutes: 2880 },  // 2 days email
+            { method: "popup", minutes: 120 },   // 2 hours = 120 minutes
+            { method: "email", minutes: 120 },   // 2 hours email
+          ],
+        });
+      } catch (syncError) {
+        console.error("Calendar sync error:", syncError);
+      }
+
+      // 5. Update confirmation status
+      await storage.updateAppointmentConfirmation(id, { 
+        status: "sent",
+        calendarEventId: event.id,
+      });
+
+      res.json({ 
+        success: true, 
+        message: "Messaggio inviato, attività create e evento calendario sincronizzato con promemoria" 
+      });
+    } catch (error: any) {
+      console.error("Send confirmation error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
 }
