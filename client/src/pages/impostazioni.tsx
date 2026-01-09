@@ -2,22 +2,26 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { RefreshCw, Database, CheckCircle, AlertCircle } from "lucide-react";
+import { RefreshCw, Database, CheckCircle, AlertCircle, Upload, Download } from "lucide-react";
+
+type SyncResult = {
+  success: boolean;
+  message: string;
+  imported?: number;
+  updated?: number;
+  skipped?: number;
+};
 
 export default function Impostazioni() {
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [syncResult, setSyncResult] = useState<{
-    success: boolean;
-    message: string;
-    imported?: number;
-    updated?: number;
-    skipped?: number;
-  } | null>(null);
+  const [isSyncingFrom, setIsSyncingFrom] = useState(false);
+  const [isSyncingTo, setIsSyncingTo] = useState(false);
+  const [syncFromResult, setSyncFromResult] = useState<SyncResult | null>(null);
+  const [syncToResult, setSyncToResult] = useState<SyncResult | null>(null);
   const { toast } = useToast();
 
-  const handleSync = async () => {
-    setIsSyncing(true);
-    setSyncResult(null);
+  const handleSyncFromProduction = async () => {
+    setIsSyncingFrom(true);
+    setSyncFromResult(null);
     
     try {
       const response = await fetch("/api/admin/sync-from-production", {
@@ -32,13 +36,13 @@ export default function Impostazioni() {
         throw new Error(result.error || "Errore durante la sincronizzazione");
       }
 
-      setSyncResult(result);
+      setSyncFromResult(result);
       toast({
         title: "Sincronizzazione completata",
         description: result.message,
       });
     } catch (error: any) {
-      setSyncResult({
+      setSyncFromResult({
         success: false,
         message: error.message,
       });
@@ -48,7 +52,48 @@ export default function Impostazioni() {
         variant: "destructive",
       });
     } finally {
-      setIsSyncing(false);
+      setIsSyncingFrom(false);
+    }
+  };
+
+  const handleSyncToProduction = async () => {
+    if (!confirm("Sei sicuro di voler inviare i dati locali alla produzione? Questo sovrascriverà i dati esistenti.")) {
+      return;
+    }
+    
+    setIsSyncingTo(true);
+    setSyncToResult(null);
+    
+    try {
+      const response = await fetch("/api/admin/sync-to-production", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.error || "Errore durante la sincronizzazione");
+      }
+
+      setSyncToResult(result);
+      toast({
+        title: "Sincronizzazione completata",
+        description: result.message,
+      });
+    } catch (error: any) {
+      setSyncToResult({
+        success: false,
+        message: error.message,
+      });
+      toast({
+        title: "Errore sincronizzazione",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSyncingTo(false);
     }
   };
 
@@ -68,11 +113,10 @@ export default function Impostazioni() {
             Sincronizzazione Database
           </CardTitle>
           <CardDescription>
-            Sincronizza i dati dal database di produzione a quello di sviluppo.
-            Questa funzione importa clienti, immobili e altri dati.
+            Sincronizza i dati tra ambiente di sviluppo e produzione.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-6">
           {isProduction ? (
             <div className="flex items-center gap-2 text-muted-foreground">
               <AlertCircle className="h-4 w-4" />
@@ -80,45 +124,96 @@ export default function Impostazioni() {
             </div>
           ) : (
             <>
-              <Button 
-                onClick={handleSync} 
-                disabled={isSyncing}
-                data-testid="button-sync-database"
-              >
-                {isSyncing ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                    Sincronizzazione in corso...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    Sincronizza da Produzione
-                  </>
-                )}
-              </Button>
-
-              {syncResult && (
-                <div className={`p-4 rounded-md ${syncResult.success ? "bg-green-50 dark:bg-green-900/20" : "bg-red-50 dark:bg-red-900/20"}`}>
-                  <div className="flex items-center gap-2">
-                    {syncResult.success ? (
-                      <CheckCircle className="h-4 w-4 text-green-600" />
-                    ) : (
-                      <AlertCircle className="h-4 w-4 text-red-600" />
-                    )}
-                    <span className={syncResult.success ? "text-green-700 dark:text-green-300" : "text-red-700 dark:text-red-300"}>
-                      {syncResult.message}
-                    </span>
-                  </div>
-                  {syncResult.success && (
-                    <div className="mt-2 text-sm text-muted-foreground">
-                      <p>Nuovi: {syncResult.imported}</p>
-                      <p>Aggiornati: {syncResult.updated}</p>
-                      <p>Ignorati: {syncResult.skipped}</p>
-                    </div>
+              <div className="space-y-3">
+                <h3 className="font-medium flex items-center gap-2">
+                  <Download className="h-4 w-4" />
+                  Da Produzione → Sviluppo
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  Scarica i dati dalla produzione e li importa qui in sviluppo.
+                </p>
+                <Button 
+                  onClick={handleSyncFromProduction} 
+                  disabled={isSyncingFrom || isSyncingTo}
+                  variant="outline"
+                  data-testid="button-sync-from-production"
+                >
+                  {isSyncingFrom ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                      Scaricando...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-4 w-4 mr-2" />
+                      Scarica da Produzione
+                    </>
                   )}
-                </div>
-              )}
+                </Button>
+                {syncFromResult && (
+                  <div className={`p-4 rounded-md ${syncFromResult.success ? "bg-green-50 dark:bg-green-900/20" : "bg-red-50 dark:bg-red-900/20"}`}>
+                    <div className="flex items-center gap-2">
+                      {syncFromResult.success ? (
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <AlertCircle className="h-4 w-4 text-red-600" />
+                      )}
+                      <span className={syncFromResult.success ? "text-green-700 dark:text-green-300" : "text-red-700 dark:text-red-300"}>
+                        {syncFromResult.message}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <hr className="border-border" />
+
+              <div className="space-y-3">
+                <h3 className="font-medium flex items-center gap-2">
+                  <Upload className="h-4 w-4" />
+                  Da Sviluppo → Produzione
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  Invia i dati locali alla produzione. Attenzione: sovrascrive i dati esistenti.
+                </p>
+                <Button 
+                  onClick={handleSyncToProduction} 
+                  disabled={isSyncingFrom || isSyncingTo}
+                  data-testid="button-sync-to-production"
+                >
+                  {isSyncingTo ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                      Inviando...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-4 w-4 mr-2" />
+                      Invia a Produzione
+                    </>
+                  )}
+                </Button>
+                {syncToResult && (
+                  <div className={`p-4 rounded-md ${syncToResult.success ? "bg-green-50 dark:bg-green-900/20" : "bg-red-50 dark:bg-red-900/20"}`}>
+                    <div className="flex items-center gap-2">
+                      {syncToResult.success ? (
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <AlertCircle className="h-4 w-4 text-red-600" />
+                      )}
+                      <span className={syncToResult.success ? "text-green-700 dark:text-green-300" : "text-red-700 dark:text-red-300"}>
+                        {syncToResult.message}
+                      </span>
+                    </div>
+                    {syncToResult.success && (
+                      <div className="mt-2 text-sm text-muted-foreground">
+                        <p>Nuovi: {syncToResult.imported}</p>
+                        <p>Aggiornati: {syncToResult.updated}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </>
           )}
         </CardContent>

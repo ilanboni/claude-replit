@@ -4510,4 +4510,124 @@ FORMATO RISPOSTE:
       res.status(500).json({ error: error.message });
     }
   });
+
+  // Import data from external source (used by sync-to-production)
+  app.post("/api/admin/import", async (req, res) => {
+    try {
+      // Require sync secret for security
+      const syncSecret = process.env.SESSION_SECRET;
+      const providedSecret = req.headers['x-sync-secret'] as string;
+      
+      if (!providedSecret || providedSecret !== syncSecret) {
+        return res.status(401).json({ error: "Non autorizzato" });
+      }
+
+      const { clienti } = req.body;
+      if (!clienti || !Array.isArray(clienti)) {
+        return res.status(400).json({ error: "Dati clienti mancanti o non validi" });
+      }
+
+      let imported = 0;
+      let updated = 0;
+      let skipped = 0;
+
+      for (const cliente of clienti) {
+        const esistenti = await storage.getClienti();
+        const esistente = esistenti.find(c => {
+          const samePhone = c.telefono && cliente.telefono && 
+            c.telefono.replace(/\D/g, '') === cliente.telefono.replace(/\D/g, '');
+          const sameEmail = c.email && cliente.email && 
+            c.email.toLowerCase() === cliente.email.toLowerCase();
+          return samePhone || sameEmail;
+        });
+
+        if (!esistente) {
+          await storage.createCliente({
+            appellativo: cliente.appellativo || "",
+            nome: cliente.nome || "",
+            cognome: cliente.cognome || "",
+            telefono: cliente.telefono || "",
+            email: cliente.email || "",
+            compleanno: cliente.compleanno || "",
+            religione: cliente.religione || "",
+            note: cliente.note || "",
+            tipoCliente: cliente.tipoCliente || "compratore",
+            ratingCliente: cliente.ratingCliente || 3,
+            clienteAmico: cliente.clienteAmico || false,
+            linkImmobile: cliente.linkImmobile || null,
+            attivo: cliente.attivo !== false,
+          });
+          imported++;
+        } else {
+          // Always update with incoming data
+          await storage.updateCliente(esistente.id, {
+            appellativo: cliente.appellativo,
+            nome: cliente.nome,
+            cognome: cliente.cognome,
+            telefono: cliente.telefono,
+            email: cliente.email,
+            note: cliente.note,
+            tipoCliente: cliente.tipoCliente,
+            ratingCliente: cliente.ratingCliente,
+            clienteAmico: cliente.clienteAmico,
+          });
+          updated++;
+        }
+      }
+
+      res.json({ 
+        success: true, 
+        message: `Import completato: ${imported} nuovi, ${updated} aggiornati`,
+        imported,
+        updated,
+        skipped,
+      });
+    } catch (error: any) {
+      console.error("Import error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Push local data to production (only available in development)
+  app.post("/api/admin/sync-to-production", async (req, res) => {
+    try {
+      // Only allow in development environment
+      if (process.env.REPLIT_DEPLOYMENT === '1') {
+        return res.status(403).json({ error: "Sincronizzazione verso produzione non permessa dalla produzione stessa" });
+      }
+
+      const productionUrl = 'https://cavour.replit.app';
+      const syncSecret = process.env.SESSION_SECRET;
+      
+      if (!syncSecret) {
+        return res.status(500).json({ error: "Configurazione sync secret mancante" });
+      }
+
+      // Get local data
+      const clienti = await storage.getClienti();
+
+      // Send to production
+      const response = await fetch(`${productionUrl}/api/admin/import`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-sync-secret': syncSecret 
+        },
+        body: JSON.stringify({ clienti }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        return res.status(500).json({ 
+          error: errorData.error || "Errore durante l'invio alla produzione" 
+        });
+      }
+
+      const result = await response.json();
+      res.json(result);
+    } catch (error: any) {
+      console.error("Sync to production error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
 }
