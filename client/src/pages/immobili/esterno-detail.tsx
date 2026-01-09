@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link, useParams, useLocation } from "wouter";
 import { format } from "date-fns";
@@ -438,91 +438,18 @@ export default function ImmobileEsternoDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
   
-  const { data: immobile, isLoading } = useQuery<ImmobileEsterno>({
-    queryKey: ["/api/immobili-esterni", id],
-    queryFn: async () => {
-      const res = await fetch(`/api/immobili-esterni/${id}`);
-      if (!res.ok) throw new Error("Failed to fetch");
-      return res.json();
-    },
-  });
-
-  const { data: cliente } = useQuery<Cliente>({
-    queryKey: ["/api/clienti", immobile?.clienteId],
-    queryFn: async () => {
-      if (!immobile?.clienteId) throw new Error("No client");
-      const res = await fetch(`/api/clienti/${immobile.clienteId}`);
-      if (!res.ok) throw new Error("Failed to fetch");
-      return res.json();
-    },
-    enabled: !!immobile?.clienteId,
-  });
-
-  if (isLoading) {
-    return (
-      <div className="p-6 space-y-6">
-        <Skeleton className="h-48 w-full" />
-        <Skeleton className="h-64 w-full" />
-      </div>
-    );
-  }
-
-  if (!immobile) {
-    return (
-      <div className="p-6">
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <Building2 className="h-12 w-12 text-muted-foreground/30 mb-4" />
-            <h3 className="text-lg font-medium">Immobile non trovato</h3>
-            <Link href="/immobili">
-              <Button className="mt-4" variant="outline">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Torna alla lista
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  // Redirect to acquisizione page which has the complete layout with all tabs
+  // This ensures the same layout as portfolio properties without code duplication
+  useEffect(() => {
+    if (id) {
+      setLocation(`/acquisizione/${id}`, { replace: true });
+    }
+  }, [id, setLocation]);
 
   return (
-    <div className="min-h-screen">
-      <PropertyHeader immobile={immobile} cliente={cliente} />
-      
-      <div className="p-6">
-        <div className="grid lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
-            <Tabs defaultValue="comunicazioni">
-              <TabsList>
-                <TabsTrigger value="comunicazioni">
-                  <MessageSquare className="h-4 w-4 mr-2" />
-                  Comunicazioni
-                </TabsTrigger>
-                <TabsTrigger value="storico">
-                  <Clock className="h-4 w-4 mr-2" />
-                  Storico
-                </TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="comunicazioni" className="mt-4">
-                <ComunicazioniTab 
-                  immobileEsternoId={immobile.id} 
-                  clienteId={immobile.clienteId || undefined}
-                />
-              </TabsContent>
-              
-              <TabsContent value="storico" className="mt-4">
-                <StoricoTab immobile={immobile} />
-              </TabsContent>
-            </Tabs>
-          </div>
-          
-          <div>
-            <PropertyFeatures immobile={immobile} />
-          </div>
-        </div>
-      </div>
+    <div className="p-6 space-y-6">
+      <Skeleton className="h-48 w-full" />
+      <Skeleton className="h-64 w-full" />
     </div>
   );
 }
