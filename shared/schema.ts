@@ -645,7 +645,8 @@ export type InsertWhatsappMessage = z.infer<typeof insertWhatsappMessageSchema>;
 export const sendCommunicationSchema = z.object({
   canale: z.enum(["whatsapp", "email"]),
   messaggio: z.string().min(1, "Il messaggio è obbligatorio"),
-  immobileId: z.number().optional(),
-  tipo: z.enum(["proposta", "richiesta", "risposta", "followup", "auguri", "nota"]).default("nota"),
+  immobileId: z.number().optional().nullable(),
+  tipo: z.enum(["proposta", "richiesta", "risposta", "followup", "auguri", "nota"]).default("risposta"),
+  attivitaClienteId: z.number().optional().nullable(),
 });
 export type SendCommunicationInput = z.infer<typeof sendCommunicationSchema>;

@@ -29,6 +29,11 @@ import {
   X,
   Trash2,
   ExternalLink,
+  MessageCircle,
+  CheckCircle2,
+  Circle,
+  Send,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -40,6 +45,7 @@ import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -597,6 +603,13 @@ function TabAttivita({ immobileId }: { immobileId: number }) {
   const { toast } = useToast();
   const [showForm, setShowForm] = useState(false);
   const [newTask, setNewTask] = useState({ titolo: "", descrizione: "", stato: "da_fare" });
+  const [replyDialog, setReplyDialog] = useState<{ open: boolean; type: 'whatsapp' | 'email'; task: AttivitaCliente | null; cliente: Cliente | null }>({
+    open: false,
+    type: 'whatsapp',
+    task: null,
+    cliente: null
+  });
+  const [replyMessage, setReplyMessage] = useState("");
 
   const { data: attivita = [], isLoading } = useQuery<AttivitaImmobile[]>({
     queryKey: ["/api/immobili", immobileId, "attivita"],
@@ -608,7 +621,7 @@ function TabAttivita({ immobileId }: { immobileId: number }) {
   });
 
   // Attività cliente collegate a questo immobile
-  const { data: attivitaCliente = [] } = useQuery<(AttivitaCliente & { cliente?: Cliente })[]>({
+  const { data: attivitaCliente = [] } = useQuery<AttivitaCliente[]>({
     queryKey: ["/api/attivita-cliente", "immobile", immobileId],
     queryFn: async () => {
       const res = await fetch(`/api/attivita-cliente?immobileId=${immobileId}`);
@@ -616,6 +629,13 @@ function TabAttivita({ immobileId }: { immobileId: number }) {
       return res.json();
     },
   });
+
+  // Recupera tutti i clienti per avere accesso a telefono/email
+  const { data: clienti = [] } = useQuery<Cliente[]>({
+    queryKey: ["/api/clienti"],
+  });
+
+  const getCliente = (clienteId: number) => clienti.find(c => c.id === clienteId);
 
   const createMutation = useMutation({
     mutationFn: async (data: typeof newTask) => {
@@ -647,6 +667,46 @@ function TabAttivita({ immobileId }: { immobileId: number }) {
       toast({ title: "Attività eliminata" });
     },
   });
+
+  const toggleClienteActivityMutation = useMutation({
+    mutationFn: async ({ id, stato }: { id: number; stato: string }) => {
+      return apiRequest("PATCH", `/api/attivita-cliente/${id}`, { stato });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/attivita-cliente", "immobile", immobileId] });
+    },
+  });
+
+  const sendReplyMutation = useMutation({
+    mutationFn: async ({ clienteId, type, message, taskId }: { clienteId: number; type: 'whatsapp' | 'email'; message: string; taskId: number }) => {
+      return apiRequest("POST", `/api/clienti/${clienteId}/comunicazioni/invia`, {
+        canale: type,
+        messaggio: message,
+        immobileId,
+        attivitaClienteId: taskId
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/attivita-cliente", "immobile", immobileId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/immobili", immobileId, "comunicazioni"] });
+      toast({ title: "Messaggio inviato e attività completata" });
+      setReplyDialog({ open: false, type: 'whatsapp', task: null, cliente: null });
+      setReplyMessage("");
+    },
+    onError: (error: Error) => {
+      toast({ title: "Errore nell'invio", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const openReplyDialog = (task: AttivitaCliente, type: 'whatsapp' | 'email') => {
+    const cliente = getCliente(task.clienteId);
+    if (cliente) {
+      setReplyDialog({ open: true, type, task, cliente });
+      setReplyMessage("");
+    } else {
+      toast({ title: "Cliente non trovato", variant: "destructive" });
+    }
+  };
 
   if (isLoading) {
     return (
@@ -732,44 +792,167 @@ function TabAttivita({ immobileId }: { immobileId: number }) {
       {attivitaCliente.length > 0 && (
         <div className="mt-6">
           <h3 className="text-lg font-semibold mb-3">Richieste dai Clienti</h3>
-          <div className="space-y-2">
-            {attivitaCliente.map((task) => (
-              <Card key={`cliente-${task.id}`} className={task.stato === "fatto" ? "opacity-60" : ""}>
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-4">
-                    <Users className="h-5 w-5 text-muted-foreground mt-0.5" />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className={`font-medium ${task.stato === "fatto" ? "line-through" : ""}`}>
-                          {task.titolo}
+          <div className="space-y-3">
+            {attivitaCliente.map((task) => {
+              const cliente = getCliente(task.clienteId);
+              const isCompleted = task.stato === "fatto";
+              const isUrgent = task.titolo?.toLowerCase().includes("urgente");
+              const hasPhone = cliente?.telefono;
+              const hasEmail = cliente?.email;
+              return (
+                <Card key={`cliente-${task.id}`} className={isCompleted ? "opacity-60" : ""}>
+                  <CardContent className="p-4">
+                    <div className="flex items-start gap-3">
+                      <button
+                        onClick={() => toggleClienteActivityMutation.mutate({ 
+                          id: task.id, 
+                          stato: isCompleted ? "da_fare" : "fatto" 
+                        })}
+                        className="mt-1 flex-shrink-0"
+                        data-testid={`button-toggle-cliente-attivita-${task.id}`}
+                      >
+                        {isCompleted ? (
+                          <CheckCircle2 className="h-5 w-5 text-green-500" />
+                        ) : (
+                          <Circle className="h-5 w-5 text-muted-foreground hover:text-primary" />
+                        )}
+                      </button>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className={`font-medium ${isCompleted ? 'line-through' : ''}`}>
+                            {task.titolo}
+                          </p>
+                          {isUrgent && (
+                            <Badge variant="destructive" className="text-xs">Urgente</Badge>
+                          )}
+                          {cliente && (
+                            <Link href={`/clienti/${task.clienteId}`}>
+                              <Badge variant="outline" className="text-xs cursor-pointer">
+                                <Users className="h-3 w-3 mr-1" />
+                                {cliente.nome} {cliente.cognome}
+                              </Badge>
+                            </Link>
+                          )}
+                        </div>
+                        {task.descrizione && (
+                          <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                            {task.descrizione}
+                          </p>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-2">
+                          {new Date(task.createdAt).toLocaleDateString('it-IT', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
                         </p>
-                        <Badge
-                          variant={
-                            task.stato === "fatto" ? "secondary" :
-                            task.stato === "in_corso" ? "default" : "outline"
-                          }
-                        >
-                          {task.stato === "fatto" ? "Fatto" : task.stato === "in_corso" ? "In Corso" : "Da Fare"}
-                        </Badge>
+                        {!isCompleted && (
+                          <div className="flex gap-2 mt-3">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => openReplyDialog(task, 'whatsapp')}
+                              disabled={!hasPhone}
+                              data-testid={`button-reply-whatsapp-immobile-${task.id}`}
+                            >
+                              <MessageCircle className="h-4 w-4 mr-1 text-green-600" />
+                              Rispondi WhatsApp
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => openReplyDialog(task, 'email')}
+                              disabled={!hasEmail}
+                              data-testid={`button-reply-email-immobile-${task.id}`}
+                            >
+                              <Mail className="h-4 w-4 mr-1 text-blue-600" />
+                              Rispondi Email
+                            </Button>
+                          </div>
+                        )}
                       </div>
-                      {task.descrizione && (
-                        <p className="text-sm text-muted-foreground mt-1">{task.descrizione}</p>
-                      )}
-                      {task.clienteId && (
-                        <Link href={`/clienti/${task.clienteId}`}>
-                          <Button variant="link" size="sm" className="p-0 h-auto mt-1">
-                            Vai al Cliente
-                          </Button>
-                        </Link>
-                      )}
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         </div>
       )}
+
+      {/* Dialog risposta WhatsApp/Email */}
+      <Dialog open={replyDialog.open} onOpenChange={(open) => setReplyDialog({ ...replyDialog, open })}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {replyDialog.type === 'whatsapp' ? (
+                <span className="flex items-center gap-2">
+                  <MessageCircle className="h-5 w-5 text-green-600" />
+                  Rispondi via WhatsApp
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  <Mail className="h-5 w-5 text-blue-600" />
+                  Rispondi via Email
+                </span>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label className="text-sm text-muted-foreground">Destinatario</Label>
+              <p className="font-medium">
+                {replyDialog.cliente?.nome} {replyDialog.cliente?.cognome}
+                {replyDialog.type === 'whatsapp' ? ` - ${replyDialog.cliente?.telefono || 'N/A'}` : ` - ${replyDialog.cliente?.email || 'N/A'}`}
+              </p>
+            </div>
+            {replyDialog.task && (
+              <div>
+                <Label className="text-sm text-muted-foreground">In risposta a</Label>
+                <p className="text-sm">{replyDialog.task.titolo}</p>
+              </div>
+            )}
+            <div>
+              <Label>Messaggio</Label>
+              <Textarea
+                value={replyMessage}
+                onChange={(e) => setReplyMessage(e.target.value)}
+                placeholder="Scrivi il tuo messaggio..."
+                rows={5}
+                data-testid="textarea-reply-message-immobile"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReplyDialog({ open: false, type: 'whatsapp', task: null, cliente: null })}>
+              Annulla
+            </Button>
+            <Button
+              onClick={() => {
+                if (replyDialog.task && replyDialog.cliente) {
+                  sendReplyMutation.mutate({
+                    clienteId: replyDialog.cliente.id,
+                    type: replyDialog.type,
+                    message: replyMessage,
+                    taskId: replyDialog.task.id
+                  });
+                }
+              }}
+              disabled={!replyMessage.trim() || sendReplyMutation.isPending}
+              data-testid="button-send-reply-immobile"
+            >
+              {sendReplyMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Send className="h-4 w-4 mr-2" />
+              )}
+              Invia
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showForm} onOpenChange={setShowForm}>
         <DialogContent>

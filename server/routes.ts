@@ -302,7 +302,7 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         return res.status(400).json({ error: "Dati non validi", details: parsed.error });
       }
       
-      const { canale, messaggio, immobileId, tipo } = parsed.data;
+      const { canale, messaggio, immobileId, tipo, attivitaClienteId } = parsed.data;
       
       // Recupera cliente
       const cliente = await storage.getCliente(clienteId);
@@ -403,15 +403,13 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         }
       }
       
-      // Registra anche attività cliente
-      try {
-        await storage.createAttivitaCliente({
-          clienteId,
-          titolo: canale === "whatsapp" ? "WhatsApp inviato" : "Email inviata",
-          descrizione: messaggio.slice(0, 500),
-        });
-      } catch (e) {
-        console.error("Errore creazione attività cliente:", e);
+      // Se c'è un'attività cliente collegata, segnala come completata
+      if (attivitaClienteId) {
+        try {
+          await storage.updateAttivitaCliente(attivitaClienteId, { stato: "fatto" });
+        } catch (e) {
+          console.error("Errore aggiornamento attività cliente:", e);
+        }
       }
       
       res.json({ success: true, comunicazione });

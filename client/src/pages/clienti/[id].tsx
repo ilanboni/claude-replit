@@ -18,6 +18,8 @@ import {
   ClipboardList,
   CheckCircle2,
   Circle,
+  MessageCircle,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +38,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -748,8 +751,14 @@ function TabAppuntamenti({ clienteId }: { clienteId: number }) {
   );
 }
 
-function TabAttivita({ clienteId }: { clienteId: number }) {
+function TabAttivita({ clienteId, cliente }: { clienteId: number; cliente?: Cliente }) {
   const { toast } = useToast();
+  const [replyDialog, setReplyDialog] = useState<{ open: boolean; type: 'whatsapp' | 'email'; task: AttivitaCliente | null }>({
+    open: false,
+    type: 'whatsapp',
+    task: null
+  });
+  const [replyMessage, setReplyMessage] = useState("");
   
   const { data: attivita = [], isLoading } = useQuery<AttivitaCliente[]>({
     queryKey: ["/api/clienti", clienteId, "attivita"],
@@ -766,9 +775,38 @@ function TabAttivita({ clienteId }: { clienteId: number }) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/clienti", clienteId, "attivita"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/attivita-cliente"] });
       toast({ title: "Stato aggiornato" });
     },
   });
+
+  const sendReplyMutation = useMutation({
+    mutationFn: async ({ type, message, taskId }: { type: 'whatsapp' | 'email'; message: string; taskId: number }) => {
+      const task = attivita.find(t => t.id === taskId);
+      return apiRequest("POST", `/api/clienti/${clienteId}/comunicazioni/invia`, {
+        canale: type,
+        messaggio: message,
+        immobileId: task?.immobileId || null,
+        attivitaClienteId: taskId
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clienti", clienteId, "attivita"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/clienti", clienteId, "comunicazioni"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/attivita-cliente"] });
+      toast({ title: "Messaggio inviato e attività completata" });
+      setReplyDialog({ open: false, type: 'whatsapp', task: null });
+      setReplyMessage("");
+    },
+    onError: (error: Error) => {
+      toast({ title: "Errore nell'invio", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const openReplyDialog = (task: AttivitaCliente, type: 'whatsapp' | 'email') => {
+    setReplyDialog({ open: true, type, task });
+    setReplyMessage("");
+  };
 
   if (isLoading) {
     return (
@@ -794,67 +832,166 @@ function TabAttivita({ clienteId }: { clienteId: number }) {
     );
   }
 
+  const hasPhone = cliente?.telefono;
+  const hasEmail = cliente?.email;
+
   return (
-    <div className="space-y-3">
-      {attivita.map((task) => {
-        const isCompleted = task.stato === "fatto";
-        const isUrgent = task.titolo?.toLowerCase().includes("urgente");
-        return (
-          <Card key={task.id} className={isCompleted ? 'opacity-60' : ''}>
-            <CardContent className="p-4">
-              <div className="flex items-start gap-3">
-                <button
-                  onClick={() => toggleStatoMutation.mutate({ 
-                    id: task.id, 
-                    stato: isCompleted ? "da_fare" : "fatto" 
-                  })}
-                  className="mt-1 flex-shrink-0"
-                  data-testid={`button-toggle-attivita-${task.id}`}
-                >
-                  {isCompleted ? (
-                    <CheckCircle2 className="h-5 w-5 text-green-500" />
-                  ) : (
-                    <Circle className="h-5 w-5 text-muted-foreground hover:text-primary" />
-                  )}
-                </button>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className={`font-medium ${isCompleted ? 'line-through' : ''}`}>
-                      {task.titolo}
-                    </p>
-                    {isUrgent && (
-                      <Badge variant="destructive" className="text-xs">Urgente</Badge>
+    <>
+      <div className="space-y-3">
+        {attivita.map((task) => {
+          const isCompleted = task.stato === "fatto";
+          const isUrgent = task.titolo?.toLowerCase().includes("urgente");
+          return (
+            <Card key={task.id} className={isCompleted ? 'opacity-60' : ''}>
+              <CardContent className="p-4">
+                <div className="flex items-start gap-3">
+                  <button
+                    onClick={() => toggleStatoMutation.mutate({ 
+                      id: task.id, 
+                      stato: isCompleted ? "da_fare" : "fatto" 
+                    })}
+                    className="mt-1 flex-shrink-0"
+                    data-testid={`button-toggle-attivita-${task.id}`}
+                  >
+                    {isCompleted ? (
+                      <CheckCircle2 className="h-5 w-5 text-green-500" />
+                    ) : (
+                      <Circle className="h-5 w-5 text-muted-foreground hover:text-primary" />
                     )}
-                    {task.immobileId && (
-                      <Link href={`/immobili/${task.immobileId}`}>
-                        <Badge variant="outline" className="text-xs cursor-pointer">
-                          <Building2 className="h-3 w-3 mr-1" />
-                          Immobile #{task.immobileId}
-                        </Badge>
-                      </Link>
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className={`font-medium ${isCompleted ? 'line-through' : ''}`}>
+                        {task.titolo}
+                      </p>
+                      {isUrgent && (
+                        <Badge variant="destructive" className="text-xs">Urgente</Badge>
+                      )}
+                      {task.immobileId && (
+                        <Link href={`/immobili/${task.immobileId}`}>
+                          <Badge variant="outline" className="text-xs cursor-pointer">
+                            <Building2 className="h-3 w-3 mr-1" />
+                            Immobile #{task.immobileId}
+                          </Badge>
+                        </Link>
+                      )}
+                    </div>
+                    {task.descrizione && (
+                      <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                        {task.descrizione}
+                      </p>
+                    )}
+                    <p className="text-xs text-muted-foreground mt-2">
+                      {new Date(task.createdAt).toLocaleDateString('it-IT', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </p>
+                    {!isCompleted && (
+                      <div className="flex gap-2 mt-3">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openReplyDialog(task, 'whatsapp')}
+                          disabled={!hasPhone}
+                          data-testid={`button-reply-whatsapp-${task.id}`}
+                        >
+                          <MessageCircle className="h-4 w-4 mr-1 text-green-600" />
+                          Rispondi WhatsApp
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openReplyDialog(task, 'email')}
+                          disabled={!hasEmail}
+                          data-testid={`button-reply-email-${task.id}`}
+                        >
+                          <Mail className="h-4 w-4 mr-1 text-blue-600" />
+                          Rispondi Email
+                        </Button>
+                      </div>
                     )}
                   </div>
-                  {task.descrizione && (
-                    <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                      {task.descrizione}
-                    </p>
-                  )}
-                  <p className="text-xs text-muted-foreground mt-2">
-                    {new Date(task.createdAt).toLocaleDateString('it-IT', {
-                      day: 'numeric',
-                      month: 'short',
-                      year: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
-                  </p>
                 </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+
+      <Dialog open={replyDialog.open} onOpenChange={(open) => setReplyDialog({ ...replyDialog, open })}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {replyDialog.type === 'whatsapp' ? (
+                <span className="flex items-center gap-2">
+                  <MessageCircle className="h-5 w-5 text-green-600" />
+                  Rispondi via WhatsApp
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  <Mail className="h-5 w-5 text-blue-600" />
+                  Rispondi via Email
+                </span>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label className="text-sm text-muted-foreground">Destinatario</Label>
+              <p className="font-medium">
+                {cliente?.nome} {cliente?.cognome}
+                {replyDialog.type === 'whatsapp' ? ` - ${cliente?.telefono || 'N/A'}` : ` - ${cliente?.email || 'N/A'}`}
+              </p>
+            </div>
+            {replyDialog.task && (
+              <div>
+                <Label className="text-sm text-muted-foreground">In risposta a</Label>
+                <p className="text-sm">{replyDialog.task.titolo}</p>
               </div>
-            </CardContent>
-          </Card>
-        );
-      })}
-    </div>
+            )}
+            <div>
+              <Label>Messaggio</Label>
+              <Textarea
+                value={replyMessage}
+                onChange={(e) => setReplyMessage(e.target.value)}
+                placeholder="Scrivi il tuo messaggio..."
+                rows={5}
+                data-testid="textarea-reply-message"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReplyDialog({ open: false, type: 'whatsapp', task: null })}>
+              Annulla
+            </Button>
+            <Button
+              onClick={() => {
+                if (replyDialog.task) {
+                  sendReplyMutation.mutate({
+                    type: replyDialog.type,
+                    message: replyMessage,
+                    taskId: replyDialog.task.id
+                  });
+                }
+              }}
+              disabled={!replyMessage.trim() || sendReplyMutation.isPending}
+              data-testid="button-send-reply"
+            >
+              {sendReplyMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Send className="h-4 w-4 mr-2" />
+              )}
+              Invia
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -1009,7 +1146,7 @@ export default function ClienteDetailPage() {
           <TabAppuntamenti clienteId={clienteId} />
         </TabsContent>
         <TabsContent value="attivita" className="mt-6">
-          <TabAttivita clienteId={clienteId} />
+          <TabAttivita clienteId={clienteId} cliente={cliente} />
         </TabsContent>
       </Tabs>
 
