@@ -83,8 +83,27 @@ Preferred communication style: Simple, everyday language.
 - `oauth_tokens` - OAuth tokens for Google Calendar integration (provider, accessToken, refreshToken, expiresAt, scope)
 - `calendar_events` - Calendar events synced with Google Calendar (title, dates, location, syncStatus, googleEventId)
 - `appointment_confirmations` - Appointment confirmations extracted from WhatsApp messages (clientName, phone, date, address, status)
+- `notifiche` - Persistent notifications for property inquiries, visit requests, new clients, follow-ups (tipo, titolo, messaggio, emailId, priorita, letta, archiviata)
 
 **Migrations:** Managed via Drizzle Kit with `drizzle-kit push` command
+
+### Email Import Worker (Automatic)
+
+**Background Worker:** `server/email-import-worker.ts`
+- Polls Gmail every 5 minutes for portal emails (Idealista, Immobiliare.it, Casa.it)
+- Automatically creates new clients from email data
+- Creates communication records and visit requests
+- Links clients to properties via `idPortale` field matching
+- Creates persistent notifications for each new inquiry
+- Prevents duplicates via `emailId` tracking
+
+**Notification System:**
+- `GET /api/notifiche` - Returns combined notifications (persistent + appointments + birthdays)
+- `GET /api/notifiche/non-lette` - Returns unread notifications only
+- `PATCH /api/notifiche/:id/letta` - Mark notification as read
+- `PATCH /api/notifiche/:id/archivia` - Archive notification
+- `DELETE /api/notifiche/:id` - Delete notification
+- `POST /api/notifiche/import-email` - Manual trigger for email import
 
 ### AI Integration
 

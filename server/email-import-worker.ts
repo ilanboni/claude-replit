@@ -71,9 +71,10 @@ async function importPortalEmails(): Promise<{ imported: number; errors: string[
         }
 
         if (cliente && immobile) {
+          const testoRichiesta = parsed.testoRichiesta || "";
           await storage.createRichiesta({
             clienteId: cliente.id,
-            descrizioneLibera: `Richiesta visita per ${immobile.titolo || immobile.indirizzo || "immobile"}. ${parsed.testoRichiesta.slice(0, 500)}`,
+            descrizioneLibera: `Richiesta visita per ${immobile.titolo || immobile.indirizzo || "immobile"}. ${testoRichiesta.slice(0, 500)}`,
             zona: immobile.zona || undefined,
           });
         }
