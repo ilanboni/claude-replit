@@ -2036,7 +2036,7 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
           clienteId: cliente.id,
           ultimoMessaggio: message.substring(0, 100),
           ultimoMessaggioData: new Date(),
-          nonLetto: false,
+          nonLetti: 0,
         });
         console.log(`[Acquisizione] Created WhatsApp conversation ${conversation.id} for ${normalizedPhone}`);
       }
