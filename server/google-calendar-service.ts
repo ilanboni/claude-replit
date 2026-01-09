@@ -2,7 +2,10 @@ import { google } from "googleapis";
 import { storage } from "./storage";
 import type { CalendarEvent, InsertCalendarEvent } from "@shared/schema";
 
-const SCOPES = ["https://www.googleapis.com/auth/calendar"];
+const SCOPES = [
+  "https://www.googleapis.com/auth/calendar",
+  "https://www.googleapis.com/auth/userinfo.email"
+];
 
 let oauth2Client: any = null;
 
