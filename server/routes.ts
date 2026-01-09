@@ -1810,6 +1810,18 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
     }
   });
 
+  // Get appuntamenti for immobile esterno
+  app.get("/api/acquisizione/:id/appuntamenti", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const appuntamenti = await storage.getAppuntamentiByImmobileEsterno(id);
+      res.json(appuntamenti);
+    } catch (error) {
+      console.error("Get appuntamenti by immobile esterno error:", error);
+      res.status(500).json({ error: "Errore nel recupero degli appuntamenti" });
+    }
+  });
+
   // Generate personalized acquisition message with automatic mirroring
   app.post("/api/acquisizione/:id/generate-message", async (req, res) => {
     try {

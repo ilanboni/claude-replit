@@ -115,6 +115,7 @@ export interface IStorage {
 
   // Appuntamenti per Immobile
   getAppuntamentiByImmobile(immobileId: number): Promise<Appuntamento[]>;
+  getAppuntamentiByImmobileEsterno(immobileEsternoId: number): Promise<Appuntamento[]>;
 
   // Matching per Immobile
   getMatchingByImmobile(immobileId: number): Promise<Matching[]>;
@@ -496,6 +497,10 @@ export class DatabaseStorage implements IStorage {
   // Appuntamenti per Immobile
   async getAppuntamentiByImmobile(immobileId: number): Promise<Appuntamento[]> {
     return db.select().from(appuntamenti).where(eq(appuntamenti.immobileId, immobileId)).orderBy(desc(appuntamenti.dataOra));
+  }
+
+  async getAppuntamentiByImmobileEsterno(immobileEsternoId: number): Promise<Appuntamento[]> {
+    return db.select().from(appuntamenti).where(eq(appuntamenti.immobileEsternoId, immobileEsternoId)).orderBy(desc(appuntamenti.dataOra));
   }
 
   // Matching per Immobile

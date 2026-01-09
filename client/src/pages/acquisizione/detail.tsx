@@ -966,6 +966,123 @@ function TabComunicazioni({ immobileId }: { immobileId: number }) {
   );
 }
 
+interface AppuntamentoAcquisizione {
+  id: number;
+  clienteId: number;
+  immobileId: number | null;
+  immobileEsternoId: number | null;
+  dataOra: string;
+  luogo: string | null;
+  note: string | null;
+  tipo: string | null;
+  confermato: boolean | null;
+  completato: boolean | null;
+  esito: string | null;
+}
+
+function TabAppuntamenti({ immobileId }: { immobileId: number }) {
+  const { data: appuntamenti = [], isLoading } = useQuery<AppuntamentoAcquisizione[]>({
+    queryKey: ["/api/acquisizione", immobileId, "appuntamenti"],
+    queryFn: async () => {
+      const res = await fetch(`/api/acquisizione/${immobileId}/appuntamenti`);
+      if (!res.ok) {
+        if (res.status === 404) return [];
+        throw new Error("Failed to fetch");
+      }
+      return res.json();
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        {[1, 2, 3].map((i) => (
+          <Skeleton key={i} className="h-20 w-full" />
+        ))}
+      </div>
+    );
+  }
+
+  if (appuntamenti.length === 0) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center py-12">
+          <Calendar className="h-12 w-12 text-muted-foreground/30 mb-4" />
+          <h3 className="text-lg font-medium">Nessun appuntamento</h3>
+          <p className="text-muted-foreground text-sm">
+            Non ci sono appuntamenti per questo immobile
+          </p>
+          <Link href="/appuntamenti">
+            <Button className="mt-4" data-testid="button-go-to-appointments">
+              Vai agli Appuntamenti
+            </Button>
+          </Link>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {appuntamenti.map((app) => {
+        const appDate = new Date(app.dataOra);
+        const now = new Date();
+        const isPast = appDate.getTime() < now.getTime();
+
+        return (
+          <Card key={app.id} className={isPast ? "opacity-60" : ""}>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="text-center p-2 bg-muted rounded-md min-w-16">
+                    <p className="text-xl font-bold">
+                      {format(appDate, "dd")}
+                    </p>
+                    <p className="text-xs text-muted-foreground uppercase">
+                      {format(appDate, "MMM", { locale: it })}
+                    </p>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h4 className="font-medium">{app.luogo || "Appuntamento"}</h4>
+                      {app.tipo && (
+                        <Badge variant="outline">{app.tipo}</Badge>
+                      )}
+                      {app.confermato && (
+                        <Badge variant="default">Confermato</Badge>
+                      )}
+                      {app.completato && (
+                        <Badge variant="secondary">Completato</Badge>
+                      )}
+                      {!app.confermato && !app.completato && (
+                        <Badge variant="outline">In attesa</Badge>
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {format(appDate, "HH:mm")} - {format(appDate, "d MMMM yyyy", { locale: it })}
+                    </p>
+                    {app.note && (
+                      <p className="text-xs text-muted-foreground mt-1">{app.note}</p>
+                    )}
+                    {app.esito && (
+                      <p className="text-xs text-muted-foreground mt-1">Esito: {app.esito}</p>
+                    )}
+                  </div>
+                </div>
+                <Link href={`/appuntamenti`}>
+                  <Button variant="ghost" size="sm" data-testid={`button-view-appointment-${app.id}`}>
+                    Dettagli
+                  </Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
 function TabDocumenti({ immobileId }: { immobileId: number }) {
   const { toast } = useToast();
   const [showForm, setShowForm] = useState(false);
@@ -1311,6 +1428,10 @@ export default function AcquisizioneDetailPage() {
               <CheckSquare className="h-4 w-4 mr-2" />
               Attività
             </TabsTrigger>
+            <TabsTrigger value="appuntamenti" data-testid="tab-appuntamenti">
+              <Calendar className="h-4 w-4 mr-2" />
+              Appuntamenti
+            </TabsTrigger>
             <TabsTrigger value="documenti" data-testid="tab-documenti">
               <FileText className="h-4 w-4 mr-2" />
               Documenti
@@ -1333,6 +1454,9 @@ export default function AcquisizioneDetailPage() {
           </TabsContent>
           <TabsContent value="attivita">
             <TabAttivita immobileId={immobile.id} />
+          </TabsContent>
+          <TabsContent value="appuntamenti">
+            <TabAppuntamenti immobileId={immobile.id} />
           </TabsContent>
           <TabsContent value="documenti">
             <TabDocumenti immobileId={immobile.id} />
