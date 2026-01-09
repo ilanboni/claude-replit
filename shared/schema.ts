@@ -389,6 +389,53 @@ export const scheduledBotMessages = pgTable("scheduled_bot_messages", {
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
+// OAUTH TOKENS - Token OAuth per servizi esterni (Google Calendar, etc.)
+export const oauthTokens = pgTable("oauth_tokens", {
+  id: serial("id").primaryKey(),
+  provider: text("provider").notNull(), // google_calendar, gmail, etc.
+  accessToken: text("access_token").notNull(),
+  refreshToken: text("refresh_token"),
+  expiresAt: timestamp("expires_at"),
+  scope: text("scope"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// CALENDAR EVENTS - Eventi calendario (sincronizzati con Google Calendar)
+export const calendarEvents = pgTable("calendar_events", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  description: text("description"),
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date").notNull(),
+  location: text("location"),
+  clienteId: integer("cliente_id").references(() => clienti.id, { onDelete: "set null" }),
+  immobileId: integer("immobile_id").references(() => immobili.id, { onDelete: "set null" }),
+  appointmentConfirmationId: integer("appointment_confirmation_id"),
+  googleEventId: text("google_event_id"), // ID ritornato da Google
+  dedupeKey: text("dedupe_key"), // Hash anti-duplicazione
+  syncStatus: text("sync_status").default("pending"), // pending, synced, failed, needs_auth
+  syncError: text("sync_error"),
+  lastSyncAt: timestamp("last_sync_at"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// APPOINTMENT CONFIRMATIONS - Conferme appuntamenti estratte da messaggi WhatsApp
+export const appointmentConfirmations = pgTable("appointment_confirmations", {
+  id: serial("id").primaryKey(),
+  whatsappMessageId: integer("whatsapp_message_id").references(() => whatsappMessages.id, { onDelete: "set null" }),
+  clienteId: integer("cliente_id").references(() => clienti.id, { onDelete: "set null" }),
+  clientName: text("client_name"),
+  clientPhone: text("client_phone"),
+  salutation: text("salutation"), // Dott., Sig., Sig.ra, etc.
+  appointmentDate: timestamp("appointment_date").notNull(),
+  address: text("address"),
+  originalMessage: text("original_message"),
+  status: text("status").default("pending"), // pending, confirmed, synced, cancelled
+  calendarEventId: integer("calendar_event_id"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
 // Relations
 export const clientiRelations = relations(clienti, ({ many }) => ({
   richieste: many(richieste),
@@ -669,3 +716,18 @@ export const sendCommunicationSchema = z.object({
   attivitaClienteId: z.number().optional().nullable(),
 });
 export type SendCommunicationInput = z.infer<typeof sendCommunicationSchema>;
+
+// OAuth Tokens types
+export const insertOauthTokenSchema = createInsertSchema(oauthTokens).omit({ id: true, createdAt: true, updatedAt: true });
+export type OauthToken = typeof oauthTokens.$inferSelect;
+export type InsertOauthToken = z.infer<typeof insertOauthTokenSchema>;
+
+// Calendar Events types
+export const insertCalendarEventSchema = createInsertSchema(calendarEvents).omit({ id: true, createdAt: true });
+export type CalendarEvent = typeof calendarEvents.$inferSelect;
+export type InsertCalendarEvent = z.infer<typeof insertCalendarEventSchema>;
+
+// Appointment Confirmations types
+export const insertAppointmentConfirmationSchema = createInsertSchema(appointmentConfirmations).omit({ id: true, createdAt: true });
+export type AppointmentConfirmation = typeof appointmentConfirmations.$inferSelect;
+export type InsertAppointmentConfirmation = z.infer<typeof insertAppointmentConfirmationSchema>;
