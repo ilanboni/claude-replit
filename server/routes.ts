@@ -3953,4 +3953,154 @@ FORMATO RISPOSTE:
       res.status(500).json({ error: "Errore nell'elaborazione email" });
     }
   });
+
+  // ==================== GOOGLE CALENDAR ====================
+  const { getAuthUrl, handleCallback, isCalendarConnected, syncEventToGoogleCalendar, isGoogleCalendarConfigured } = await import("./google-calendar-service");
+  
+  app.get("/api/calendar/auth-status", async (_req, res) => {
+    try {
+      const status = await isCalendarConnected();
+      res.json(status);
+    } catch (error: any) {
+      console.error("Calendar auth status error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  app.get("/api/calendar/auth", async (_req, res) => {
+    try {
+      if (!isGoogleCalendarConfigured()) {
+        return res.status(400).json({ error: "Google Calendar non configurato" });
+      }
+      const url = getAuthUrl();
+      res.redirect(url);
+    } catch (error: any) {
+      console.error("Calendar auth error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  app.get("/api/calendar/callback", async (req, res) => {
+    try {
+      const code = req.query.code as string;
+      if (!code) {
+        return res.status(400).json({ error: "Codice autorizzazione mancante" });
+      }
+      const result = await handleCallback(code);
+      res.redirect("/conferma-appuntamenti?connected=true");
+    } catch (error: any) {
+      console.error("Calendar callback error:", error);
+      res.redirect("/conferma-appuntamenti?error=" + encodeURIComponent(error.message));
+    }
+  });
+
+  // ==================== CALENDAR EVENTS ====================
+  app.get("/api/calendar-events", async (_req, res) => {
+    try {
+      const events = await storage.getCalendarEvents();
+      res.json(events);
+    } catch (error: any) {
+      console.error("Get calendar events error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  app.post("/api/calendar-events", async (req, res) => {
+    try {
+      const { title, startDate: startDateStr, endDate: endDateStr, location, description, clientName, clientPhone, salutation } = req.body;
+      
+      if (!title || !startDateStr) {
+        return res.status(400).json({ error: "Titolo e data di inizio sono obbligatori" });
+      }
+      
+      const startDate = new Date(startDateStr);
+      if (isNaN(startDate.getTime())) {
+        return res.status(400).json({ error: "Formato data non valido" });
+      }
+      
+      const endDate = endDateStr 
+        ? new Date(endDateStr) 
+        : new Date(startDate.getTime() + 60 * 60 * 1000);
+      
+      const event = await storage.createCalendarEvent({
+        title,
+        description: description || null,
+        startDate,
+        endDate,
+        location: location || null,
+        syncStatus: "pending",
+        dedupeKey: `${clientPhone || ""}-${startDate.toISOString()}`,
+      });
+      
+      // Also create appointment confirmation record
+      await storage.createAppointmentConfirmation({
+        originalMessage: description || "",
+        clientName: clientName || null,
+        clientPhone: clientPhone || null,
+        salutation: salutation || null,
+        appointmentDate: startDate,
+        address: location || null,
+        calendarEventId: event.id,
+        status: "created",
+      });
+      
+      // Auto-sync to Google Calendar if connected
+      const calendarStatus = await isCalendarConnected();
+      if (calendarStatus.connected) {
+        const syncResult = await syncEventToGoogleCalendar(event.id);
+        if (syncResult.success) {
+          const updatedEvent = await storage.getCalendarEvent(event.id);
+          return res.json(updatedEvent);
+        }
+      }
+      
+      res.json(event);
+    } catch (error: any) {
+      console.error("Create calendar event error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  app.post("/api/calendar-events/:id/sync", async (req, res) => {
+    try {
+      const eventId = parseInt(req.params.id);
+      const result = await syncEventToGoogleCalendar(eventId);
+      if (result.success) {
+        const event = await storage.getCalendarEvent(eventId);
+        res.json(event);
+      } else {
+        res.status(500).json({ error: result.error });
+      }
+    } catch (error: any) {
+      console.error("Sync calendar event error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ==================== APPOINTMENT CONFIRMATIONS ====================
+  app.get("/api/appointment-confirmations", async (_req, res) => {
+    try {
+      const confirmations = await storage.getAppointmentConfirmations();
+      res.json(confirmations);
+    } catch (error: any) {
+      console.error("Get appointment confirmations error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  app.post("/api/appointment-confirmations/extract", async (req, res) => {
+    try {
+      const { message } = req.body;
+      if (!message) {
+        return res.status(400).json({ error: "Messaggio mancante" });
+      }
+      
+      const { extractAppointmentData } = await import("./ai-service");
+      const extracted = await extractAppointmentData(message);
+      res.json(extracted);
+    } catch (error: any) {
+      console.error("Extract appointment data error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
 }

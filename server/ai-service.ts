@@ -946,3 +946,66 @@ Rispondi con un oggetto JSON contenente questi campi:
     return defaultResult;
   }
 }
+
+export interface ExtractedAppointmentData {
+  clientName: string | null;
+  clientPhone: string | null;
+  salutation: string | null;
+  appointmentDate: string | null;
+  address: string | null;
+  originalMessage: string;
+}
+
+export async function extractAppointmentData(message: string): Promise<ExtractedAppointmentData> {
+  const defaultResult: ExtractedAppointmentData = {
+    clientName: null,
+    clientPhone: null,
+    salutation: null,
+    appointmentDate: null,
+    address: null,
+    originalMessage: message
+  };
+
+  try {
+    const systemPrompt = `Sei un assistente che estrae informazioni da messaggi di conferma appuntamenti immobiliari.
+
+Estrai dal messaggio:
+- salutation: titolo/appellativo del cliente (es. "Dott.ssa", "Sig.", "Ing.")
+- clientName: nome e/o cognome del cliente (senza titolo)
+- clientPhone: numero di telefono se presente
+- appointmentDate: data e ora dell'appuntamento in formato ISO 8601 (YYYY-MM-DDTHH:MM:SS)
+- address: indirizzo completo del luogo dell'appuntamento
+
+Oggi è ${new Date().toISOString().split('T')[0]}. Se l'anno non è specificato, usa l'anno corrente o il prossimo se la data è passata.
+
+Rispondi SOLO con un oggetto JSON valido:
+{
+  "salutation": string o null,
+  "clientName": string o null,
+  "clientPhone": string o null,
+  "appointmentDate": string ISO 8601 o null,
+  "address": string o null
+}`;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: message }
+      ],
+      max_completion_tokens: 500,
+      temperature: 0,
+      response_format: { type: "json_object" }
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (content) {
+      const parsed = JSON.parse(content);
+      return { ...defaultResult, ...parsed };
+    }
+    return defaultResult;
+  } catch (error) {
+    console.error("Extract appointment data error:", error);
+    return defaultResult;
+  }
+}

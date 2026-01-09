@@ -3,6 +3,7 @@ import {
   attivitaImmobile, attivitaCliente, documentiImmobile, portaliImmobile, storicoPrezzo,
   whatsappCampaigns, campaignMessages, botConversationLogs, scheduledBotMessages,
   whatsappConversations, whatsappMessages,
+  oauthTokens, calendarEvents, appointmentConfirmations,
   type Cliente, type InsertCliente,
   type Richiesta, type InsertRichiesta,
   type Immobile, type InsertImmobile,
@@ -21,6 +22,9 @@ import {
   type ScheduledBotMessage, type InsertScheduledBotMessage,
   type WhatsappConversation, type InsertWhatsappConversation,
   type WhatsappMessage, type InsertWhatsappMessage,
+  type OauthToken, type InsertOauthToken,
+  type CalendarEvent, type InsertCalendarEvent,
+  type AppointmentConfirmation, type InsertAppointmentConfirmation,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, sql, lte } from "drizzle-orm";
@@ -642,6 +646,76 @@ export class DatabaseStorage implements IStorage {
   async updateWhatsappMessageStatus(id: number, status: string): Promise<WhatsappMessage | undefined> {
     const [message] = await db.update(whatsappMessages).set({ status, statusTimestamp: new Date() }).where(eq(whatsappMessages.id, id)).returning();
     return message;
+  }
+
+  // OAuth Tokens
+  async getOauthToken(provider: string): Promise<OauthToken | undefined> {
+    const [token] = await db.select().from(oauthTokens).where(eq(oauthTokens.provider, provider));
+    return token;
+  }
+
+  async createOauthToken(data: InsertOauthToken): Promise<OauthToken> {
+    const [token] = await db.insert(oauthTokens).values(data).returning();
+    return token;
+  }
+
+  async updateOauthToken(id: number, data: Partial<InsertOauthToken>): Promise<OauthToken | undefined> {
+    const [token] = await db.update(oauthTokens).set({ ...data, updatedAt: new Date() }).where(eq(oauthTokens.id, id)).returning();
+    return token;
+  }
+
+  async upsertOauthToken(provider: string, data: Omit<InsertOauthToken, 'provider'>): Promise<OauthToken> {
+    const existing = await this.getOauthToken(provider);
+    if (existing) {
+      const updated = await this.updateOauthToken(existing.id, { ...data, provider });
+      return updated!;
+    }
+    return this.createOauthToken({ ...data, provider });
+  }
+
+  // Calendar Events
+  async getCalendarEvents(): Promise<CalendarEvent[]> {
+    return db.select().from(calendarEvents).orderBy(desc(calendarEvents.startDate));
+  }
+
+  async getCalendarEvent(id: number): Promise<CalendarEvent | undefined> {
+    const [event] = await db.select().from(calendarEvents).where(eq(calendarEvents.id, id));
+    return event;
+  }
+
+  async createCalendarEvent(data: InsertCalendarEvent): Promise<CalendarEvent> {
+    const [event] = await db.insert(calendarEvents).values(data).returning();
+    return event;
+  }
+
+  async updateCalendarEvent(id: number, data: Partial<InsertCalendarEvent>): Promise<CalendarEvent | undefined> {
+    const [event] = await db.update(calendarEvents).set(data).where(eq(calendarEvents.id, id)).returning();
+    return event;
+  }
+
+  async deleteCalendarEvent(id: number): Promise<boolean> {
+    await db.delete(calendarEvents).where(eq(calendarEvents.id, id));
+    return true;
+  }
+
+  // Appointment Confirmations
+  async getAppointmentConfirmations(): Promise<AppointmentConfirmation[]> {
+    return db.select().from(appointmentConfirmations).orderBy(desc(appointmentConfirmations.createdAt));
+  }
+
+  async getAppointmentConfirmation(id: number): Promise<AppointmentConfirmation | undefined> {
+    const [conf] = await db.select().from(appointmentConfirmations).where(eq(appointmentConfirmations.id, id));
+    return conf;
+  }
+
+  async createAppointmentConfirmation(data: InsertAppointmentConfirmation): Promise<AppointmentConfirmation> {
+    const [conf] = await db.insert(appointmentConfirmations).values(data).returning();
+    return conf;
+  }
+
+  async updateAppointmentConfirmation(id: number, data: Partial<InsertAppointmentConfirmation>): Promise<AppointmentConfirmation | undefined> {
+    const [conf] = await db.update(appointmentConfirmations).set(data).where(eq(appointmentConfirmations.id, id)).returning();
+    return conf;
   }
 }
 

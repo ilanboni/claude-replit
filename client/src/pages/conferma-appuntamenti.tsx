@@ -282,7 +282,7 @@ Cordiali saluti"
                     </div>
                     <Button 
                       onClick={handleCreateEvent}
-                      disabled={createEventMutation.isPending || !authStatus?.connected}
+                      disabled={createEventMutation.isPending || !authStatus?.connected || !extractedData?.appointmentDate}
                       className="w-full"
                       data-testid="button-create-event"
                     >
@@ -296,6 +296,11 @@ Cordiali saluti"
                     {!authStatus?.connected && (
                       <p className="text-xs text-amber-500 text-center">
                         Collega Google Calendar per creare eventi
+                      </p>
+                    )}
+                    {authStatus?.connected && !extractedData?.appointmentDate && (
+                      <p className="text-xs text-destructive text-center">
+                        Impossibile creare evento: data appuntamento non estratta
                       </p>
                     )}
                   </div>

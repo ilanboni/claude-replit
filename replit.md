@@ -80,6 +80,9 @@ Preferred communication style: Simple, everyday language.
 - `bot_conversation_logs` - AI chatbot conversation logs with intent analysis
 - `whatsapp_conversations` - Real-time WhatsApp chat conversations by phone number
 - `whatsapp_messages` - Individual WhatsApp messages with delivery status tracking
+- `oauth_tokens` - OAuth tokens for Google Calendar integration (provider, accessToken, refreshToken, expiresAt, scope)
+- `calendar_events` - Calendar events synced with Google Calendar (title, dates, location, syncStatus, googleEventId)
+- `appointment_confirmations` - Appointment confirmations extracted from WhatsApp messages (clientName, phone, date, address, status)
 
 **Migrations:** Managed via Drizzle Kit with `drizzle-kit push` command
 
@@ -117,6 +120,17 @@ Preferred communication style: Simple, everyday language.
 - `server/replit_integrations/chat/` - Chat conversation management
 - `server/replit_integrations/image/` - Image generation
 - `server/replit_integrations/batch/` - Batch processing with rate limiting
+- `server/google-calendar-service.ts` - Google Calendar OAuth and event sync
+
+**Google Calendar Integration:**
+- OAuth 2.0 flow using Gmail credentials (GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET)
+- `GET /api/calendar/auth` - Redirect to Google OAuth consent screen
+- `GET /api/calendar/callback` - Handle OAuth callback, store tokens
+- `GET /api/calendar/auth-status` - Check if calendar is connected
+- `GET /api/calendar-events` - List all calendar events
+- `POST /api/calendar-events` - Create new event and sync to Google
+- `POST /api/calendar-events/:id/sync` - Manually sync event to Google
+- `extractAppointmentData()` in ai-service.ts - Extract appointment info from WhatsApp messages
 
 ### Build System
 
