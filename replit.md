@@ -228,6 +228,9 @@ Preferred communication style: Simple, everyday language.
 
 ## Development Notes
 
+### Replit Secrets e Deploy
+**IMPORTANTE:** Quando si aggiornano i secrets su Replit (tramite Secrets tab), l'app deployata in produzione **deve essere ripubblicata** affinché i nuovi valori vengano utilizzati. L'ambiente di sviluppo riceve i nuovi secrets immediatamente, ma la versione pubblicata mantiene i vecchi valori fino alla ripubblicazione.
+
 ### Query Key Patterns for Filtered Queries
 The default queryFn joins queryKey segments with "/" creating a URL path. For API calls requiring query parameters (e.g., `?clienteId=1`), use custom queryFn:
 ```tsx
