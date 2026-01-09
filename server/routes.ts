@@ -1942,8 +1942,25 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
       const { normalizeItalianPhone: normalizePhoneFn } = await import("./ultramsg");
       const normalizedPhone = normalizePhoneFn(phone);
       
-      // Create or find client "Proprietario di [indirizzo]"
-      const indirizzo = immobile.indirizzo || immobile.zona || "Immobile";
+      // Create or find client "Proprietario [Via]"
+      // Extract street name from address (e.g. "Via Antonio Panizzi 15" → "Via Panizzi")
+      const extractStreetName = (address: string): string => {
+        // Remove civic number at end
+        const withoutNumber = address.replace(/\s*,?\s*\d+[a-zA-Z]?\s*$/, '').trim();
+        // Match Via/Viale/Piazza/Corso/Largo + name
+        const match = withoutNumber.match(/^(Via|Viale|Piazza|Corso|Largo|Vicolo|Piazzale)\s+(.+)$/i);
+        if (match) {
+          const prefix = match[1];
+          const nameParts = match[2].split(/\s+/);
+          // Take last word as the main street name (skip middle names like "Antonio")
+          const mainName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : nameParts[0];
+          return `${prefix} ${mainName}`;
+        }
+        return withoutNumber || address;
+      };
+      
+      // Use address (via) first, fallback to zona only if no address
+      const streetName = immobile.indirizzo ? extractStreetName(immobile.indirizzo) : (immobile.zona || "Immobile");
       
       // Helper for comparing phones (strip 39 prefix for comparison)
       const stripPrefix = (p: string) => p?.replace(/\D/g, '').replace(/^(0039|39)/, '') || '';
@@ -1956,12 +1973,12 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         // Create new client
         cliente = await storage.createCliente({
           nome: "Proprietario",
-          cognome: indirizzo,
+          cognome: streetName,
           telefono: normalizedPhone,
           email: immobile.contattoEmail || "",
           tipoCliente: "venditore",
           ratingCliente: 1,
-          note: `Prospect da acquisizione: ${immobile.titolo || indirizzo}`,
+          note: `Prospect da acquisizione: ${immobile.titolo || streetName}`,
           attivo: true,
         });
       }
@@ -2002,7 +2019,7 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         campaignId: acquisitionCampaign.id,
         immobileEsternoId: id,
         phoneNumber: normalizedPhone,
-        ownerName: immobile.contattoNome || `Proprietario ${indirizzo}`,
+        ownerName: immobile.contattoNome || `Proprietario ${streetName}`,
         messageContent: message,
         status: "sent",
         sentAt: new Date(),
