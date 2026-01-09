@@ -1798,12 +1798,41 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
     }
   });
 
-  // Get comunicazioni for immobile esterno
+  // Get comunicazioni for immobile esterno (includes communications linked to associated cliente)
   app.get("/api/acquisizione/:id/comunicazioni", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const comunicazioni = await storage.getComunicazioniByImmobileEsterno(id);
-      res.json(comunicazioni);
+      
+      // Get the immobile esterno to find the associated cliente
+      const immobile = await storage.getImmobileEsterno(id);
+      
+      // Get communications linked directly to immobile esterno
+      const comunicazioniImmobile = await storage.getComunicazioniByImmobileEsterno(id);
+      
+      // If there's an associated cliente, also get their communications
+      let comunicazioniCliente: any[] = [];
+      if (immobile?.clienteId) {
+        comunicazioniCliente = await storage.getComunicazioni(immobile.clienteId);
+      }
+      
+      // Merge and deduplicate (by id), then sort by date descending
+      const allComunicazioni = [...comunicazioniImmobile];
+      const existingIds = new Set(comunicazioniImmobile.map(c => c.id));
+      
+      for (const com of comunicazioniCliente) {
+        if (!existingIds.has(com.id)) {
+          allComunicazioni.push(com);
+        }
+      }
+      
+      // Sort by date descending
+      allComunicazioni.sort((a, b) => {
+        const dateA = new Date(a.dataOra).getTime();
+        const dateB = new Date(b.dataOra).getTime();
+        return dateB - dateA;
+      });
+      
+      res.json(allComunicazioni);
     } catch (error) {
       console.error("Get comunicazioni by immobile esterno error:", error);
       res.status(500).json({ error: "Errore nel recupero delle comunicazioni" });
