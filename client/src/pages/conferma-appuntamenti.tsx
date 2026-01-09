@@ -29,6 +29,49 @@ import {
 } from "lucide-react";
 import type { AppointmentConfirmation, Cliente, Immobile } from "@shared/schema";
 
+// Helper function to format client display name consistently
+function formatClienteLabel(cliente: Cliente): string {
+  // If both nome and cognome exist, show "Nome Cognome"
+  if (cliente.nome && cliente.cognome) {
+    return `${cliente.nome} ${cliente.cognome}`;
+  }
+  // If only cognome, show cognome
+  if (cliente.cognome) {
+    return cliente.cognome;
+  }
+  // If only nome, show nome
+  if (cliente.nome) {
+    return cliente.nome;
+  }
+  // If no name available but has linkImmobile, extract address from it
+  if (cliente.linkImmobile) {
+    // Try to extract address from link or show as "Proprietario [link]"
+    return `Proprietario ${cliente.linkImmobile.substring(0, 30)}...`;
+  }
+  // Fallback to phone or ID
+  return cliente.telefono ? `Proprietario ${cliente.telefono}` : `Cliente #${cliente.id}`;
+}
+
+// Helper function to format property display - show address only
+function formatImmobileLabel(immobile: Immobile): string {
+  // Priority: indirizzo > titolo with address extraction > zona > ID fallback
+  if (immobile.indirizzo) {
+    return immobile.indirizzo;
+  }
+  // If no direct address, try to extract from titolo (e.g., "Trilocale (Via Primaticcio 90)")
+  if (immobile.titolo) {
+    const addressMatch = immobile.titolo.match(/\(([^)]+)\)/);
+    if (addressMatch) {
+      return addressMatch[1];
+    }
+  }
+  // Fallback to zona if nothing else
+  if (immobile.zona) {
+    return immobile.zona;
+  }
+  return `Immobile #${immobile.id}`;
+}
+
 type FormData = {
   clienteId: string;
   immobileId: string;
@@ -305,7 +348,7 @@ export default function ConfermaAppuntamentiPage() {
                       <SelectItem value="manual">Inserimento manuale</SelectItem>
                       {clienti.map(cliente => (
                         <SelectItem key={cliente.id} value={cliente.id.toString()}>
-                          {cliente.appellativo ? `${cliente.appellativo} ` : ""}{cliente.cognome || cliente.nome}
+                          {formatClienteLabel(cliente)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -322,7 +365,7 @@ export default function ConfermaAppuntamentiPage() {
                       <SelectItem value="manual">Inserimento manuale</SelectItem>
                       {immobili.map(immobile => (
                         <SelectItem key={immobile.id} value={immobile.id.toString()}>
-                          {immobile.titolo} {immobile.indirizzo ? `(${immobile.indirizzo})` : ""}
+                          {formatImmobileLabel(immobile)}
                         </SelectItem>
                       ))}
                     </SelectContent>
