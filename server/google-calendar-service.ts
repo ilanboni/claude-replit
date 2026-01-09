@@ -8,12 +8,15 @@ const SCOPES = [
 ];
 
 let oauth2Client: any = null;
+let lastClientId: string | undefined = undefined;
 
 function getOAuth2Client() {
-  if (!oauth2Client) {
-    // Use separate Calendar credentials (different Google account from Gmail)
-    const clientId = process.env.CALENDAR_CLIENT_ID;
-    const clientSecret = process.env.CALENDAR_CLIENT_SECRET;
+  const clientId = process.env.CALENDAR_CLIENT_ID;
+  const clientSecret = process.env.CALENDAR_CLIENT_SECRET;
+  
+  // Recreate client if credentials changed
+  if (!oauth2Client || lastClientId !== clientId) {
+    lastClientId = clientId;
     
     if (!clientId || !clientSecret) {
       throw new Error("Google Calendar OAuth credentials not configured (CALENDAR_CLIENT_ID, CALENDAR_CLIENT_SECRET)");
