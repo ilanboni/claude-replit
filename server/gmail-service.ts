@@ -63,20 +63,7 @@ export async function getUnreadEmails(maxResults: number = 10): Promise<EmailMes
       let body = '';
       const payload = fullMessage.data.payload;
       
-      if (payload?.body?.data) {
-        body = Buffer.from(payload.body.data, 'base64').toString('utf-8');
-      } else if (payload?.parts) {
-        const textPart = payload.parts.find(p => p.mimeType === 'text/plain');
-        if (textPart?.body?.data) {
-          body = Buffer.from(textPart.body.data, 'base64').toString('utf-8');
-        } else {
-          const htmlPart = payload.parts.find(p => p.mimeType === 'text/html');
-          if (htmlPart?.body?.data) {
-            body = Buffer.from(htmlPart.body.data, 'base64').toString('utf-8');
-            body = convertHtmlToText(body);
-          }
-        }
-      }
+      body = extractEmailBody(payload);
 
       messages.push({
         id: msg.id!,
@@ -93,24 +80,89 @@ export async function getUnreadEmails(maxResults: number = 10): Promise<EmailMes
   return messages;
 }
 
+// Recursively extract body from email payload (handles nested multipart)
+function extractEmailBody(payload: any): string {
+  // Direct body data
+  if (payload?.body?.data) {
+    let content = Buffer.from(payload.body.data, 'base64').toString('utf-8');
+    // Always convert if it looks like HTML
+    if (isHtmlContent(content)) {
+      content = convertHtmlToText(content);
+    }
+    return content;
+  }
+  
+  // Multipart - look for text/plain first, then text/html
+  if (payload?.parts && Array.isArray(payload.parts)) {
+    // Try to find text/plain first
+    const textPart = payload.parts.find((p: any) => p.mimeType === 'text/plain');
+    if (textPart?.body?.data) {
+      return Buffer.from(textPart.body.data, 'base64').toString('utf-8');
+    }
+    
+    // Try text/html
+    const htmlPart = payload.parts.find((p: any) => p.mimeType === 'text/html');
+    if (htmlPart?.body?.data) {
+      let content = Buffer.from(htmlPart.body.data, 'base64').toString('utf-8');
+      return convertHtmlToText(content);
+    }
+    
+    // Recursively search in nested multipart
+    for (const part of payload.parts) {
+      if (part.mimeType?.startsWith('multipart/') || part.parts) {
+        const nested = extractEmailBody(part);
+        if (nested) return nested;
+      }
+    }
+  }
+  
+  return '';
+}
+
 function convertHtmlToText(html: string): string {
   return html
+    // First remove style and script blocks entirely (including content)
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<head[^>]*>[\s\S]*?<\/head>/gi, '')
+    // Remove HTML comments
+    .replace(/<!--[\s\S]*?-->/g, '')
+    // Convert line breaks and block elements to newlines
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/p>/gi, '\n')
     .replace(/<\/div>/gi, '\n')
     .replace(/<\/tr>/gi, '\n')
     .replace(/<\/li>/gi, '\n')
+    .replace(/<\/h[1-6]>/gi, '\n')
+    .replace(/<\/td>/gi, ' ')
+    // Remove all remaining HTML tags
     .replace(/<[^>]*>/g, ' ')
+    // Decode HTML entities
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
+    .replace(/&rsquo;/g, "'")
+    .replace(/&lsquo;/g, "'")
+    .replace(/&rdquo;/g, '"')
+    .replace(/&ldquo;/g, '"')
+    .replace(/&#\d+;/g, '') // Remove remaining numeric entities
+    // Clean up whitespace
     .replace(/[ \t]+/g, ' ')
     .replace(/\n\s+/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+}
+
+// Check if content looks like HTML
+function isHtmlContent(content: string): boolean {
+  return content.includes('<html') || 
+         content.includes('<body') || 
+         content.includes('<div') || 
+         content.includes('<style') ||
+         content.includes('<table');
 }
 
 export async function markAsRead(messageId: string): Promise<void> {
@@ -152,20 +204,7 @@ export async function getEmailsByQuery(query: string, maxResults: number = 20): 
       let body = '';
       const payload = fullMessage.data.payload;
       
-      if (payload?.body?.data) {
-        body = Buffer.from(payload.body.data, 'base64').toString('utf-8');
-      } else if (payload?.parts) {
-        const textPart = payload.parts.find(p => p.mimeType === 'text/plain');
-        if (textPart?.body?.data) {
-          body = Buffer.from(textPart.body.data, 'base64').toString('utf-8');
-        } else {
-          const htmlPart = payload.parts.find(p => p.mimeType === 'text/html');
-          if (htmlPart?.body?.data) {
-            body = Buffer.from(htmlPart.body.data, 'base64').toString('utf-8');
-            body = convertHtmlToText(body);
-          }
-        }
-      }
+      body = extractEmailBody(payload);
 
       messages.push({
         id: msg.id!,
