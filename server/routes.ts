@@ -9,8 +9,9 @@ import {
 } from "@shared/schema";
 import { parseRequestWithAI, calculateMatchScore, generateAICoachMessage, parsePropertyListingWithAI, parsePropertyImageWithAI, generateAcquisitionMessage, generateMirroring, extractPropertyFacts } from "./ai-service";
 import { whatsappWS } from "./websocket";
-import { sendWhatsAppMessage, isUltraMsgConfigured } from "./ultramsg";
+import { sendWhatsAppMessage, isUltraMsgConfigured, normalizeItalianPhone } from "./ultramsg";
 import { getUnreadEmails, searchPortalEmails, parsePortalEmail, markAsRead, EmailMessage, sendEmail, isGmailConfigured } from "./gmail-service";
+import { processChatbotMessage } from "./services/chatbotService";
 import { exec } from "child_process";
 import { promisify } from "util";
 import * as fs from "fs";
@@ -3328,7 +3329,76 @@ FORMATO RISPOSTE:
           whatsappWS.notifyConversationUpdate({ ...updatedConversation, conversationId: updatedConversation.id });
         }
 
-        console.log(`Created inbound message from contact: ${messageId}`);
+        console.log(`Created ${isOutbound ? 'outbound' : 'inbound'} message from contact: ${messageId}`);
+
+        // === BOT IA ACQUISIZIONE: Risposta automatica ===
+        // Solo per messaggi IN ENTRATA (non outbound)
+        if (!isOutbound && body) {
+          try {
+            // Cerca se esiste un campaign_message attivo per questo numero
+            const normalizedPhone = normalizeItalianPhone(phoneNumber);
+            const campaignMessages = await storage.getCampaignMessagesByPhone(normalizedPhone);
+            
+            // Trova il campaign message più recente con conversazione attiva
+            const activeCampaignMessage = campaignMessages.find(cm => 
+              cm.conversationActive !== false && cm.sentAt
+            );
+
+            if (activeCampaignMessage) {
+              console.log(`[Bot IA] Found active campaign message ${activeCampaignMessage.id} for ${normalizedPhone}`);
+              
+              // Genera risposta del bot
+              const botResponse = await processChatbotMessage(
+                activeCampaignMessage.id,
+                normalizedPhone,
+                body
+              );
+
+              if (botResponse) {
+                console.log(`[Bot IA] Generated response for ${normalizedPhone}: ${botResponse.substring(0, 100)}...`);
+                
+                // Invia la risposta via UltraMsg
+                const sendResult = await sendWhatsAppMessage(normalizedPhone, botResponse);
+                
+                if (sendResult.success) {
+                  console.log(`[Bot IA] Response sent successfully to ${normalizedPhone}`);
+                  
+                  // Salva il messaggio del bot nella conversazione
+                  const botMessage = await storage.createWhatsappMessage({
+                    conversationId: conversation.id,
+                    whatsappMessageId: sendResult.messageId || null,
+                    direction: "outbound",
+                    messageType: "chat",
+                    content: botResponse,
+                    mediaUrl: null,
+                    status: "sent"
+                  });
+
+                  // Aggiorna la conversazione con l'ultimo messaggio del bot
+                  await storage.updateWhatsappConversation(conversation.id, {
+                    ultimoMessaggio: botResponse.substring(0, 100),
+                    ultimoMessaggioData: new Date()
+                  });
+
+                  // Notifica WebSocket
+                  const finalConversation = await storage.getWhatsappConversation(conversation.id);
+                  whatsappWS.notifyNewMessage(conversation.id, { ...botMessage, conversationId: conversation.id });
+                  if (finalConversation) {
+                    whatsappWS.notifyConversationUpdate({ ...finalConversation, conversationId: finalConversation.id });
+                  }
+                } else {
+                  console.error(`[Bot IA] Failed to send response: ${sendResult.error}`);
+                }
+              }
+            } else {
+              console.log(`[Bot IA] No active campaign message for ${normalizedPhone}, skipping bot response`);
+            }
+          } catch (botError) {
+            console.error("[Bot IA] Error processing bot response:", botError);
+            // Non blocchiamo il webhook se il bot fallisce
+          }
+        }
+
         return res.status(200).json({ status: "ok", action: "message_created", messageId: message.id });
       }
 
