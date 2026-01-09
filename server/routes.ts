@@ -743,11 +743,44 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
     }
   });
 
+  // ==================== IMMOBILI ESTERNI (In Acquisizione) ====================
+  app.get("/api/immobili-esterni", async (req, res) => {
+    try {
+      const preferiti = req.query.preferiti === 'true' ? true : (req.query.preferiti === 'false' ? false : undefined);
+      const immobili = await storage.getImmobiliEsterni(preferiti);
+      res.json(immobili);
+    } catch (error) {
+      console.error("Get immobili esterni error:", error);
+      res.status(500).json({ error: "Errore nel recupero degli immobili esterni" });
+    }
+  });
+
+  app.get("/api/immobili-esterni/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const immobile = await storage.getImmobileEsterno(id);
+      if (!immobile) {
+        return res.status(404).json({ error: "Immobile esterno non trovato" });
+      }
+      res.json(immobile);
+    } catch (error) {
+      console.error("Get immobile esterno error:", error);
+      res.status(500).json({ error: "Errore nel recupero dell'immobile esterno" });
+    }
+  });
+
   // ==================== COMUNICAZIONI ====================
   app.get("/api/comunicazioni", async (req, res) => {
     try {
       const clienteId = req.query.clienteId ? parseInt(req.query.clienteId as string) : undefined;
-      const comunicazioni = await storage.getComunicazioni(clienteId);
+      const immobileEsternoId = req.query.immobileEsternoId ? parseInt(req.query.immobileEsternoId as string) : undefined;
+      
+      let comunicazioni;
+      if (immobileEsternoId) {
+        comunicazioni = await storage.getComunicazioniByImmobileEsterno(immobileEsternoId);
+      } else {
+        comunicazioni = await storage.getComunicazioni(clienteId);
+      }
       res.json(comunicazioni);
     } catch (error) {
       console.error("Get comunicazioni error:", error);

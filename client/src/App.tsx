@@ -15,6 +15,7 @@ import ClientiPage from "@/pages/clienti";
 import ClienteDetailPage from "@/pages/clienti/[id]";
 import ImmobiliPage from "@/pages/immobili";
 import ImmobileDetailPage from "@/pages/immobili/detail";
+import ImmobileEsternoDetailPage from "@/pages/immobili/esterno-detail";
 import RichiestePage from "@/pages/richieste";
 import ComunicazioniPage from "@/pages/comunicazioni";
 import AppuntamentiPage from "@/pages/appuntamenti";
@@ -33,6 +34,7 @@ function Router() {
       <Route path="/clienti/:id" component={ClienteDetailPage} />
       <Route path="/immobili" component={ImmobiliPage} />
       <Route path="/immobili/:id" component={ImmobileDetailPage} />
+      <Route path="/immobili/esterno/:id" component={ImmobileEsternoDetailPage} />
       <Route path="/richieste" component={RichiestePage} />
       <Route path="/comunicazioni" component={ComunicazioniPage} />
       <Route path="/appuntamenti" component={AppuntamentiPage} />
