@@ -26,6 +26,7 @@ import BotPage from "@/pages/bot";
 import WhatsAppPage from "@/pages/whatsapp";
 import AttivitaPage from "@/pages/attivita";
 import ConfermaAppuntamentiPage from "@/pages/conferma-appuntamenti";
+import ImpostazioniPage from "@/pages/impostazioni";
 
 function Router() {
   return (
@@ -46,6 +47,7 @@ function Router() {
       <Route path="/bot" component={BotPage} />
       <Route path="/whatsapp" component={WhatsAppPage} />
       <Route path="/attivita" component={AttivitaPage} />
+      <Route path="/impostazioni" component={ImpostazioniPage} />
       <Route component={NotFound} />
     </Switch>
   );

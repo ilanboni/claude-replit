@@ -4374,9 +4374,17 @@ FORMATO RISPOSTE:
 
   // ==================== SINCRONIZZAZIONE DATABASE ====================
   
-  // Export data from this environment (available in both dev and prod)
+  // Export data from this environment (protected with secret key)
   app.get("/api/admin/export", async (req, res) => {
     try {
+      // Require sync secret for security
+      const syncSecret = process.env.SESSION_SECRET;
+      const providedSecret = req.headers['x-sync-secret'] as string;
+      
+      if (!providedSecret || providedSecret !== syncSecret) {
+        return res.status(401).json({ error: "Non autorizzato" });
+      }
+
       const [clienti, immobili, immobiliEsterni] = await Promise.all([
         storage.getClienti(),
         storage.getImmobili(),
@@ -4408,12 +4416,23 @@ FORMATO RISPOSTE:
         return res.status(403).json({ error: "Sincronizzazione non permessa in produzione" });
       }
 
-      const productionUrl = req.body.productionUrl || 'https://cavour.replit.app';
+      // Hard-coded production URL for security (no SSRF)
+      const productionUrl = 'https://cavour.replit.app';
+      const syncSecret = process.env.SESSION_SECRET;
       
-      // Fetch data from production
-      const response = await fetch(`${productionUrl}/api/admin/export`);
+      if (!syncSecret) {
+        return res.status(500).json({ error: "Configurazione sync secret mancante" });
+      }
+      
+      // Fetch data from production with auth header
+      const response = await fetch(`${productionUrl}/api/admin/export`, {
+        headers: { 'x-sync-secret': syncSecret }
+      });
       if (!response.ok) {
-        return res.status(500).json({ error: "Impossibile connettersi alla produzione" });
+        const errorData = await response.json().catch(() => ({}));
+        return res.status(500).json({ 
+          error: errorData.error || "Impossibile connettersi alla produzione" 
+        });
       }
 
       const exportData = await response.json();
