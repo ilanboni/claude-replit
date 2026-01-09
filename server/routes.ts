@@ -4371,4 +4371,124 @@ FORMATO RISPOSTE:
       res.status(500).json({ error: error.message });
     }
   });
+
+  // ==================== SINCRONIZZAZIONE DATABASE ====================
+  
+  // Export data from this environment (available in both dev and prod)
+  app.get("/api/admin/export", async (req, res) => {
+    try {
+      const [clienti, immobili, immobiliEsterni] = await Promise.all([
+        storage.getClienti(),
+        storage.getImmobili(),
+        storage.getImmobiliEsterni(),
+      ]);
+
+      const exportData = {
+        exportedAt: new Date().toISOString(),
+        environment: process.env.REPLIT_DEPLOYMENT === '1' ? 'production' : 'development',
+        data: {
+          clienti,
+          immobili,
+          immobiliEsterni,
+        }
+      };
+
+      res.json(exportData);
+    } catch (error: any) {
+      console.error("Export error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Import data from production (only available in development)
+  app.post("/api/admin/sync-from-production", async (req, res) => {
+    try {
+      // Only allow in development environment
+      if (process.env.REPLIT_DEPLOYMENT === '1') {
+        return res.status(403).json({ error: "Sincronizzazione non permessa in produzione" });
+      }
+
+      const productionUrl = req.body.productionUrl || 'https://cavour.replit.app';
+      
+      // Fetch data from production
+      const response = await fetch(`${productionUrl}/api/admin/export`);
+      if (!response.ok) {
+        return res.status(500).json({ error: "Impossibile connettersi alla produzione" });
+      }
+
+      const exportData = await response.json();
+      
+      if (exportData.environment !== 'production') {
+        return res.status(400).json({ error: "I dati non provengono dalla produzione" });
+      }
+
+      const { clienti } = exportData.data;
+      let imported = 0;
+      let updated = 0;
+      let skipped = 0;
+
+      // Import clienti (upsert based on phone/email)
+      for (const cliente of clienti) {
+        const esistenti = await storage.getClienti();
+        const esistente = esistenti.find(c => {
+          const samePhone = c.telefono && cliente.telefono && 
+            c.telefono.replace(/\D/g, '') === cliente.telefono.replace(/\D/g, '');
+          const sameEmail = c.email && cliente.email && 
+            c.email.toLowerCase() === cliente.email.toLowerCase();
+          return samePhone || sameEmail;
+        });
+
+        if (!esistente) {
+          // Create new
+          await storage.createCliente({
+            appellativo: cliente.appellativo || "",
+            nome: cliente.nome || "",
+            cognome: cliente.cognome || "",
+            telefono: cliente.telefono || "",
+            email: cliente.email || "",
+            compleanno: cliente.compleanno || "",
+            religione: cliente.religione || "",
+            note: cliente.note || "",
+            tipoCliente: cliente.tipoCliente || "compratore",
+            ratingCliente: cliente.ratingCliente || 3,
+            clienteAmico: cliente.clienteAmico || false,
+            linkImmobile: cliente.linkImmobile || null,
+            attivo: cliente.attivo !== false,
+          });
+          imported++;
+        } else {
+          // Update if production is newer
+          const prodDate = new Date(cliente.updatedAt || cliente.createdAt);
+          const localDate = new Date(esistente.updatedAt || esistente.createdAt);
+          if (prodDate > localDate) {
+            await storage.updateCliente(esistente.id, {
+              appellativo: cliente.appellativo,
+              nome: cliente.nome,
+              cognome: cliente.cognome,
+              telefono: cliente.telefono,
+              email: cliente.email,
+              note: cliente.note,
+              tipoCliente: cliente.tipoCliente,
+              ratingCliente: cliente.ratingCliente,
+              clienteAmico: cliente.clienteAmico,
+            });
+            updated++;
+          } else {
+            skipped++;
+          }
+        }
+      }
+
+      res.json({ 
+        success: true, 
+        message: `Sincronizzazione completata: ${imported} nuovi, ${updated} aggiornati, ${skipped} ignorati`,
+        imported,
+        updated,
+        skipped,
+      });
+    } catch (error: any) {
+      console.error("Sync error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
 }
