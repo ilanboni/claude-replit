@@ -25,6 +25,7 @@ import AcquisizioneDetailPage from "@/pages/acquisizione/detail";
 import BotPage from "@/pages/bot";
 import WhatsAppPage from "@/pages/whatsapp";
 import AttivitaPage from "@/pages/attivita";
+import ConfermaAppuntamentiPage from "@/pages/conferma-appuntamenti";
 
 function Router() {
   return (
@@ -38,6 +39,7 @@ function Router() {
       <Route path="/richieste" component={RichiestePage} />
       <Route path="/comunicazioni" component={ComunicazioniPage} />
       <Route path="/appuntamenti" component={AppuntamentiPage} />
+      <Route path="/conferma-appuntamenti" component={ConfermaAppuntamentiPage} />
       <Route path="/matching" component={MatchingPage} />
       <Route path="/acquisizione" component={AcquisizionePage} />
       <Route path="/acquisizione/:id" component={AcquisizioneDetailPage} />
