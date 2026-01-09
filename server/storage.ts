@@ -1,7 +1,7 @@
 import { 
   clienti, richieste, immobili, comunicazioni, appuntamenti, matching, immobiliEsterni,
   attivitaImmobile, attivitaCliente, documentiImmobile, portaliImmobile, storicoPrezzo,
-  whatsappCampaigns, campaignMessages, botConversationLogs,
+  whatsappCampaigns, campaignMessages, botConversationLogs, scheduledBotMessages,
   whatsappConversations, whatsappMessages,
   type Cliente, type InsertCliente,
   type Richiesta, type InsertRichiesta,
@@ -18,11 +18,12 @@ import {
   type WhatsappCampaign, type InsertWhatsappCampaign,
   type CampaignMessage, type InsertCampaignMessage,
   type BotConversationLog, type InsertBotConversationLog,
+  type ScheduledBotMessage, type InsertScheduledBotMessage,
   type WhatsappConversation, type InsertWhatsappConversation,
   type WhatsappMessage, type InsertWhatsappMessage,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, lte } from "drizzle-orm";
 
 export interface IStorage {
   // Clienti
@@ -130,6 +131,12 @@ export interface IStorage {
   // Bot Conversation Logs
   getBotConversationLogs(campaignMessageId: number): Promise<BotConversationLog[]>;
   createBotConversationLog(data: InsertBotConversationLog): Promise<BotConversationLog>;
+
+  // Scheduled Bot Messages (for delayed responses)
+  getScheduledBotMessages(): Promise<ScheduledBotMessage[]>;
+  getPendingScheduledMessages(): Promise<ScheduledBotMessage[]>;
+  createScheduledBotMessage(data: InsertScheduledBotMessage): Promise<ScheduledBotMessage>;
+  updateScheduledBotMessage(id: number, data: Partial<InsertScheduledBotMessage>): Promise<ScheduledBotMessage | undefined>;
 
   // WhatsApp Conversations
   getWhatsappConversations(): Promise<WhatsappConversation[]>;
@@ -551,6 +558,34 @@ export class DatabaseStorage implements IStorage {
   async createBotConversationLog(data: InsertBotConversationLog): Promise<BotConversationLog> {
     const [log] = await db.insert(botConversationLogs).values(data).returning();
     return log;
+  }
+
+  // Scheduled Bot Messages
+  async getScheduledBotMessages(): Promise<ScheduledBotMessage[]> {
+    return db.select().from(scheduledBotMessages).orderBy(desc(scheduledBotMessages.createdAt));
+  }
+
+  async getPendingScheduledMessages(): Promise<ScheduledBotMessage[]> {
+    // Get messages that are due (scheduledAt <= now) and still pending
+    return db.select()
+      .from(scheduledBotMessages)
+      .where(
+        and(
+          eq(scheduledBotMessages.status, "pending"),
+          lte(scheduledBotMessages.scheduledAt, new Date())
+        )
+      )
+      .orderBy(scheduledBotMessages.scheduledAt);
+  }
+
+  async createScheduledBotMessage(data: InsertScheduledBotMessage): Promise<ScheduledBotMessage> {
+    const [message] = await db.insert(scheduledBotMessages).values(data).returning();
+    return message;
+  }
+
+  async updateScheduledBotMessage(id: number, data: Partial<InsertScheduledBotMessage>): Promise<ScheduledBotMessage | undefined> {
+    const [message] = await db.update(scheduledBotMessages).set(data).where(eq(scheduledBotMessages.id, id)).returning();
+    return message;
   }
 
   // WhatsApp Conversations

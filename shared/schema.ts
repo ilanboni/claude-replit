@@ -374,6 +374,21 @@ export const botConversationLogs = pgTable("bot_conversation_logs", {
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
+// SCHEDULED BOT MESSAGES - Messaggi bot programmati (per delay umano)
+export const scheduledBotMessages = pgTable("scheduled_bot_messages", {
+  id: serial("id").primaryKey(),
+  campaignMessageId: integer("campaign_message_id").notNull().references(() => campaignMessages.id, { onDelete: "cascade" }),
+  conversationId: integer("conversation_id").notNull().references(() => whatsappConversations.id, { onDelete: "cascade" }),
+  phoneNumber: text("phone_number").notNull(),
+  userMessage: text("user_message").notNull(), // Il messaggio del cliente a cui rispondere
+  scheduledAt: timestamp("scheduled_at").notNull(), // Quando inviare la risposta
+  status: text("status").default("pending").notNull(), // pending, processing, sent, failed
+  attempts: integer("attempts").default(0),
+  lastError: text("last_error"),
+  sentAt: timestamp("sent_at"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
 // Relations
 export const clientiRelations = relations(clienti, ({ many }) => ({
   richieste: many(richieste),
@@ -631,6 +646,10 @@ export type InsertCampaignMessage = z.infer<typeof insertCampaignMessageSchema>;
 export const insertBotConversationLogSchema = createInsertSchema(botConversationLogs).omit({ id: true, createdAt: true });
 export type BotConversationLog = typeof botConversationLogs.$inferSelect;
 export type InsertBotConversationLog = z.infer<typeof insertBotConversationLogSchema>;
+
+export const insertScheduledBotMessageSchema = createInsertSchema(scheduledBotMessages).omit({ id: true, createdAt: true });
+export type ScheduledBotMessage = typeof scheduledBotMessages.$inferSelect;
+export type InsertScheduledBotMessage = z.infer<typeof insertScheduledBotMessageSchema>;
 
 // WhatsApp Chat types
 export const insertWhatsappConversationSchema = createInsertSchema(whatsappConversations).omit({ id: true, createdAt: true, updatedAt: true });

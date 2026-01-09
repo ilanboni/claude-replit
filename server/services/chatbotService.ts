@@ -23,9 +23,85 @@ interface BotResponse {
   suggestedActions: string[];
 }
 
-function buildSystemPrompt(context: BotContext): string {
-  const { propertyDetails } = context;
+function analyzeClientPersonality(conversationHistory: BotConversationLog[], currentMessage?: string): string {
+  // Analizza i messaggi precedenti + il messaggio corrente
+  const historyMessages = conversationHistory.map(log => log.userMessage);
+  
+  // Aggiungi il messaggio corrente per analisi anche al primo contatto
+  if (currentMessage) {
+    historyMessages.push(currentMessage);
+  }
+  
+  if (historyMessages.length === 0) {
+    return "";
+  }
+
+  const allMessages = historyMessages.join(" ");
+  const messageCount = historyMessages.length;
+  
+  // Indicatori di personalità basati sui messaggi
+  const indicators: string[] = [];
+  
+  // Lunghezza messaggi (conciso vs prolisso)
+  const avgLength = allMessages.length / messageCount;
+  if (avgLength < 50) {
+    indicators.push("CONCISO: Il cliente scrive messaggi brevi e diretti. Rispondi in modo altrettanto conciso.");
+  } else if (avgLength > 200) {
+    indicators.push("PROLISSO: Il cliente scrive messaggi dettagliati. Puoi essere leggermente più espansivo nelle risposte.");
+  }
+  
+  // Formalità
+  const formalWords = ["gentilmente", "cortesemente", "la prego", "distinti saluti", "cordiali saluti", "egregio", "spettabile"];
+  const informalWords = ["ciao", "ok", "va bene", "sì", "no", "grazie mille", "perfetto"];
+  const hasFormality = formalWords.some(w => allMessages.toLowerCase().includes(w));
+  const hasInformality = informalWords.some(w => allMessages.toLowerCase().includes(w));
+  
+  if (hasFormality && !hasInformality) {
+    indicators.push("FORMALE: Il cliente usa un linguaggio molto formale. Mantieni un registro altrettanto formale.");
+  } else if (hasInformality && !hasFormality) {
+    indicators.push("INFORMALE: Il cliente usa un tono informale. Puoi essere leggermente più diretto mantenendo il Lei.");
+  }
+  
+  // Emotività
+  const emotionalWords = ["preoccupato", "urgente", "importante", "necessario", "devo", "ho bisogno", "problema"];
+  const hasEmotional = emotionalWords.some(w => allMessages.toLowerCase().includes(w));
+  if (hasEmotional) {
+    indicators.push("EMOTIVO: Il cliente mostra preoccupazione o urgenza. Sii particolarmente empatico e rassicurante.");
+  }
+  
+  // Pragmatico/Business
+  const businessWords = ["prezzo", "costo", "provvigione", "mandato", "tempo", "quando", "quanto"];
+  const hasBusiness = businessWords.some(w => allMessages.toLowerCase().includes(w));
+  if (hasBusiness) {
+    indicators.push("PRAGMATICO: Il cliente è orientato ai fatti e numeri. Sii concreto e diretto.");
+  }
+  
+  // Scettico
+  const skepticWords = ["non credo", "non sono sicuro", "forse", "vedremo", "ci penso", "non so"];
+  const hasSkeptic = skepticWords.some(w => allMessages.toLowerCase().includes(w));
+  if (hasSkeptic) {
+    indicators.push("SCETTICO: Il cliente mostra dubbi. Non forzare, offri valore e rassicurazione senza pressing.");
+  }
+
+  if (indicators.length === 0) {
+    return "";
+  }
+
+  return `
+=== MIRRORING LINGUISTICO (ADATTA IL TUO STILE) ===
+Basandoti sui messaggi precedenti del cliente, sono emersi questi tratti:
+${indicators.join("\n")}
+
+IMPORTANTE: Adatta il tuo linguaggio per creare empatia. Usa parole e frasi simili a quelle del cliente.
+Se il cliente usa termini tecnici, usali anche tu. Se è sintetico, sii sintetico. Se è formale, sii formale.`;
+}
+
+function buildSystemPrompt(context: BotContext, currentUserMessage?: string): string {
+  const { propertyDetails, conversationHistory } = context;
   const cfg = BOT_CONFIG;
+  
+  // Analizza la personalità del cliente per il mirroring (include messaggio corrente)
+  const personalityAnalysis = analyzeClientPersonality(conversationHistory, currentUserMessage);
   
   return `Sei "${cfg.bot_name}". ${cfg.identity.presentation}
 
@@ -43,6 +119,7 @@ ${cfg.identity.positioning}
 - Frasi ${cfg.language.style.sentences}
 - Tono: ${cfg.language.style.tone}
 - EVITA: ${cfg.language.style.avoid.join(", ")}
+${personalityAnalysis}
 
 === OBIETTIVI ===
 Primario: ${cfg.goals.primary}
@@ -83,7 +160,8 @@ Firma: "${cfg.closing_templates.signature}"
 2. Messaggi BREVI (max 3-4 frasi, stile WhatsApp)
 3. Segui SEMPRE: Empatia → Ricalco → Valore incontro → Proposta appuntamento
 4. NON inventare informazioni
-5. L'obiettivo è SEMPRE proporre un incontro breve`;
+5. L'obiettivo è SEMPRE proporre un incontro breve
+6. USA IL MIRRORING: Adatta il tuo linguaggio allo stile del cliente`;
 }
 
 export async function generateBotResponse(
@@ -97,7 +175,7 @@ export async function generateBotResponse(
     });
 
     const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-      { role: "system", content: buildSystemPrompt(context) }
+      { role: "system", content: buildSystemPrompt(context, userMessage) }
     ];
 
     for (const log of context.conversationHistory) {

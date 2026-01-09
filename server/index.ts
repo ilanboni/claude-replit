@@ -3,6 +3,7 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { whatsappWS } from "./websocket";
+import { startScheduledMessageWorker } from "./services/scheduledMessageWorker";
 
 const app = express();
 const httpServer = createServer(app);
@@ -97,6 +98,9 @@ app.use((req, res, next) => {
     },
     () => {
       log(`serving on port ${port}`);
+      
+      // Start the scheduled message worker for delayed bot responses
+      startScheduledMessageWorker();
     },
   );
 })();

@@ -1835,16 +1835,19 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         dataContatto: new Date(),
       });
 
-      // Helper to normalize phone numbers for comparison
-      const normalizePhone = (p: string) => p?.replace(/\D/g, '').replace(/^(0039|39)/, '') || '';
-      const normalizedPhone = normalizePhone(phone);
+      // Use the same normalizeItalianPhone function for consistent format (39xxxxxxxxxx)
+      const { normalizeItalianPhone: normalizePhoneFn } = await import("./ultramsg");
+      const normalizedPhone = normalizePhoneFn(phone);
       
       // Create or find client "Proprietario di [indirizzo]"
       const indirizzo = immobile.indirizzo || immobile.zona || "Immobile";
       
+      // Helper for comparing phones (strip 39 prefix for comparison)
+      const stripPrefix = (p: string) => p?.replace(/\D/g, '').replace(/^(0039|39)/, '') || '';
+      
       // Check if client already exists by phone
       const clienti = await storage.getClienti();
-      let cliente = clienti.find(c => normalizePhone(c.telefono || '') === normalizedPhone);
+      let cliente = clienti.find(c => stripPrefix(c.telefono || '') === stripPrefix(normalizedPhone));
       
       if (!cliente) {
         // Create new client
@@ -1876,10 +1879,40 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         esito: null,
       });
 
+      // Create campaign_message for bot tracking (enables automatic AI responses)
+      // First get or create the default acquisition campaign
+      const campaigns = await storage.getWhatsappCampaigns();
+      let acquisitionCampaign = campaigns.find(c => c.name === "Invio messaggi acquisizione");
+      
+      if (!acquisitionCampaign) {
+        // Create default campaign if not exists
+        acquisitionCampaign = await storage.createWhatsappCampaign({
+          name: "Invio messaggi acquisizione",
+          template: message,
+          status: "active",
+        });
+      }
+
+      // Create campaign_message to track this conversation for bot
+      // normalizedPhone is already in 39xxxxxxxxxx format from normalizeItalianPhone
+      const campaignMessage = await storage.createCampaignMessage({
+        campaignId: acquisitionCampaign.id,
+        immobileEsternoId: id,
+        phoneNumber: normalizedPhone,
+        ownerName: immobile.contattoNome || `Proprietario ${indirizzo}`,
+        messageContent: message,
+        status: "sent",
+        sentAt: new Date(),
+        conversationActive: true,
+      });
+
+      console.log(`[Acquisizione] Created campaign_message ${campaignMessage.id} for phone ${normalizedPhone}`);
+
       res.json({ 
         success: true, 
         messageId: result.messageId,
         cliente: cliente,
+        campaignMessageId: campaignMessage.id,
       });
     } catch (error) {
       console.error("Send WhatsApp error:", error);
@@ -3331,7 +3364,7 @@ FORMATO RISPOSTE:
 
         console.log(`Created ${isOutbound ? 'outbound' : 'inbound'} message from contact: ${messageId}`);
 
-        // === BOT IA ACQUISIZIONE: Risposta automatica ===
+        // === BOT IA ACQUISIZIONE: Risposta automatica con delay umano (persistente) ===
         // Solo per messaggi IN ENTRATA (non outbound)
         if (!isOutbound && body) {
           try {
@@ -3345,56 +3378,35 @@ FORMATO RISPOSTE:
             );
 
             if (activeCampaignMessage) {
-              console.log(`[Bot IA] Found active campaign message ${activeCampaignMessage.id} for ${normalizedPhone}`);
+              // Delay random tra 4 e 25 minuti per sembrare umano
+              const minDelayMs = 4 * 60 * 1000;  // 4 minuti
+              const maxDelayMs = 25 * 60 * 1000; // 25 minuti
+              const delayMs = Math.floor(Math.random() * (maxDelayMs - minDelayMs + 1)) + minDelayMs;
+              const delayMinutes = Math.round(delayMs / 60000);
               
-              // Genera risposta del bot
-              const botResponse = await processChatbotMessage(
-                activeCampaignMessage.id,
-                normalizedPhone,
-                body
-              );
-
-              if (botResponse) {
-                console.log(`[Bot IA] Generated response for ${normalizedPhone}: ${botResponse.substring(0, 100)}...`);
-                
-                // Invia la risposta via UltraMsg
-                const sendResult = await sendWhatsAppMessage(normalizedPhone, botResponse);
-                
-                if (sendResult.success) {
-                  console.log(`[Bot IA] Response sent successfully to ${normalizedPhone}`);
-                  
-                  // Salva il messaggio del bot nella conversazione
-                  const botMessage = await storage.createWhatsappMessage({
-                    conversationId: conversation.id,
-                    whatsappMessageId: sendResult.messageId || null,
-                    direction: "outbound",
-                    messageType: "chat",
-                    content: botResponse,
-                    mediaUrl: null,
-                    status: "sent"
-                  });
-
-                  // Aggiorna la conversazione con l'ultimo messaggio del bot
-                  await storage.updateWhatsappConversation(conversation.id, {
-                    ultimoMessaggio: botResponse.substring(0, 100),
-                    ultimoMessaggioData: new Date()
-                  });
-
-                  // Notifica WebSocket
-                  const finalConversation = await storage.getWhatsappConversation(conversation.id);
-                  whatsappWS.notifyNewMessage(conversation.id, { ...botMessage, conversationId: conversation.id });
-                  if (finalConversation) {
-                    whatsappWS.notifyConversationUpdate({ ...finalConversation, conversationId: finalConversation.id });
-                  }
-                } else {
-                  console.error(`[Bot IA] Failed to send response: ${sendResult.error}`);
-                }
-              }
+              // Calcola quando inviare la risposta
+              const scheduledAt = new Date(Date.now() + delayMs);
+              
+              console.log(`[Bot IA] Found active campaign message ${activeCampaignMessage.id} for ${normalizedPhone}`);
+              console.log(`[Bot IA] Scheduling response in ${delayMinutes} minutes (at ${scheduledAt.toISOString()})`);
+              
+              // Salva nel database per elaborazione dal worker (persistente!)
+              await storage.createScheduledBotMessage({
+                campaignMessageId: activeCampaignMessage.id,
+                conversationId: conversation.id,
+                phoneNumber: normalizedPhone,
+                userMessage: body,
+                scheduledAt: scheduledAt,
+                status: "pending"
+              });
+              
+              console.log(`[Bot IA] Scheduled message saved to database for ${normalizedPhone}`);
+              
             } else {
               console.log(`[Bot IA] No active campaign message for ${normalizedPhone}, skipping bot response`);
             }
           } catch (botError) {
-            console.error("[Bot IA] Error processing bot response:", botError);
+            console.error("[Bot IA] Error scheduling bot response:", botError);
             // Non blocchiamo il webhook se il bot fallisce
           }
         }
