@@ -46,9 +46,11 @@ interface ClienteFormProps {
   cliente?: Cliente | null;
   onSuccess: () => void;
   onCancel: () => void;
+  onClientCreated?: (cliente: Cliente) => void;
+  defaultTipoCliente?: "compratore" | "venditore" | "entrambi";
 }
 
-export function ClienteForm({ cliente, onSuccess, onCancel }: ClienteFormProps) {
+export function ClienteForm({ cliente, onSuccess, onCancel, onClientCreated, defaultTipoCliente }: ClienteFormProps) {
   const { toast } = useToast();
   const isEditing = !!cliente;
 
@@ -63,7 +65,7 @@ export function ClienteForm({ cliente, onSuccess, onCancel }: ClienteFormProps) 
       compleanno: cliente?.compleanno ?? "",
       religione: cliente?.religione ?? "",
       note: cliente?.note ?? "",
-      tipoCliente: (cliente?.tipoCliente as "compratore" | "venditore" | "entrambi") ?? "compratore",
+      tipoCliente: (cliente?.tipoCliente as "compratore" | "venditore" | "entrambi") ?? defaultTipoCliente ?? "compratore",
       ratingCliente: cliente?.ratingCliente ?? 3,
       clienteAmico: cliente?.clienteAmico ?? false,
       attivo: cliente?.attivo ?? true,
@@ -75,9 +77,10 @@ export function ClienteForm({ cliente, onSuccess, onCancel }: ClienteFormProps) 
       if (isEditing) {
         return apiRequest("PATCH", `/api/clienti/${cliente.id}`, data);
       }
-      return apiRequest("POST", "/api/clienti", data);
+      const response = await apiRequest("POST", "/api/clienti", data);
+      return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["/api/clienti"] });
       if (cliente) {
         queryClient.invalidateQueries({ queryKey: ["/api/clienti", cliente.id] });
@@ -88,6 +91,9 @@ export function ClienteForm({ cliente, onSuccess, onCancel }: ClienteFormProps) 
           ? "Le modifiche sono state salvate con successo"
           : "Il nuovo cliente è stato aggiunto con successo",
       });
+      if (!isEditing && onClientCreated && result) {
+        onClientCreated(result as Cliente);
+      }
       onSuccess();
     },
     onError: () => {
