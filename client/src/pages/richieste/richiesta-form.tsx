@@ -35,6 +35,7 @@ const formSchema = z.object({
   mqMinimi: z.number().optional().nullable(),
   zona: z.string().optional(),
   pianoTutti: z.boolean(),
+  pianoTerra: z.boolean(),
   pianoIntermedi: z.boolean(),
   pianoUltimo: z.boolean(),
   statoNuovo: z.boolean(),
@@ -45,6 +46,8 @@ const formSchema = z.object({
   terrazzo: z.boolean(),
   ascensore: z.boolean(),
   box: z.boolean(),
+  caratteristicheObbligatorie: z.array(z.string()),
+  caratteristicheGradite: z.array(z.string()),
   camereMinime: z.number().optional().nullable(),
   bagniMinimi: z.number().optional().nullable(),
   priorita: z.number(),
@@ -80,6 +83,7 @@ export function RichiestaForm({ richiesta, clienteId, onSuccess, onCancel }: Ric
       mqMinimi: richiesta?.mqMinimi ?? null,
       zona: richiesta?.zona ?? "",
       pianoTutti: richiesta?.pianoTutti ?? true,
+      pianoTerra: richiesta?.pianoTerra ?? false,
       pianoIntermedi: richiesta?.pianoIntermedi ?? false,
       pianoUltimo: richiesta?.pianoUltimo ?? false,
       statoNuovo: richiesta?.statoNuovo ?? false,
@@ -90,6 +94,8 @@ export function RichiestaForm({ richiesta, clienteId, onSuccess, onCancel }: Ric
       terrazzo: richiesta?.terrazzo ?? false,
       ascensore: richiesta?.ascensore ?? false,
       box: richiesta?.box ?? false,
+      caratteristicheObbligatorie: richiesta?.caratteristicheObbligatorie ?? [],
+      caratteristicheGradite: richiesta?.caratteristicheGradite ?? [],
       camereMinime: richiesta?.camereMinime ?? null,
       bagniMinimi: richiesta?.bagniMinimi ?? null,
       priorita: richiesta?.priorita ?? 2,
@@ -142,10 +148,28 @@ export function RichiestaForm({ richiesta, clienteId, onSuccess, onCancel }: Ric
       if (data.mqMinimi) form.setValue("mqMinimi", data.mqMinimi);
       if (data.camereMinime) form.setValue("camereMinime", data.camereMinime);
       if (data.bagniMinimi) form.setValue("bagniMinimi", data.bagniMinimi);
-      if (data.terrazzo !== undefined) form.setValue("terrazzo", data.terrazzo);
-      if (data.balcone !== undefined) form.setValue("balcone", data.balcone);
-      if (data.ascensore !== undefined) form.setValue("ascensore", data.ascensore);
+      
+      if (data.pianoTerra !== undefined) form.setValue("pianoTerra", data.pianoTerra);
+      if (data.pianoIntermedi !== undefined) form.setValue("pianoIntermedi", data.pianoIntermedi);
       if (data.pianoUltimo !== undefined) form.setValue("pianoUltimo", data.pianoUltimo);
+      if (data.pianoTutti !== undefined) form.setValue("pianoTutti", data.pianoTutti);
+      
+      if (data.statoNuovo !== undefined) form.setValue("statoNuovo", data.statoNuovo);
+      if (data.statoRistrutturato !== undefined) form.setValue("statoRistrutturato", data.statoRistrutturato);
+      if (data.statoBuono !== undefined) form.setValue("statoBuono", data.statoBuono);
+      if (data.statoDaRistrutturare !== undefined) form.setValue("statoDaRistrutturare", data.statoDaRistrutturare);
+      
+      const obbligatorie = data.caratteristicheObbligatorie && Array.isArray(data.caratteristicheObbligatorie) ? data.caratteristicheObbligatorie : [];
+      const gradite = data.caratteristicheGradite && Array.isArray(data.caratteristicheGradite) ? data.caratteristicheGradite : [];
+      
+      form.setValue("caratteristicheObbligatorie", obbligatorie);
+      form.setValue("caratteristicheGradite", gradite);
+      
+      const allFeatures = [...obbligatorie, ...gradite];
+      form.setValue("balcone", allFeatures.includes("balcone"));
+      form.setValue("terrazzo", allFeatures.includes("terrazzo"));
+      form.setValue("ascensore", allFeatures.includes("ascensore"));
+      form.setValue("box", allFeatures.includes("box"));
       
       toast({
         title: "Analisi completata",
@@ -347,11 +371,13 @@ export function RichiestaForm({ richiesta, clienteId, onSuccess, onCancel }: Ric
 
         <div>
           <FormLabel className="text-base">Piano Preferito</FormLabel>
-          <div className="grid gap-3 sm:grid-cols-3 mt-3">
+          <p className="text-sm text-muted-foreground mb-2">Seleziona i piani accettati. Se nessuno selezionato = indifferente.</p>
+          <div className="grid gap-3 sm:grid-cols-4 mt-3">
             {[
-              { name: "pianoTutti" as const, label: "Qualsiasi piano" },
+              { name: "pianoTerra" as const, label: "Piano terra" },
               { name: "pianoIntermedi" as const, label: "Piani intermedi" },
               { name: "pianoUltimo" as const, label: "Ultimo piano" },
+              { name: "pianoTutti" as const, label: "Qualsiasi" },
             ].map((piano) => (
               <FormField
                 key={piano.name}
@@ -362,7 +388,16 @@ export function RichiestaForm({ richiesta, clienteId, onSuccess, onCancel }: Ric
                     <FormControl>
                       <Checkbox
                         checked={field.value}
-                        onCheckedChange={field.onChange}
+                        onCheckedChange={(checked) => {
+                          if (piano.name === "pianoTutti" && checked) {
+                            form.setValue("pianoTerra", false);
+                            form.setValue("pianoIntermedi", false);
+                            form.setValue("pianoUltimo", false);
+                          } else if (piano.name !== "pianoTutti" && checked) {
+                            form.setValue("pianoTutti", false);
+                          }
+                          field.onChange(checked);
+                        }}
                       />
                     </FormControl>
                     <FormLabel className="!mt-0 font-normal">{piano.label}</FormLabel>
@@ -375,7 +410,8 @@ export function RichiestaForm({ richiesta, clienteId, onSuccess, onCancel }: Ric
 
         <div>
           <FormLabel className="text-base">Stato Accettato</FormLabel>
-          <div className="grid gap-3 sm:grid-cols-2 mt-3">
+          <p className="text-sm text-muted-foreground mb-2">Seleziona gli stati accettati. Se nessuno selezionato = indifferente.</p>
+          <div className="grid gap-3 sm:grid-cols-4 mt-3">
             {[
               { name: "statoNuovo" as const, label: "Nuovo" },
               { name: "statoRistrutturato" as const, label: "Ristrutturato" },
@@ -403,31 +439,76 @@ export function RichiestaForm({ richiesta, clienteId, onSuccess, onCancel }: Ric
         </div>
 
         <div>
-          <FormLabel className="text-base">Caratteristiche Richieste</FormLabel>
-          <div className="grid gap-3 sm:grid-cols-2 mt-3">
+          <FormLabel className="text-base">Caratteristiche</FormLabel>
+          <p className="text-sm text-muted-foreground mb-3">Per ogni caratteristica, indica se è obbligatoria, gradita, o non rilevante.</p>
+          <div className="space-y-3">
             {[
-              { name: "balcone" as const, label: "Balcone" },
-              { name: "terrazzo" as const, label: "Terrazzo" },
-              { name: "ascensore" as const, label: "Ascensore" },
-              { name: "box" as const, label: "Box/Garage" },
-            ].map((feat) => (
-              <FormField
-                key={feat.name}
-                control={form.control}
-                name={feat.name}
-                render={({ field }) => (
-                  <FormItem className="flex items-center gap-2">
-                    <FormControl>
-                      <Checkbox
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
+              { id: "balcone", label: "Balcone" },
+              { id: "terrazzo", label: "Terrazzo" },
+              { id: "ascensore", label: "Ascensore" },
+              { id: "box", label: "Box/Garage" },
+            ].map((feat) => {
+              const obbligatorie = form.watch("caratteristicheObbligatorie") || [];
+              const gradite = form.watch("caratteristicheGradite") || [];
+              const isObbligatoria = obbligatorie.includes(feat.id);
+              const isGradita = gradite.includes(feat.id);
+              
+              const handleChange = (type: "obbligatoria" | "gradita" | "none") => {
+                let newObb = obbligatorie.filter((f: string) => f !== feat.id);
+                let newGrad = gradite.filter((f: string) => f !== feat.id);
+                
+                if (type === "obbligatoria") {
+                  newObb = [...newObb, feat.id];
+                } else if (type === "gradita") {
+                  newGrad = [...newGrad, feat.id];
+                }
+                
+                form.setValue("caratteristicheObbligatorie", newObb);
+                form.setValue("caratteristicheGradite", newGrad);
+                form.setValue(feat.id as "balcone" | "terrazzo" | "ascensore" | "box", type !== "none");
+              };
+              
+              return (
+                <div key={feat.id} className="flex items-center gap-4 p-2 rounded-md border" data-testid={`feature-row-${feat.id}`}>
+                  <span className="font-medium min-w-24">{feat.label}</span>
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="radio"
+                        name={`feat-${feat.id}`}
+                        checked={!isObbligatoria && !isGradita}
+                        onChange={() => handleChange("none")}
+                        className="w-4 h-4"
+                        data-testid={`radio-${feat.id}-none`}
                       />
-                    </FormControl>
-                    <FormLabel className="!mt-0 font-normal">{feat.label}</FormLabel>
-                  </FormItem>
-                )}
-              />
-            ))}
+                      <span className="text-sm text-muted-foreground">Non rilevante</span>
+                    </label>
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="radio"
+                        name={`feat-${feat.id}`}
+                        checked={isGradita}
+                        onChange={() => handleChange("gradita")}
+                        className="w-4 h-4"
+                        data-testid={`radio-${feat.id}-gradita`}
+                      />
+                      <span className="text-sm">Gradita</span>
+                    </label>
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="radio"
+                        name={`feat-${feat.id}`}
+                        checked={isObbligatoria}
+                        onChange={() => handleChange("obbligatoria")}
+                        className="w-4 h-4"
+                        data-testid={`radio-${feat.id}-obbligatoria`}
+                      />
+                      <span className="text-sm font-medium text-primary">Obbligatoria</span>
+                    </label>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 

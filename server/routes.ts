@@ -516,13 +516,31 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
     }
   });
 
+  // Helper function to normalize zona text for matching
+  function normalizeZona(zona: string | null | undefined): string | null {
+    if (!zona) return null;
+    return zona
+      .toLowerCase()
+      .replace(/[\/,;]/g, ',')
+      .replace(/[^\w\s,àèéìòùáéíóú]/g, '')
+      .replace(/\s+/g, ' ')
+      .split(',')
+      .map(s => s.trim())
+      .filter(s => s.length > 0)
+      .join(', ');
+  }
+
   app.post("/api/richieste", async (req, res) => {
     try {
       const parsed = insertRichiestaSchema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ error: "Dati non validi", details: parsed.error });
       }
-      const richiesta = await storage.createRichiesta(parsed.data);
+      const dataWithNormalizedZona = {
+        ...parsed.data,
+        zonaNormalizzata: normalizeZona(parsed.data.zona),
+      };
+      const richiesta = await storage.createRichiesta(dataWithNormalizedZona);
       res.status(201).json(richiesta);
     } catch (error) {
       console.error("Create richiesta error:", error);
@@ -537,7 +555,11 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
       if (!parsed.success) {
         return res.status(400).json({ error: "Dati non validi", details: parsed.error });
       }
-      const richiesta = await storage.updateRichiesta(id, parsed.data);
+      const dataWithNormalizedZona = {
+        ...parsed.data,
+        zonaNormalizzata: parsed.data.zona !== undefined ? normalizeZona(parsed.data.zona) : undefined,
+      };
+      const richiesta = await storage.updateRichiesta(id, dataWithNormalizedZona);
       if (!richiesta) {
         return res.status(404).json({ error: "Richiesta non trovata" });
       }

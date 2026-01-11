@@ -16,38 +16,69 @@ export interface ParsedRequest {
   balcone?: boolean;
   ascensore?: boolean;
   box?: boolean;
+  pianoTerra?: boolean;
+  pianoIntermedi?: boolean;
   pianoUltimo?: boolean;
+  pianoTutti?: boolean;
   statoNuovo?: boolean;
   statoRistrutturato?: boolean;
   statoBuono?: boolean;
   statoDaRistrutturare?: boolean;
+  caratteristicheObbligatorie?: string[];
+  caratteristicheGradite?: string[];
 }
 
 export async function parseRequestWithAI(text: string): Promise<ParsedRequest> {
   try {
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
+      temperature: 0,
       messages: [
         {
           role: "system",
-          content: `Sei un assistente immobiliare italiano. Analizza la richiesta del cliente ed estrai le informazioni strutturate.
-          
-Rispondi SOLO con un oggetto JSON valido contenente i campi trovati:
-- zona: stringa con la zona/quartiere richiesto
-- budgetMassimo: numero (solo il valore numerico, senza simboli)
-- mqMinimi: numero minimo di metri quadri
-- camereMinime: numero minimo di camere/stanze
-- bagniMinimi: numero minimo di bagni
-- terrazzo: true se richiesto
-- balcone: true se richiesto
-- ascensore: true se richiesto
-- box: true se richiesto box/garage
-- pianoUltimo: true se richiesto ultimo piano/attico
-- statoNuovo: true se richiesto nuovo
-- statoRistrutturato: true se richiesto ristrutturato
-- statoBuono: true se accettato buono stato
-- statoDaRistrutturare: true se accettato da ristrutturare
+          content: `Sei un assistente immobiliare italiano ESPERTO nell'estrazione dati da richieste di acquisto immobiliare.
+Analizza ATTENTAMENTE la richiesta del cliente ed estrai le informazioni strutturate.
 
+REGOLE IMPORTANTI:
+- Estrai SOLO dati esplicitamente menzionati nel testo
+- Se un dato NON è certo, NON includerlo nel JSON
+- NON inventare o dedurre dati non presenti
+- Temperature 0: modalità fact extraction pura
+
+Rispondi SOLO con un oggetto JSON valido contenente i campi trovati:
+
+DATI NUMERICI:
+- zona: stringa con la zona/quartiere richiesto (testo esatto del cliente)
+- budgetMassimo: numero (solo il valore numerico, senza simboli. Es: "400mila" = 400000)
+- mqMinimi: numero minimo di metri quadri
+- camereMinime: numero minimo di camere/stanze (bilocale=2, trilocale=3, ecc)
+- bagniMinimi: numero minimo di bagni
+
+PIANO (boolean, impostare quelli accettati dal cliente):
+- pianoTerra: true se accetta piano terra/rialzato
+- pianoIntermedi: true se accetta piani intermedi (dal 1° al penultimo)
+- pianoUltimo: true se accetta ultimo piano/attico
+- pianoTutti: true se accetta qualsiasi piano o non ha preferenze
+Esempi: "dal secondo piano in su" → pianoIntermedi=true, pianoUltimo=true
+        "piano alto" → pianoUltimo=true
+        "no piano terra" → pianoIntermedi=true, pianoUltimo=true
+
+STATO IMMOBILE (boolean, impostare quelli accettati):
+- statoNuovo: true se accetta nuovo/nuova costruzione
+- statoRistrutturato: true se accetta ristrutturato
+- statoBuono: true se accetta buono stato
+- statoDaRistrutturare: true se accetta da ristrutturare
+Esempio: "anche da ristrutturare" → statoDaRistrutturare=true
+
+CARATTERISTICHE (array di stringhe):
+- caratteristicheObbligatorie: caratteristiche NECESSARIE/INDISPENSABILI
+  Parole chiave: "deve avere", "necessario", "obbligatorio", "indispensabile", "fondamentale"
+- caratteristicheGradite: caratteristiche PREFERIBILI/DESIDERATE
+  Parole chiave: "preferibile", "gradito", "sarebbe bello", "meglio se", "vorrei"
+Valori possibili: "balcone", "terrazzo", "ascensore", "box"
+Esempio: "balcone indispensabile, preferibile box" → obbligatorie=["balcone"], gradite=["box"]
+
+Se una caratteristica è menzionata senza qualificatori, mettila in caratteristicheObbligatorie.
 Ometti i campi non menzionati. Non aggiungere spiegazioni.`
         },
         {
@@ -55,7 +86,7 @@ Ometti i campi non menzionati. Non aggiungere spiegazioni.`
           content: text
         }
       ],
-      max_completion_tokens: 500,
+      max_completion_tokens: 800,
       response_format: { type: "json_object" }
     });
 
