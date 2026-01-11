@@ -17,6 +17,7 @@ import ImmobiliPage from "@/pages/immobili";
 import ImmobileDetailPage from "@/pages/immobili/detail";
 import ImmobileEsternoDetailPage from "@/pages/immobili/esterno-detail";
 import RichiestePage from "@/pages/richieste";
+import RichiestaDetailPage from "@/pages/richieste/[id]";
 import ComunicazioniPage from "@/pages/comunicazioni";
 import AppuntamentiPage from "@/pages/appuntamenti";
 import MatchingPage from "@/pages/matching";
@@ -38,6 +39,7 @@ function Router() {
       <Route path="/immobili/:id" component={ImmobileDetailPage} />
       <Route path="/immobili/esterno/:id" component={ImmobileEsternoDetailPage} />
       <Route path="/richieste" component={RichiestePage} />
+      <Route path="/richieste/:id" component={RichiestaDetailPage} />
       <Route path="/comunicazioni" component={ComunicazioniPage} />
       <Route path="/appuntamenti" component={AppuntamentiPage} />
       <Route path="/conferma-appuntamenti" component={ConfermaAppuntamentiPage} />
