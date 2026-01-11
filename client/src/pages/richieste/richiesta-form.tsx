@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { z } from "zod";
-import { Sparkles, Loader2 } from "lucide-react";
+import { Sparkles, Loader2, UserPlus, X } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -73,6 +75,15 @@ export function RichiestaForm({ richiesta, clienteId, onSuccess, onCancel }: Ric
   });
 
   const compratori = clienti.filter(c => c.tipoCliente === "compratore" || c.tipoCliente === "entrambi");
+
+  const [showNewClientForm, setShowNewClientForm] = useState(false);
+  const [newClientData, setNewClientData] = useState({
+    nome: "",
+    cognome: "",
+    telefono: "",
+    email: "",
+  });
+  const [isCreatingClient, setIsCreatingClient] = useState(false);
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -196,40 +207,175 @@ export function RichiestaForm({ richiesta, clienteId, onSuccess, onCancel }: Ric
     }
   };
 
+  const handleCreateNewClient = async () => {
+    if (!newClientData.nome && !newClientData.cognome) {
+      toast({
+        title: "Errore",
+        description: "Inserisci almeno nome o cognome",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsCreatingClient(true);
+    try {
+      const response = await apiRequest("POST", "/api/clienti", {
+        ...newClientData,
+        tipoCliente: "compratore",
+        ratingCliente: 3,
+        clienteAmico: false,
+        attivo: true,
+      });
+      const newClient = await response.json();
+      
+      await queryClient.invalidateQueries({ queryKey: ["/api/clienti"] });
+      
+      form.setValue("clienteId", newClient.id);
+      setShowNewClientForm(false);
+      setNewClientData({ nome: "", cognome: "", telefono: "", email: "" });
+      
+      toast({
+        title: "Cliente creato",
+        description: `${newClient.nome} ${newClient.cognome} aggiunto e selezionato`,
+      });
+    } catch (error) {
+      toast({
+        title: "Errore",
+        description: "Impossibile creare il cliente",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCreatingClient(false);
+    }
+  };
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         {!clienteId && (
-          <FormField
-            control={form.control}
-            name="clienteId"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Cliente *</FormLabel>
-                <Select 
-                  onValueChange={(v) => field.onChange(parseInt(v))} 
-                  value={field.value?.toString() ?? ""}
-                >
-                  <FormControl>
-                    <SelectTrigger data-testid="select-cliente">
-                      <SelectValue placeholder="Seleziona cliente..." />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {compratori.map((c) => (
-                      <SelectItem key={c.id} value={c.id.toString()}>
-                        {c.nome} {c.cognome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormDescription>
-                  Solo clienti registrati come compratori
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
+          <div className="space-y-3">
+            <FormField
+              control={form.control}
+              name="clienteId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Cliente *</FormLabel>
+                  <div className="flex gap-2">
+                    <Select 
+                      onValueChange={(v) => field.onChange(parseInt(v))} 
+                      value={field.value?.toString() ?? ""}
+                    >
+                      <FormControl>
+                        <SelectTrigger data-testid="select-cliente" className="flex-1">
+                          <SelectValue placeholder="Seleziona cliente..." />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {compratori.map((c) => (
+                          <SelectItem key={c.id} value={c.id.toString()}>
+                            {c.nome} {c.cognome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      variant={showNewClientForm ? "secondary" : "outline"}
+                      onClick={() => setShowNewClientForm(!showNewClientForm)}
+                      data-testid="button-new-client"
+                    >
+                      {showNewClientForm ? <X className="h-4 w-4" /> : <UserPlus className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                  <FormDescription>
+                    Solo clienti registrati come compratori
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {showNewClientForm && (
+              <Card className="border-primary/20">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <UserPlus className="h-4 w-4" />
+                    Nuovo Cliente Compratore
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="text-sm font-medium">Nome</label>
+                      <Input
+                        placeholder="Nome"
+                        value={newClientData.nome}
+                        onChange={(e) => setNewClientData(prev => ({ ...prev, nome: e.target.value }))}
+                        data-testid="input-new-client-nome"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Cognome</label>
+                      <Input
+                        placeholder="Cognome"
+                        value={newClientData.cognome}
+                        onChange={(e) => setNewClientData(prev => ({ ...prev, cognome: e.target.value }))}
+                        data-testid="input-new-client-cognome"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Telefono</label>
+                      <Input
+                        placeholder="Telefono"
+                        value={newClientData.telefono}
+                        onChange={(e) => setNewClientData(prev => ({ ...prev, telefono: e.target.value }))}
+                        data-testid="input-new-client-telefono"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Email</label>
+                      <Input
+                        type="email"
+                        placeholder="Email"
+                        value={newClientData.email}
+                        onChange={(e) => setNewClientData(prev => ({ ...prev, email: e.target.value }))}
+                        data-testid="input-new-client-email"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setShowNewClientForm(false);
+                        setNewClientData({ nome: "", cognome: "", telefono: "", email: "" });
+                      }}
+                    >
+                      Annulla
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleCreateNewClient}
+                      disabled={isCreatingClient || (!newClientData.nome && !newClientData.cognome)}
+                      data-testid="button-create-client"
+                    >
+                      {isCreatingClient ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Creazione...
+                        </>
+                      ) : (
+                        "Crea e seleziona"
+                      )}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
             )}
-          />
+          </div>
         )}
 
         <FormField
