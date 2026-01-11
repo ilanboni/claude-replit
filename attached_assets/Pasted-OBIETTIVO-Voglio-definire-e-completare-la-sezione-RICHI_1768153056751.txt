@@ -1,0 +1,120 @@
+OBIETTIVO
+Voglio definire e completare la sezione RICHIESTE (buyer requests) del CRM. 
+IMPORTANTE: NON modificare nulla di ciò che è già stato fatto e funziona (gestione clienti, import immobili privati da Idealista/Immobiliare con GPT-4o Vision/testo, messaggi ai privati, pipeline acquisizione privati, automazioni WhatsApp/Gmail già presenti). 
+Questo prompt riguarda SOLO la parte “Richieste”.
+
+STATO ATTUALE (UI “Nuova Richiesta”)
+Campi presenti:
+- Cliente (solo clienti registrati come compratori)
+- Descrizione Richiesta (testo naturale)
+- Bottone “Analizza con IA”
+- Zona (testo)
+- Budget Massimo
+- Mq Minimi
+- Camere Minime
+- Bagni Minimi
+- Piano Preferito (attualmente single choice: Qualsiasi / Intermedi / Ultimo)
+- Stato Accettato (Nuovo / Ristrutturato / Buono / Da ristrutturare)
+- Caratteristiche richieste (Balcone / Terrazzo / Ascensore / Box)
+- Priorità (Alta/Media/Bassa)
+- Rating richiesta (1-5 stelle)
+- Richiesta attiva (toggle)
+
+COME VOGLIO CHE FUNZIONI LATO RICHIESTE (SENZA CAMBIARE IL RESTO)
+
+1) ZONA: CAMPO LIBERO
+- Zona deve rimanere testo libero (no menu).
+- Salvare due campi:
+  a) zona_testo (quello che scrivo io, es “Brera / Moscova”)
+  b) zona_normalizzata (generata dal sistema):
+     - lowercase
+     - rimuovi punteggiatura
+     - separatori “/ , ;” => virgola
+     - spazi multipli => uno
+     - trim
+  Esempio: “Brera / Moscova” -> “brera, moscova”
+- Per ora nessun poligono, nessun raggio. (Lo aggiungeremo dopo con Google Maps.)
+
+2) PIANO: DEVE ESSERE MULTI-SELEZIONE (checkbox)
+- Un cliente può accettare “Piani intermedi” + “Ultimo piano” insieme.
+- Quindi sostituire “Piano Preferito” (single) con:
+  - piano_intermedi (boolean)
+  - piano_ultimo (boolean)
+  - (opzionale futuro) piano_terra (boolean)
+  - piano_indifferente (boolean) che se true disabilita gli altri
+- UI: checkboxes con toggle “Indifferente”.
+
+3) STATO IMMOBILE: DEVE ESSERE MULTI-SELEZIONE (checkbox)
+- “Stato accettato” NON deve essere single choice.
+- Campi boolean:
+  - stato_nuovo
+  - stato_ristrutturato
+  - stato_buono
+  - stato_da_ristrutturare
+  - stato_indifferente (se true disabilita gli altri)
+- UI: checkboxes + indifferente.
+
+4) CARATTERISTICHE: DISTINGUERE “OBBLIGATORIE” vs “GRADITE”
+- Non basta un elenco unico. Serve distinzione:
+  - caratteristiche_obbligatorie (array di string oppure booleans)
+  - caratteristiche_gradite (array di string oppure booleans)
+- Caratteristiche iniziali:
+  - balcone
+  - terrazzo
+  - ascensore
+  - box_garage
+- UI semplice:
+  - due gruppi separati “Obbligatorie” e “Gradite”
+  - oppure toggle “obbligatorio” per ogni caratteristica
+- Regola matching futura: se una caratteristica è obbligatoria e manca, l’immobile non deve risultare “match forte”.
+
+5) “ANALIZZA CON IA” DEVE POPOLARE I CAMPI (NON SOLO ANALIZZARE)
+Quando clicco “Analizza con IA”:
+- input: descrizione richiesta (testo naturale)
+- output: JSON strutturato con i campi della richiesta
+- Il sistema deve:
+  - riempire budget_max, mq_min, camere_min, bagni_min (se presenti)
+  - riempire zona_testo (se presenti zone nel testo, senza inventare)
+  - settare i flag piano_* coerentemente (es “dal secondo piano in su” => intermedi=true, ultimo=true, indifferente=false)
+  - settare i flag stato_* (se capisce “ristrutturato” o “anche da ristrutturare”)
+  - settare caratteristiche obbligatorie/gradite in base a parole chiave (“balcone indispensabile” => obbligatoria, “preferibile ascensore” => gradita)
+- Se un dato NON è certo: lascia vuoto o non settare. NON mostrare errori nel testo (niente “Errore: manca…”).
+- Modalità “fact extraction”: niente frasi, niente commenti, solo JSON.
+- Temperature 0.
+
+Endpoint suggerito:
+POST /api/requests/parse
+Body: { "text": "..." }
+Response: { parsed_fields... }
+Poi il frontend applica i parsed_fields ai campi form.
+
+6) PRIORITÀ / RATING / ATTIVA
+- Restano come già sono.
+- Attiva = se false non entra nei matching e non genera alert.
+
+7) FUTURO (NON IMPLEMENTARE ORA, SOLO PREPARARE)
+- In futuro useremo Google Maps per raggio/poligono
+- e per matching geografico.
+- Ora basta zona_testo e zona_normalizzata.
+
+8) OUTPUT E UX MINIMA
+- Non cambiare impostazioni generali, lingua, o altre sezioni.
+- Nella lista richieste: mostra almeno
+  - cliente
+  - zona_testo
+  - budget_max
+  - mq_min
+  - rating
+  - attiva sì/no
+- Nella scheda cliente (buyer): deve essere possibile vedere le sue richieste (anche come tab).
+  (Se già esiste, non toccare; se manca, aggiungere solo questa vista senza stravolgere.)
+
+CONSTRAINT IMPORTANTI
+- Ripeto: NON modificare il sistema di acquisizione privati, import privati, messaggistica privati, pipeline esistente e tutto ciò che già funziona.
+- Questo intervento riguarda SOLO la sezione RICHIESTE (buyer) e i suoi campi/endpoint “Analizza con IA”.
+
+DELIVERABLE ATTESI
+- Migrazione DB per nuovi campi (piano multi, stato multi, caratteristiche obbligatorie/gradite, zona_normalizzata).
+- Modifica UI “Nuova Richiesta” secondo quanto sopra.
+- Implementazione endpoint parse IA + integrazione bottone “Analizza con IA” che popola il form.
+- Test: 5 esempi di descrizione naturale e verifica che i campi si popolino correttamente (senza inventare e senza errori visibili).
