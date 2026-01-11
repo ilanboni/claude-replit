@@ -45,9 +45,11 @@ export const richieste = pgTable("richieste", {
   descrizioneLibera: text("descrizione_libera"), // free text AI will parse
   budgetMassimo: decimal("budget_massimo", { precision: 12, scale: 2 }),
   mqMinimi: integer("mq_minimi"),
-  zona: text("zona"),
+  zona: text("zona"), // testo libero inserito dall'utente
+  zonaNormalizzata: text("zona_normalizzata"), // lowercase, punteggiatura rimossa, separatori normalizzati
   poligonoGeografico: json("poligono_geografico"), // GeoJSON
   pianoTutti: boolean("piano_tutti").default(false),
+  pianoTerra: boolean("piano_terra").default(false),
   pianoIntermedi: boolean("piano_intermedi").default(false),
   pianoUltimo: boolean("piano_ultimo").default(false),
   statoNuovo: boolean("stato_nuovo").default(false),
@@ -58,6 +60,8 @@ export const richieste = pgTable("richieste", {
   terrazzo: boolean("terrazzo").default(false),
   ascensore: boolean("ascensore").default(false),
   box: boolean("box").default(false),
+  caratteristicheObbligatorie: json("caratteristiche_obbligatorie").$type<string[]>().default([]),
+  caratteristicheGradite: json("caratteristiche_gradite").$type<string[]>().default([]),
   camereMinime: integer("camere_minime"),
   bagniMinimi: integer("bagni_minimi"),
   priorita: integer("priorita").default(2), // 1=alta, 2=media, 3=bassa
