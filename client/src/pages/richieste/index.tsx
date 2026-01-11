@@ -13,6 +13,7 @@ import {
   FileText,
   Users,
   Sparkles,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -168,16 +169,35 @@ function RichiestaCard({
           </div>
         )}
 
-        <div className="mt-4 flex items-center justify-between">
+        <div className="mt-4 flex items-center justify-between gap-2 flex-wrap">
           <span className="text-xs text-muted-foreground">
             Creata il {new Date(richiesta.createdAt).toLocaleDateString('it-IT')}
           </span>
-          <Link href={`/matching?richiestaId=${richiesta.id}`}>
-            <Button size="sm" variant="outline" data-testid={`button-matching-${richiesta.id}`}>
-              <Sparkles className="h-4 w-4 mr-1" />
-              Matching
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            {richiesta.linkRicerca && (
+              <Button
+                size="sm"
+                variant="outline"
+                asChild
+                data-testid={`button-casafari-${richiesta.id}`}
+              >
+                <a
+                  href={richiesta.linkRicerca}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <ExternalLink className="h-4 w-4 mr-1" />
+                  Casafari
+                </a>
+              </Button>
+            )}
+            <Link href={`/matching?richiestaId=${richiesta.id}`}>
+              <Button size="sm" variant="outline" data-testid={`button-matching-${richiesta.id}`}>
+                <Sparkles className="h-4 w-4 mr-1" />
+                Matching
+              </Button>
+            </Link>
+          </div>
         </div>
       </CardContent>
     </Card>

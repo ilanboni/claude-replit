@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { z } from "zod";
-import { Sparkles, Loader2, UserPlus } from "lucide-react";
+import { Sparkles, Loader2, UserPlus, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -60,6 +60,7 @@ const formSchema = z.object({
   bagniMinimi: z.number().optional().nullable(),
   priorita: z.number(),
   ratingRichiesta: z.number(),
+  linkRicerca: z.string().optional(),
   attiva: z.boolean(),
 });
 
@@ -110,6 +111,7 @@ export function RichiestaForm({ richiesta, clienteId, onSuccess, onCancel }: Ric
       bagniMinimi: richiesta?.bagniMinimi ?? null,
       priorita: richiesta?.priorita ?? 2,
       ratingRichiesta: richiesta?.ratingRichiesta ?? 3,
+      linkRicerca: richiesta?.linkRicerca ?? "",
       attiva: richiesta?.attiva ?? true,
     },
   });
@@ -555,6 +557,46 @@ export function RichiestaForm({ richiesta, clienteId, onSuccess, onCancel }: Ric
             })}
           </div>
         </div>
+
+        <FormField
+          control={form.control}
+          name="linkRicerca"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Link Casafari</FormLabel>
+              <div className="flex gap-2">
+                <FormControl>
+                  <Input
+                    placeholder="https://app.casafari.com/..."
+                    {...field}
+                    data-testid="input-link-ricerca"
+                  />
+                </FormControl>
+                {field.value && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    asChild
+                  >
+                    <a
+                      href={field.value}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      data-testid="button-open-casafari"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </a>
+                  </Button>
+                )}
+              </div>
+              <FormDescription>
+                Link alla ricerca su Casafari per questo cliente
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         <div className="grid gap-4 sm:grid-cols-2">
           <FormField
