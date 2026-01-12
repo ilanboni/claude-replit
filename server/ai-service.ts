@@ -1040,3 +1040,50 @@ Rispondi SOLO con un oggetto JSON valido:
     return defaultResult;
   }
 }
+
+// Generate a message for contacting property owners via portal forms
+export async function generateFormContactMessage(propertyData: {
+  titolo?: string;
+  indirizzo?: string;
+  zona?: string;
+  mq?: number;
+  prezzo?: string | number;
+}): Promise<string> {
+  try {
+    const propertyInfo = [
+      propertyData.titolo && `Annuncio: ${propertyData.titolo}`,
+      propertyData.indirizzo && `Indirizzo: ${propertyData.indirizzo}`,
+      propertyData.zona && `Zona: ${propertyData.zona}`,
+      propertyData.mq && `Superficie: ${propertyData.mq} mq`,
+      propertyData.prezzo && `Prezzo: €${Number(propertyData.prezzo).toLocaleString('it-IT')}`,
+    ].filter(Boolean).join('\n');
+
+    const prompt = `Sei un agente immobiliare professionista. Scrivi un messaggio breve e professionale per contattare un proprietario privato che ha pubblicato un annuncio di vendita su un portale immobiliare. 
+
+Dettagli immobile:
+${propertyInfo}
+
+Il messaggio deve:
+- Essere in italiano
+- Essere educato e professionale
+- Esprimere interesse genuino per l'immobile
+- Chiedere la disponibilità per una visita o maggiori informazioni
+- NON essere troppo commerciale o aggressivo
+- Essere lungo massimo 150 parole
+
+Scrivi solo il messaggio, senza prefissi o spiegazioni.`;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      temperature: 0.7,
+      max_tokens: 300,
+      messages: [{ role: "user", content: prompt }],
+    });
+
+    return response.choices[0]?.message?.content || 
+      "Buongiorno, ho visto il vostro annuncio e sarei interessato a maggiori informazioni. Potremmo organizzare una visita? Grazie.";
+  } catch (error) {
+    console.error("Generate form contact message error:", error);
+    return "Buongiorno, ho visto il vostro annuncio e sarei interessato a maggiori informazioni. Potremmo organizzare una visita? Grazie.";
+  }
+}

@@ -21,6 +21,10 @@ import {
   Send,
   Loader2,
   Clock,
+  FormInput,
+  CheckCircle2,
+  Wand2,
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -180,6 +184,150 @@ function PropertyHeader({ immobile, cliente }: { immobile: ImmobileEsterno; clie
               )}
             </div>
           </div>
+        </div>
+
+        {/* Banner Contatto via Form */}
+        {immobile.contattoMetodo === "form" && (
+          <FormContactBanner immobile={immobile} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function FormContactBanner({ immobile }: { immobile: ImmobileEsterno }) {
+  const { toast } = useToast();
+  const [generatedMessage, setGeneratedMessage] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const generateMessageMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/ai/generate-form-message", {
+        immobileId: immobile.id,
+        indirizzo: immobile.indirizzo,
+        zona: immobile.zona,
+        mq: immobile.mq,
+        prezzo: immobile.prezzo,
+        titolo: immobile.titolo,
+      });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setGeneratedMessage(data.message);
+      toast({ title: "Messaggio generato con AI" });
+    },
+    onError: () => {
+      toast({ title: "Errore", description: "Impossibile generare il messaggio", variant: "destructive" });
+    },
+  });
+
+  const registerSentMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("PATCH", `/api/acquisizione/${immobile.id}`, {
+        statoContatto: "contattato",
+        ultimoTentativoForm: new Date().toISOString(),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/acquisizione"] });
+      toast({ title: "Invio registrato", description: "Lo stato è stato aggiornato a 'Contattato'" });
+    },
+  });
+
+  const handleOpenForm = () => {
+    const url = immobile.formUrl || immobile.urlAnnuncio;
+    if (url) {
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
+  };
+
+  const handleCopyMessage = () => {
+    if (generatedMessage) {
+      navigator.clipboard.writeText(generatedMessage);
+      toast({ title: "Messaggio copiato", description: "Incolla nel form del portale" });
+    }
+  };
+
+  return (
+    <div className="mt-4 p-4 border-2 border-amber-500/50 bg-amber-500/10 rounded-lg" data-testid="banner-form-contact">
+      <div className="flex items-start gap-3">
+        <div className="p-2 bg-amber-500/20 rounded-full">
+          <FormInput className="h-5 w-5 text-amber-600" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="font-semibold text-amber-700 dark:text-amber-400">Contatto via Form</h3>
+            {immobile.rispostaRicevuta && (
+              <Badge className="bg-green-500 text-white">
+                <CheckCircle2 className="h-3 w-3 mr-1" />
+                Risposta ricevuta
+              </Badge>
+            )}
+          </div>
+          <p className="text-sm text-muted-foreground mt-1">
+            Questo annuncio non ha telefono visibile. Contatta il proprietario tramite il form sul portale{" "}
+            <span className="font-medium">{immobile.portale || immobile.fonte}</span>.
+          </p>
+          
+          <div className="flex flex-wrap gap-2 mt-3">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleOpenForm}
+              disabled={!immobile.formUrl && !immobile.urlAnnuncio}
+              data-testid="button-open-form"
+            >
+              <ExternalLink className="h-4 w-4 mr-1" />
+              Apri Form
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => generateMessageMutation.mutate()}
+              disabled={generateMessageMutation.isPending}
+              data-testid="button-generate-message"
+            >
+              {generateMessageMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Wand2 className="h-4 w-4 mr-1" />
+              )}
+              Genera Messaggio AI
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => registerSentMutation.mutate()}
+              disabled={registerSentMutation.isPending}
+              data-testid="button-register-sent"
+            >
+              {registerSentMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <CheckCircle2 className="h-4 w-4 mr-1" />
+              )}
+              Registra Invio
+            </Button>
+          </div>
+
+          {generatedMessage && (
+            <div className="mt-3 p-3 bg-background border rounded-md">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-medium text-muted-foreground">Messaggio generato:</span>
+                <Button size="sm" variant="ghost" onClick={handleCopyMessage}>
+                  Copia
+                </Button>
+              </div>
+              <p className="text-sm whitespace-pre-wrap">{generatedMessage}</p>
+            </div>
+          )}
+
+          {immobile.ultimoTentativoForm && (
+            <p className="text-xs text-muted-foreground mt-2">
+              <Clock className="h-3 w-3 inline mr-1" />
+              Ultimo tentativo: {format(new Date(immobile.ultimoTentativoForm), "dd/MM/yyyy HH:mm", { locale: it })}
+            </p>
+          )}
         </div>
       </div>
     </div>

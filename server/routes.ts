@@ -7,7 +7,7 @@ import {
   insertImmobileEsternoSchema, insertWhatsappCampaignSchema, insertCampaignMessageSchema,
   insertAttivitaClienteSchema, sendCommunicationSchema
 } from "@shared/schema";
-import { parseRequestWithAI, calculateMatchScore, generateAICoachMessage, parsePropertyListingWithAI, parsePropertyImageWithAI, generateAcquisitionMessage, generateMirroring, extractPropertyFacts } from "./ai-service";
+import { parseRequestWithAI, calculateMatchScore, generateAICoachMessage, parsePropertyListingWithAI, parsePropertyImageWithAI, generateAcquisitionMessage, generateMirroring, extractPropertyFacts, generateFormContactMessage } from "./ai-service";
 import { whatsappWS } from "./websocket";
 import { sendWhatsAppMessage, isUltraMsgConfigured, normalizeItalianPhone } from "./ultramsg";
 import { getUnreadEmails, searchPortalEmails, parsePortalEmail, markAsRead, EmailMessage, sendEmail, isGmailConfigured } from "./gmail-service";
@@ -1105,6 +1105,18 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
     } catch (error) {
       console.error("AI coach error:", error);
       res.json({ message: "Buona giornata di lavoro! Concentrati sui tuoi obiettivi." });
+    }
+  });
+
+  // Generate message for portal form contact
+  app.post("/api/ai/generate-form-message", async (req, res) => {
+    try {
+      const { indirizzo, zona, mq, prezzo, titolo } = req.body;
+      const message = await generateFormContactMessage({ titolo, indirizzo, zona, mq, prezzo });
+      res.json({ message });
+    } catch (error) {
+      console.error("Generate form message error:", error);
+      res.status(500).json({ error: "Errore nella generazione del messaggio" });
     }
   });
 

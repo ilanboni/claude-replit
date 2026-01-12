@@ -1,5 +1,5 @@
 import { storage } from "./storage";
-import { searchPortalEmails, parsePortalEmail, markAsRead, isGmailConfigured } from "./gmail-service";
+import { searchPortalEmails, parsePortalEmail, markAsRead, isGmailConfigured, searchFormResponseEmails, parseFormResponseEmail } from "./gmail-service";
 
 let isRunning = false;
 let intervalId: NodeJS.Timeout | null = null;
@@ -120,10 +120,11 @@ export function startEmailImportWorker(intervalMinutes: number = 5): void {
   isRunning = true;
   console.log(`[EmailImportWorker] Starting worker (polling every ${intervalMinutes} minutes)`);
 
-  importPortalEmails().catch(console.error);
+  // Run both portal imports and form response imports
+  manualImportEmails().catch(console.error);
 
   intervalId = setInterval(() => {
-    importPortalEmails().catch(console.error);
+    manualImportEmails().catch(console.error);
   }, intervalMinutes * 60 * 1000);
 }
 
@@ -137,5 +138,152 @@ export function stopEmailImportWorker(): void {
 }
 
 export async function manualImportEmails(): Promise<{ imported: number; errors: string[] }> {
-  return importPortalEmails();
+  const portalResult = await importPortalEmails();
+  const formResult = await importFormResponses();
+  return {
+    imported: portalResult.imported + formResult.imported,
+    errors: [...portalResult.errors, ...formResult.errors],
+  };
+}
+
+// Import form responses from portal emails and associate with external properties
+async function importFormResponses(): Promise<{ imported: number; errors: string[] }> {
+  if (!await isGmailConfigured()) {
+    return { imported: 0, errors: ["Gmail not configured"] };
+  }
+
+  let imported = 0;
+  const errors: string[] = [];
+
+  try {
+    const emails = await searchFormResponseEmails();
+    console.log(`[EmailImportWorker] Found ${emails.length} form response emails`);
+
+    for (const email of emails) {
+      try {
+        // Check if already processed
+        const existing = await storage.getNotificaByEmailId(email.id);
+        if (existing) {
+          continue;
+        }
+
+        const parsed = parseFormResponseEmail(email);
+        console.log(`[EmailImportWorker] Parsed form response from ${parsed.portale}:`, parsed.indirizzoImmobile || parsed.urlAnnuncio);
+        
+        // Try to match with external property
+        let immobileEsterno = null;
+        
+        // Match by URL
+        if (parsed.urlAnnuncio) {
+          immobileEsterno = await storage.getImmobileEsternoByUrl(parsed.urlAnnuncio);
+        }
+        
+        // Match by address (fuzzy)
+        if (!immobileEsterno && parsed.indirizzoImmobile) {
+          const allEsterni = await storage.getImmobiliEsterni();
+          immobileEsterno = allEsterni.find(ie => {
+            if (!ie.indirizzo) return false;
+            const addr1 = ie.indirizzo.toLowerCase().replace(/[,.\-\s]+/g, ' ');
+            const addr2 = parsed.indirizzoImmobile!.toLowerCase().replace(/[,.\-\s]+/g, ' ');
+            return addr1.includes(addr2) || addr2.includes(addr1);
+          });
+        }
+        
+        // Match by reference number
+        if (!immobileEsterno && parsed.riferimentoAnnuncio) {
+          const allEsterni = await storage.getImmobiliEsterni();
+          immobileEsterno = allEsterni.find(ie => 
+            ie.riferimentoAnnuncio?.toLowerCase() === parsed.riferimentoAnnuncio?.toLowerCase() ||
+            ie.idWeb === parsed.riferimentoAnnuncio
+          );
+        }
+
+        if (immobileEsterno) {
+          // Update external property: mark response received
+          await storage.updateImmobileEsterno(immobileEsterno.id, {
+            rispostaRicevuta: true,
+            statoContatto: 'interessato',
+            // Update contact info if we got new info
+            ...(parsed.telefonoMittente && !immobileEsterno.contattoTelefono ? { 
+              contattoTelefono: parsed.telefonoMittente,
+              contattoMetodo: 'telefono'
+            } : {}),
+            ...(parsed.emailMittente && !immobileEsterno.contattoEmail ? { 
+              contattoEmail: parsed.emailMittente 
+            } : {}),
+            ...(parsed.mittente && immobileEsterno.contattoNome?.startsWith('Proprietario') ? { 
+              contattoNome: parsed.mittente 
+            } : {}),
+          });
+
+          // If we now have phone, update client too
+          if (immobileEsterno.clienteId) {
+            const cliente = await storage.getCliente(immobileEsterno.clienteId);
+            if (cliente) {
+              // Create communication record
+              await storage.createComunicazione({
+                clienteId: cliente.id,
+                canale: 'email',
+                tipo: 'risposta',
+                testo: `Risposta da ${parsed.portale}: ${parsed.testoRisposta.slice(0, 1000)}`,
+              });
+              
+              // Update client contact info if missing
+              if (parsed.telefonoMittente && !cliente.telefono) {
+                await storage.updateCliente(cliente.id, { telefono: parsed.telefonoMittente });
+              }
+              if (parsed.emailMittente && !cliente.email) {
+                await storage.updateCliente(cliente.id, { email: parsed.emailMittente });
+              }
+            }
+          }
+
+          // Create notification
+          await storage.createNotifica({
+            tipo: 'risposta_form',
+            titolo: `Risposta ricevuta da ${parsed.portale}`,
+            messaggio: `Il proprietario di ${immobileEsterno.indirizzo || immobileEsterno.titolo} ha risposto al tuo messaggio`,
+            clienteId: immobileEsterno.clienteId || null,
+            emailId: email.id,
+            priorita: 1,
+          });
+
+          await markAsRead(email.id);
+          imported++;
+          console.log(`[EmailImportWorker] Imported form response for property: ${immobileEsterno.indirizzo}`);
+        } else {
+          // No match found, create generic notification
+          await storage.createNotifica({
+            tipo: 'risposta_form',
+            titolo: `Risposta da ${parsed.portale}`,
+            messaggio: `Nuova risposta ricevuta: ${parsed.testoRisposta.slice(0, 200)}`,
+            emailId: email.id,
+            priorita: 2,
+          });
+          await markAsRead(email.id);
+          console.log(`[EmailImportWorker] Form response without property match from ${parsed.portale}`);
+        }
+      } catch (emailError) {
+        console.error(`[EmailImportWorker] Error processing form response ${email.id}:`, emailError);
+        errors.push(`Form response ${email.id}: ${String(emailError)}`);
+      }
+    }
+  } catch (error) {
+    console.error("[EmailImportWorker] Error fetching form response emails:", error);
+    errors.push(String(error));
+  }
+
+  return { imported, errors };
+}
+
+// Combined import function that handles both portal inquiries and form responses
+async function importAllEmails(): Promise<{ portalImported: number; formResponsesImported: number; errors: string[] }> {
+  const portalResult = await importPortalEmails();
+  const formResult = await importFormResponses();
+  
+  return {
+    portalImported: portalResult.imported,
+    formResponsesImported: formResult.imported,
+    errors: [...portalResult.errors, ...formResult.errors],
+  };
 }

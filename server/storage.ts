@@ -28,7 +28,7 @@ import {
   type Notifica, type InsertNotifica,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, sql, lte } from "drizzle-orm";
+import { eq, and, or, desc, sql, lte } from "drizzle-orm";
 
 export interface IStorage {
   // Clienti
@@ -75,6 +75,7 @@ export interface IStorage {
   // Immobili Esterni (Acquisizione)
   getImmobiliEsterni(preferiti?: boolean): Promise<ImmobileEsterno[]>;
   getImmobileEsterno(id: number): Promise<ImmobileEsterno | undefined>;
+  getImmobileEsternoByUrl(url: string): Promise<ImmobileEsterno | undefined>;
   getImmobiliEsterniByCliente(clienteId: number): Promise<ImmobileEsterno[]>;
   createImmobileEsterno(data: InsertImmobileEsterno): Promise<ImmobileEsterno>;
   updateImmobileEsterno(id: number, data: Partial<InsertImmobileEsterno>): Promise<ImmobileEsterno | undefined>;
@@ -360,6 +361,17 @@ export class DatabaseStorage implements IStorage {
 
   async getImmobileEsterno(id: number): Promise<ImmobileEsterno | undefined> {
     const [immobile] = await db.select().from(immobiliEsterni).where(eq(immobiliEsterni.id, id));
+    return immobile;
+  }
+
+  async getImmobileEsternoByUrl(url: string): Promise<ImmobileEsterno | undefined> {
+    // Match by urlAnnuncio or formUrl
+    const [immobile] = await db.select().from(immobiliEsterni).where(
+      or(
+        eq(immobiliEsterni.urlAnnuncio, url),
+        eq(immobiliEsterni.formUrl, url)
+      )
+    );
     return immobile;
   }
 

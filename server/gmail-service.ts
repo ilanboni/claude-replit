@@ -414,3 +414,145 @@ export async function isGmailConfigured(): Promise<boolean> {
     return false;
   }
 }
+
+// Search for form response emails from property portals
+export async function searchFormResponseEmails(): Promise<EmailMessage[]> {
+  const responseQueries = [
+    'from:clickcase.it',
+    'from:noreply subject:risposta',
+    'from:info subject:proprietario ha risposto',
+    'subject:risposta al tuo messaggio',
+    'subject:il proprietario ti ha risposto',
+    'subject:nuova risposta annuncio',
+    'subject:risposta annuncio privato',
+    'from:immobiliare.it subject:risposta',
+    'from:idealista.it subject:risposta',
+    'from:casa.it subject:risposta',
+  ];
+  
+  const query = responseQueries.join(' OR ');
+  return getEmailsByQuery(query, 30);
+}
+
+export interface ParsedFormResponse {
+  portale: string;
+  mittente?: string;
+  emailMittente?: string;
+  telefonoMittente?: string;
+  testoRisposta: string;
+  indirizzoImmobile?: string;
+  riferimentoAnnuncio?: string;
+  urlAnnuncio?: string;
+  dataRisposta: Date;
+}
+
+export function parseFormResponseEmail(email: EmailMessage): ParsedFormResponse {
+  const body = email.body || email.snippet;
+  const subject = email.subject || '';
+  
+  let portale = 'sconosciuto';
+  if (email.from.includes('clickcase.it')) portale = 'ClickCase.it';
+  else if (email.from.includes('immobiliare.it')) portale = 'Immobiliare.it';
+  else if (email.from.includes('casa.it')) portale = 'Casa.it';
+  else if (email.from.includes('idealista.it')) portale = 'Idealista';
+  else if (email.from.includes('subito.it')) portale = 'Subito.it';
+  
+  // Extract email and phone from body
+  const emailRegex = /[\w.-]+@[\w.-]+\.\w+/g;
+  const phoneRegex = /(?:\+39\s?)?(?:3\d{2}[\s.-]?\d{3,4}[\s.-]?\d{3,4}|3\d{8,9})/g;
+  
+  const emails = body.match(emailRegex) || [];
+  const phones = body.match(phoneRegex) || [];
+  
+  const excludedDomains = ['clickcase.it', 'immobiliare.it', 'casa.it', 'idealista.it', 'subito.it', 'noreply'];
+  const senderEmail = emails.find(e => !excludedDomains.some(d => e.includes(d)));
+  const senderPhone = phones[0]?.replace(/[\s.-]/g, '');
+  
+  // Extract sender name patterns
+  let mittente: string | undefined;
+  const namePatterns = [
+    /(?:Da|From|Mittente|Proprietario)[:\s]+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\s]+?)(?:\n|<|Email|Telefono)/i,
+    /(?:Nome)[:\s]+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\s]+)/i,
+  ];
+  
+  for (const pattern of namePatterns) {
+    const match = body.match(pattern);
+    if (match) {
+      mittente = match[1].trim();
+      break;
+    }
+  }
+  
+  // Extract address from body
+  let indirizzoImmobile: string | undefined;
+  const addressPatterns = [
+    /(?:Indirizzo|Via|Piazza|Corso|Viale)[:\s]+([A-Za-zÀ-ÿ0-9\s,.-]+?)(?:\n|Prezzo|Mq|$)/i,
+    /(?:Immobile in)[:\s]+([A-Za-zÀ-ÿ0-9\s,.-]+?)(?:\n|$)/i,
+    /(?:Annuncio)[:\s]+"?([^"]+)"?/i,
+  ];
+  
+  for (const pattern of addressPatterns) {
+    const match = body.match(pattern);
+    if (match) {
+      indirizzoImmobile = match[1].trim();
+      break;
+    }
+  }
+  
+  // Extract reference number
+  let riferimentoAnnuncio: string | undefined;
+  const refPatterns = [
+    /(?:Ref|Riferimento|Codice)[.:\s]+([A-Za-z0-9_-]+)/i,
+    /ID[:\s]+(\d+)/i,
+  ];
+  
+  for (const pattern of refPatterns) {
+    const match = body.match(pattern);
+    if (match) {
+      riferimentoAnnuncio = match[1];
+      break;
+    }
+  }
+  
+  // Extract URL
+  let urlAnnuncio: string | undefined;
+  const urlPattern = /https?:\/\/[^\s"<>]+/gi;
+  const urls = body.match(urlPattern) || [];
+  urlAnnuncio = urls.find(u => 
+    u.includes('clickcase.it') || 
+    u.includes('immobiliare.it') || 
+    u.includes('idealista.it') || 
+    u.includes('casa.it')
+  );
+  
+  // Extract message content
+  let testoRisposta = '';
+  const messagePatterns = [
+    /(?:Messaggio|Risposta)[:\s]*([\s\S]*?)(?:Rispondi|Contatta|Vai all|$)/i,
+    /(?:Testo)[:\s]*([\s\S]*?)(?:\n{2,}|$)/i,
+  ];
+  
+  for (const pattern of messagePatterns) {
+    const match = body.match(pattern);
+    if (match && match[1]?.trim()) {
+      testoRisposta = match[1].trim();
+      break;
+    }
+  }
+  
+  if (!testoRisposta) {
+    testoRisposta = body.slice(0, 2000);
+  }
+  
+  return {
+    portale,
+    mittente,
+    emailMittente: senderEmail,
+    telefonoMittente: senderPhone,
+    testoRisposta,
+    indirizzoImmobile,
+    riferimentoAnnuncio,
+    urlAnnuncio,
+    dataRisposta: email.date,
+  };
+}
