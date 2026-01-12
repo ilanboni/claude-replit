@@ -2259,6 +2259,87 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
     }
   });
 
+  // Register form submission - creates client and updates immobile (like WhatsApp but without sending)
+  app.post("/api/acquisizione/:id/register-form-sent", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { message } = req.body;
+      
+      const immobile = await storage.getImmobileEsterno(id);
+      if (!immobile) {
+        return res.status(404).json({ error: "Immobile non trovato" });
+      }
+
+      // Update immobile status
+      await storage.updateImmobileEsterno(id, {
+        statoContatto: "contattato",
+        messaggioInviato: message || null,
+        dataContatto: new Date(),
+      });
+
+      // Create or find client "Proprietario [Via]" - same logic as WhatsApp
+      const extractStreetName = (address: string): string => {
+        const withoutNumber = address.replace(/\s*,?\s*\d+[a-zA-Z]?\s*$/, '').trim();
+        const match = withoutNumber.match(/^(Via|Viale|Piazza|Corso|Largo|Vicolo|Piazzale)\s+(.+)$/i);
+        if (match) {
+          const prefix = match[1];
+          const nameParts = match[2].split(/\s+/);
+          const mainName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : nameParts[0];
+          return `${prefix} ${mainName}`;
+        }
+        return withoutNumber || address;
+      };
+      
+      const streetName = immobile.indirizzo ? extractStreetName(immobile.indirizzo) : (immobile.zona || "Immobile");
+      
+      // Check if client already exists by email (for form contacts we don't have phone)
+      const clienti = await storage.getClienti();
+      let cliente = immobile.contattoEmail 
+        ? clienti.find(c => c.email?.toLowerCase() === immobile.contattoEmail?.toLowerCase())
+        : null;
+      
+      if (!cliente) {
+        // Create new client
+        cliente = await storage.createCliente({
+          nome: "Proprietario",
+          cognome: streetName,
+          telefono: "",
+          email: immobile.contattoEmail || "",
+          tipoCliente: "venditore",
+          ratingCliente: 1,
+          note: `Prospect da form portale: ${immobile.titolo || streetName}. Portale: ${immobile.fonte || 'N/D'}`,
+          attivo: true,
+        });
+      }
+
+      // Update immobile with client association
+      await storage.updateImmobileEsterno(id, {
+        clienteId: cliente.id,
+      });
+
+      // Create communication record
+      if (message) {
+        await storage.createComunicazione({
+          clienteId: cliente.id,
+          immobileEsternoId: id,
+          tipo: "proposta",
+          testo: message,
+          canale: "email", // Form contact is like email
+          creatoDA: "agente",
+          esito: null,
+        });
+      }
+
+      res.json({ 
+        success: true, 
+        cliente: cliente,
+      });
+    } catch (error) {
+      console.error("Register form sent error:", error);
+      res.status(500).json({ success: false, error: "Errore nella registrazione" });
+    }
+  });
+
   // Generate mirroring phrases from property listing
   app.post("/api/acquisizione/:id/generate-mirroring", async (req, res) => {
     try {

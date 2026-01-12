@@ -100,16 +100,19 @@ function FormContactBanner({ immobile }: { immobile: ImmobileEsterno }) {
 
   const registerSentMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("PATCH", `/api/acquisizione/${immobile.id}`, {
-        statoContatto: "contattato",
-        dataContatto: new Date().toISOString(),
-        messaggioInviato: generatedMessage || undefined,
+      const res = await apiRequest("POST", `/api/acquisizione/${immobile.id}/register-form-sent`, {
+        message: generatedMessage || undefined,
       });
+      return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/acquisizione"] });
       queryClient.invalidateQueries({ queryKey: ["/api/acquisizione", immobile.id] });
-      toast({ title: "Invio registrato", description: "Immobile spostato negli Inviati" });
+      queryClient.invalidateQueries({ queryKey: ["/api/clienti"] });
+      toast({ 
+        title: "Invio registrato", 
+        description: data.cliente ? `Cliente "${data.cliente.nome} ${data.cliente.cognome}" creato` : "Immobile spostato negli Inviati" 
+      });
     },
   });
 
