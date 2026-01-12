@@ -688,7 +688,7 @@ Può rispondere direttamente a questo messaggio, oppure contattarci allo 02 3598
 Un cordiale saluto,
 
 Paolo
-Collaboratore del Dott. Ilan Boni`;
+Assistente del Dott. Ilan Boni`;
 
 // Configurazione completa conversazione WhatsApp Bot
 export const CONVERSATION_CONFIG = {
@@ -958,7 +958,7 @@ CHIUSURA SENZA APPUNTAMENTO:
 FIRMA:
 Un cordiale saluto,
 Paolo
-Collaboratore del Dott. Ilan Boni
+Assistente del Dott. Ilan Boni
 
 ---
 

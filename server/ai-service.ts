@@ -784,7 +784,7 @@ Può rispondere direttamente a questo messaggio, oppure contattarci allo 02 3598
 Un cordiale saluto,
 
 Paolo
-Collaboratore del Dott. Ilan Boni`;
+Assistente del Dott. Ilan Boni`;
 
 export async function generateAcquisitionMessage(
   immobile: ImmobileEsterno,
@@ -1062,7 +1062,7 @@ Può rispondere direttamente a questo messaggio, oppure contattarci allo 02 3598
 Un cordiale saluto,
 
 Paolo
-Collaboratore del Dott. Ilan Boni`;
+Assistente del Dott. Ilan Boni`;
 
 // Generate a message for contacting property owners via portal forms
 // Uses the same template as WhatsApp messages for consistency
