@@ -1108,36 +1108,37 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
     }
   });
 
-  // Generate message for portal form contact
+  // Generate message for portal form contact - uses mirroring AI like WhatsApp
   app.post("/api/ai/generate-form-message", async (req, res) => {
     try {
-      const { immobileId, indirizzo, zona, mq, prezzo, titolo, camere, piano, ascensore, balcone, terrazzo, box, arredato, classeEnergetica } = req.body;
+      const { immobileId } = req.body;
       
-      // If immobileId is provided, fetch full property data
-      let propertyData = { titolo, indirizzo, zona, mq, prezzo, camere, piano, ascensore, balcone, terrazzo, box, arredato, classeEnergetica };
+      if (!immobileId) {
+        return res.status(400).json({ error: "immobileId richiesto" });
+      }
       
-      if (immobileId) {
-        const immobile = await storage.getImmobileEsterno(immobileId);
-        if (immobile) {
-          propertyData = {
-            titolo: immobile.titolo || titolo,
-            indirizzo: immobile.indirizzo || indirizzo,
-            zona: immobile.zona || zona,
-            mq: immobile.mq || mq,
-            prezzo: immobile.prezzo || prezzo,
-            camere: immobile.camere || camere,
-            piano: immobile.piano || piano,
-            ascensore: immobile.ascensore ?? ascensore,
-            balcone: immobile.balcone ?? balcone,
-            terrazzo: immobile.terrazzo ?? terrazzo,
-            box: immobile.box ?? box,
-            arredato: immobile.arredato ?? arredato,
-            classeEnergetica: immobile.classeEnergetica || classeEnergetica,
-          };
+      const immobile = await storage.getImmobileEsterno(immobileId);
+      if (!immobile) {
+        return res.status(404).json({ error: "Immobile non trovato" });
+      }
+      
+      // Generate mirroring from the property description (same as WhatsApp)
+      let mirroringText = "";
+      if (immobile.descrizione) {
+        try {
+          const mirroringResult = await generateMirroring({
+            testoAnnuncio: immobile.descrizione,
+            tipoUnita: immobile.camere ? `${immobile.camere} locali` : null,
+            zonaOVia: immobile.indirizzo || immobile.zona
+          });
+          mirroringText = mirroringResult.mirroring;
+        } catch (e) {
+          console.log("Mirroring generation failed for form, using fallback:", e);
         }
       }
       
-      const message = await generateFormContactMessage(propertyData);
+      // Use the same function as WhatsApp messages
+      const message = await generateAcquisitionMessage(immobile, undefined, mirroringText);
       res.json({ message });
     } catch (error) {
       console.error("Generate form message error:", error);
