@@ -559,6 +559,23 @@ function extractListingData() {
 
   data.testoCompleto = document.body.innerText.substring(0, 10000);
 
+  // Determina metodo di contatto
+  const hasTelefono = data.contatto?.telefono && data.contatto.telefono.length >= 9;
+  const hasEmail = data.contatto?.email && data.contatto.email.includes('@');
+  
+  if (hasTelefono) {
+    data.contattoMetodo = 'telefono';
+  } else if (hasEmail) {
+    data.contattoMetodo = 'email';
+  } else {
+    // Nessun contatto diretto - contatto via form
+    data.contattoMetodo = 'form';
+    data.formUrl = url; // URL della pagina per aprire il form
+  }
+  
+  // Estrai portale dal hostname
+  data.portale = hostname.replace('www.', '');
+
   return data;
 }
 

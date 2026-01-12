@@ -321,6 +321,12 @@ export const immobiliEsterni = pgTable("immobili_esterni", {
   messaggioInviato: text("messaggio_inviato"),
   dataContatto: timestamp("data_contatto"),
   note: text("note"),
+  // Contatto via form (quando non c'è telefono)
+  contattoMetodo: text("contatto_metodo").default("telefono"), // telefono, email, form, whatsapp
+  formUrl: text("form_url"), // URL del form di contatto sul portale
+  ultimoTentativoForm: timestamp("ultimo_tentativo_form"),
+  rispostaRicevuta: boolean("risposta_ricevuta").default(false),
+  portale: text("portale"), // clickcase.it, immobiliare.it, ecc.
   attivo: boolean("attivo").default(true),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),

@@ -1557,6 +1557,10 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         testoOriginale: parsedData.testoCompleto ? String(parsedData.testoCompleto).substring(0, 5000) : undefined,
         fonte: parsedData.fonte || (parsedData.url ? new URL(String(parsedData.url)).hostname.replace("www.", "") : "estensione"),
         caratteristiche: typeof parsedData.caratteristiche === "object" ? parsedData.caratteristiche : undefined,
+        // Nuovi campi per contatto via form
+        contattoMetodo: parsedData.contattoMetodo || (parsedData.contattoTelefono ? "telefono" : (parsedData.contattoEmail ? "email" : "form")),
+        formUrl: parsedData.formUrl ? String(parsedData.formUrl).substring(0, 1000) : undefined,
+        portale: parsedData.portale ? String(parsedData.portale).substring(0, 100) : undefined,
       };
       
       // Validate with schema
