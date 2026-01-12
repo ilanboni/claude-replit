@@ -102,13 +102,14 @@ function FormContactBanner({ immobile }: { immobile: ImmobileEsterno }) {
     mutationFn: async () => {
       await apiRequest("PATCH", `/api/acquisizione/${immobile.id}`, {
         statoContatto: "contattato",
-        ultimoTentativoForm: new Date().toISOString(),
+        dataContatto: new Date().toISOString(),
+        messaggioInviato: generatedMessage || undefined,
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/acquisizione"] });
       queryClient.invalidateQueries({ queryKey: ["/api/acquisizione", immobile.id] });
-      toast({ title: "Invio registrato", description: "Lo stato è stato aggiornato a 'Contattato'" });
+      toast({ title: "Invio registrato", description: "Immobile spostato negli Inviati" });
     },
   });
 
