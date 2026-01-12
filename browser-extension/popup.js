@@ -476,35 +476,57 @@ function extractListingData() {
     // ClickCase.it - portale privati
     data.titolo = document.querySelector('h1')?.textContent?.trim() || '';
     
-    // Sottotitolo con indirizzo: "Appartamento in Vendita da Privato - Via Gentilino 15, Milano"
-    const sottotitolo = document.querySelector('h2')?.textContent?.trim() || '';
-    if (sottotitolo) {
-      const indirizzoMatch = sottotitolo.match(/- (.+)$/);
-      if (indirizzoMatch) {
-        data.indirizzo = indirizzoMatch[1].trim();
-        // Estrai città dall'indirizzo (ultima parola)
-        const parti = data.indirizzo.split(',');
-        if (parti.length > 1) {
-          data.citta = parti[parti.length - 1].trim();
-          data.zona = parti[0].trim();
-        }
-      }
-      // Determina tipologia dal sottotitolo
-      if (sottotitolo.toLowerCase().includes('appartamento')) {
-        data.tipologia = 'Appartamento';
-      } else if (sottotitolo.toLowerCase().includes('villa')) {
-        data.tipologia = 'Villa';
-      } else if (sottotitolo.toLowerCase().includes('attico')) {
-        data.tipologia = 'Attico';
-      }
-      // Tipo contatto
-      if (sottotitolo.toLowerCase().includes('privato')) {
-        data.contatto.tipo = 'Privato';
+    // Cerca sottotitolo con indirizzo in più posti
+    // Formato: "Appartamento in Vendita da Privato - Via Gentilino 15, Milano"
+    const pageText = document.body.innerText;
+    
+    // Prova prima h2
+    let sottotitolo = document.querySelector('h2')?.textContent?.trim() || '';
+    
+    // Se h2 non contiene " - Via" o " - Piazza", cerca nel testo della pagina
+    if (!sottotitolo.includes(' - Via') && !sottotitolo.includes(' - Piazza') && !sottotitolo.includes(' - Viale')) {
+      // Cerca pattern "Vendita da Privato - Via..." o "Affitto da Privato - Via..."
+      const pageMatch = pageText.match(/(Vendita|Affitto)\s+da\s+Privato\s*-\s*((?:Via|Viale|Piazza|Corso|Largo)[^,\n]+(?:,\s*[A-Za-z]+)?)/i);
+      if (pageMatch) {
+        sottotitolo = pageMatch[0];
       }
     }
     
+    // Estrai indirizzo dal sottotitolo
+    const indirizzoMatch = sottotitolo.match(/-\s*((?:Via|Viale|Piazza|Corso|Largo)[^,\n]+(?:,\s*[A-Za-z]+)?)/i);
+    if (indirizzoMatch) {
+      data.indirizzo = indirizzoMatch[1].trim();
+      const parti = data.indirizzo.split(',');
+      if (parti.length > 1) {
+        data.citta = parti[parti.length - 1].trim();
+        data.zona = parti[0].trim(); // "Via Gentilino 15"
+      } else {
+        data.zona = data.indirizzo;
+      }
+    }
+    
+    // Determina tipologia
+    const tipoText = sottotitolo.toLowerCase() || pageText.substring(0, 500).toLowerCase();
+    if (tipoText.includes('appartamento')) {
+      data.tipologia = 'Appartamento';
+    } else if (tipoText.includes('villa')) {
+      data.tipologia = 'Villa';
+    } else if (tipoText.includes('attico')) {
+      data.tipologia = 'Attico';
+    } else if (tipoText.includes('bilocale')) {
+      data.tipologia = 'Appartamento';
+      data.locali = 2;
+    } else if (tipoText.includes('trilocale')) {
+      data.tipologia = 'Appartamento';
+      data.locali = 3;
+    }
+    
+    // Tipo contatto
+    if (tipoText.includes('privato')) {
+      data.contatto.tipo = 'Privato';
+    }
+    
     // Descrizione - dopo "Descrizione" fino a "Caratteristiche"
-    const pageText = document.body.innerText;
     const descMatch = pageText.match(/Descrizione\s+([\s\S]*?)(?=Caratteristiche|Classe energetica)/i);
     if (descMatch) {
       data.descrizione = descMatch[1].trim()
