@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ImmoGest - Acquisizione Immobili",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Importa annunci immobiliari direttamente in ImmoGest CRM",
   "permissions": ["activeTab", "scripting"],
   "host_permissions": [
@@ -12,7 +12,9 @@
     "https://www.subito.it/*",
     "https://subito.it/*",
     "https://www.casa.it/*",
-    "https://casa.it/*"
+    "https://casa.it/*",
+    "https://www.clickcase.it/*",
+    "https://clickcase.it/*"
   ],
   "action": {
     "default_popup": "popup.html"
@@ -27,7 +29,9 @@
         "https://www.subito.it/annunci/*",
         "https://subito.it/annunci/*",
         "https://www.casa.it/vendita/*",
-        "https://www.casa.it/affitto/*"
+        "https://www.casa.it/affitto/*",
+        "https://www.clickcase.it/*",
+        "https://clickcase.it/*"
       ],
       "js": ["content.js"],
       "run_at": "document_idle"
