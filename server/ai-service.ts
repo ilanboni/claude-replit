@@ -1041,49 +1041,75 @@ Rispondi SOLO con un oggetto JSON valido:
   }
 }
 
+// Default form message template - same style as WhatsApp but adapted for portal forms
+const DEFAULT_FORM_MESSAGE_TEMPLATE = `Gentile Proprietario,
+sono l'assistente del Dott. Ilan Boni.
+
+Il Dott. Boni è agente immobiliare da oltre trent'anni, proprietario di due agenzie a Milano e Vicepresidente della Comunità Ebraica di Milano. La sua attività lo porta ogni giorno a confrontarsi con investitori italiani e stranieri che guardano a Milano come a un'opportunità concreta, spesso legata alla flat tax.
+
+Ha notato il suo immobile in {{via}}.
+Caratteristiche come {{caratteristiche}} sono oggi molto richieste da chi cerca immobili con potenzialità immediate, sia in termini di rendimento sia di stabilità del valore nel tempo.
+
+Il Dott. Boni vorrebbe capire se il suo immobile può inserirsi in un percorso di lavoro molto preciso.
+Nel 2025 ha concluso 14 vendite e, negli ultimi anni, il suo metodo gli ha permesso di chiudere positivamente il 94% dei mandati affidati, mettendo gli acquirenti in concorrenza tra loro e non al ribasso contro il proprietario.
+
+Se per Lei può essere utile, il Dott. Boni è disponibile per un breve incontro direttamente presso l'immobile: una decina di minuti per ascoltare la sua situazione, vedere l'appartamento e mostrarle la domanda reale sulla zona.
+
+Nel frattempo può trovare informazioni sulla sua attività immobiliare e istituzionale anche online.
+
+Può rispondere direttamente a questo messaggio, oppure contattarci allo 02 35981509 o a info@cavourimmobiliare.it.
+
+Un cordiale saluto,
+
+Sara
+Assistente del Dott. Ilan Boni`;
+
 // Generate a message for contacting property owners via portal forms
+// Uses the same template as WhatsApp messages for consistency
 export async function generateFormContactMessage(propertyData: {
   titolo?: string;
   indirizzo?: string;
   zona?: string;
   mq?: number;
   prezzo?: string | number;
+  camere?: number;
+  piano?: string;
+  ascensore?: boolean;
+  balcone?: boolean;
+  terrazzo?: boolean;
+  box?: boolean;
+  arredato?: boolean;
+  classeEnergetica?: string;
 }): Promise<string> {
   try {
-    const propertyInfo = [
-      propertyData.titolo && `Annuncio: ${propertyData.titolo}`,
-      propertyData.indirizzo && `Indirizzo: ${propertyData.indirizzo}`,
-      propertyData.zona && `Zona: ${propertyData.zona}`,
-      propertyData.mq && `Superficie: ${propertyData.mq} mq`,
-      propertyData.prezzo && `Prezzo: €${Number(propertyData.prezzo).toLocaleString('it-IT')}`,
-    ].filter(Boolean).join('\n');
-
-    const prompt = `Sei un agente immobiliare professionista. Scrivi un messaggio breve e professionale per contattare un proprietario privato che ha pubblicato un annuncio di vendita su un portale immobiliare. 
-
-Dettagli immobile:
-${propertyInfo}
-
-Il messaggio deve:
-- Essere in italiano
-- Essere educato e professionale
-- Esprimere interesse genuino per l'immobile
-- Chiedere la disponibilità per una visita o maggiori informazioni
-- NON essere troppo commerciale o aggressivo
-- Essere lungo massimo 150 parole
-
-Scrivi solo il messaggio, senza prefissi o spiegazioni.`;
-
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      temperature: 0.7,
-      max_tokens: 300,
-      messages: [{ role: "user", content: prompt }],
-    });
-
-    return response.choices[0]?.message?.content || 
-      "Buongiorno, ho visto il vostro annuncio e sarei interessato a maggiori informazioni. Potremmo organizzare una visita? Grazie.";
+    // Build characteristics string (same logic as generateAcquisitionMessage)
+    const caratteristiche: string[] = [];
+    if (propertyData.mq) caratteristiche.push(`${propertyData.mq} mq`);
+    if (propertyData.camere) caratteristiche.push(`${propertyData.camere} locali`);
+    if (propertyData.piano) caratteristiche.push(`piano ${propertyData.piano}`);
+    if (propertyData.ascensore) caratteristiche.push("con ascensore");
+    if (propertyData.balcone) caratteristiche.push("con balcone");
+    if (propertyData.terrazzo) caratteristiche.push("con terrazzo");
+    if (propertyData.box) caratteristiche.push("con box");
+    if (propertyData.arredato) caratteristiche.push("arredato");
+    if (propertyData.classeEnergetica) caratteristiche.push(`classe energetica ${propertyData.classeEnergetica}`);
+    
+    const caratteristicheStr = caratteristiche.length > 0 
+      ? caratteristiche.join(", ") 
+      : "le sue caratteristiche";
+    
+    const via = propertyData.indirizzo || propertyData.zona || "zona";
+    
+    // Replace placeholders in the template
+    const message = DEFAULT_FORM_MESSAGE_TEMPLATE
+      .replace(/\{\{via\}\}/g, via)
+      .replace(/\{\{caratteristiche\}\}/g, caratteristicheStr);
+    
+    return message;
   } catch (error) {
     console.error("Generate form contact message error:", error);
-    return "Buongiorno, ho visto il vostro annuncio e sarei interessato a maggiori informazioni. Potremmo organizzare una visita? Grazie.";
+    return DEFAULT_FORM_MESSAGE_TEMPLATE
+      .replace(/\{\{via\}\}/g, propertyData.indirizzo || propertyData.zona || "zona")
+      .replace(/\{\{caratteristiche\}\}/g, "le sue caratteristiche");
   }
 }

@@ -1111,8 +1111,33 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
   // Generate message for portal form contact
   app.post("/api/ai/generate-form-message", async (req, res) => {
     try {
-      const { indirizzo, zona, mq, prezzo, titolo } = req.body;
-      const message = await generateFormContactMessage({ titolo, indirizzo, zona, mq, prezzo });
+      const { immobileId, indirizzo, zona, mq, prezzo, titolo, camere, piano, ascensore, balcone, terrazzo, box, arredato, classeEnergetica } = req.body;
+      
+      // If immobileId is provided, fetch full property data
+      let propertyData = { titolo, indirizzo, zona, mq, prezzo, camere, piano, ascensore, balcone, terrazzo, box, arredato, classeEnergetica };
+      
+      if (immobileId) {
+        const immobile = await storage.getImmobileEsterno(immobileId);
+        if (immobile) {
+          propertyData = {
+            titolo: immobile.titolo || titolo,
+            indirizzo: immobile.indirizzo || indirizzo,
+            zona: immobile.zona || zona,
+            mq: immobile.mq || mq,
+            prezzo: immobile.prezzo || prezzo,
+            camere: immobile.camere || camere,
+            piano: immobile.piano || piano,
+            ascensore: immobile.ascensore ?? ascensore,
+            balcone: immobile.balcone ?? balcone,
+            terrazzo: immobile.terrazzo ?? terrazzo,
+            box: immobile.box ?? box,
+            arredato: immobile.arredato ?? arredato,
+            classeEnergetica: immobile.classeEnergetica || classeEnergetica,
+          };
+        }
+      }
+      
+      const message = await generateFormContactMessage(propertyData);
       res.json({ message });
     } catch (error) {
       console.error("Generate form message error:", error);
