@@ -574,7 +574,7 @@ Se le fa piacere, il Dott. Boni può passare una decina di minuti a casa sua per
 Se invece ha già risolto o preferisce procedere in autonomia, nessun problema.
 
 Buona giornata,
-Sara
+Paolo
 
 ---
 
@@ -625,7 +625,7 @@ La ristrutturazione recente che descriveva è una cosa che oggi fa davvero la di
 Se ha piacere di un confronto, il Dott. Boni resta disponibile per un breve incontro in casa.
 
 Un saluto,
-Sara
+Paolo
 
 ---
 
@@ -646,7 +646,7 @@ non volevo disturbarla ulteriormente, solo farle sapere che se in futuro dovesse
 
 Le auguro una buona giornata.
 
-Sara
+Paolo
 
 ---
 
@@ -687,8 +687,8 @@ Può rispondere direttamente a questo messaggio, oppure contattarci allo 02 3598
 
 Un cordiale saluto,
 
-Sara
-Assistente del Dott. Ilan Boni`;
+Paolo
+Collaboratore del Dott. Ilan Boni`;
 
 // Configurazione completa conversazione WhatsApp Bot
 export const CONVERSATION_CONFIG = {
@@ -957,8 +957,8 @@ CHIUSURA SENZA APPUNTAMENTO:
 
 FIRMA:
 Un cordiale saluto,
-Sara
-Assistente del Dott. Ilan Boni
+Paolo
+Collaboratore del Dott. Ilan Boni
 
 ---
 

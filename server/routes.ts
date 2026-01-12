@@ -2366,8 +2366,8 @@ Può rispondere direttamente a questo messaggio, oppure contattarci allo 02 3598
 
 Un cordiale saluto,
 
-Sara
-Assistente del Dott. Ilan Boni`;
+Paolo
+Collaboratore del Dott. Ilan Boni`;
 
       const defaultInstructions = `IDENTITÀ BOT:
 - Nome: Assistente del Dott. Ilan Boni
@@ -2556,8 +2556,8 @@ Può rispondere direttamente a questo messaggio, oppure contattarci allo 02 3598
 
 Un cordiale saluto,
 
-Sara
-Assistente del Dott. Ilan Boni`;
+Paolo
+Collaboratore del Dott. Ilan Boni`;
 
       // Send messages with rate limiting
       let sentCount = 0;
