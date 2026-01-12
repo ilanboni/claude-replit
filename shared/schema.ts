@@ -122,6 +122,11 @@ export const immobili = pgTable("immobili", {
   messaggioInviato: text("messaggio_inviato"),
   dataContatto: timestamp("data_contatto"),
   preferito: boolean("preferito").default(false),
+  // Contatto via form (quando non c'è telefono)
+  contattoMetodo: text("contatto_metodo").default("telefono"), // telefono, email, form, whatsapp
+  formUrl: text("form_url"), // URL del form di contatto sul portale
+  ultimoTentativoForm: timestamp("ultimo_tentativo_form"),
+  rispostaRicevuta: boolean("risposta_ricevuta").default(false),
   // Origine e gestione
   origine: text("origine").default("mandato"), // mandato, acquisizione
   noteInterne: text("note_interne"),
@@ -247,6 +252,20 @@ export const storicoPrezzo = pgTable("storico_prezzo", {
   immobileId: integer("immobile_id").notNull().references(() => immobili.id, { onDelete: "cascade" }),
   prezzo: decimal("prezzo", { precision: 12, scale: 2 }).notNull(),
   dataModifica: timestamp("data_modifica").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  note: text("note"),
+});
+
+// CONTATTI PORTALE - Log tentativi contatto via form portali
+export const contattiPortale = pgTable("contatti_portale", {
+  id: serial("id").primaryKey(),
+  immobileId: integer("immobile_id").notNull().references(() => immobili.id, { onDelete: "cascade" }),
+  portale: text("portale").notNull(), // clickcase.it, immobiliare.it, ecc.
+  formUrl: text("form_url"),
+  messaggioInviato: text("messaggio_inviato"),
+  dataInvio: timestamp("data_invio").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  stato: text("stato").default("inviato"), // inviato, risposta_ricevuta, nessuna_risposta
+  emailRisposta: text("email_risposta"), // ID email di risposta se ricevuta
+  dataRisposta: timestamp("data_risposta"),
   note: text("note"),
 });
 
@@ -701,6 +720,13 @@ export type InsertPortaleImmobile = z.infer<typeof insertPortaleImmobileSchema>;
 
 export type StoricoPrezzo = typeof storicoPrezzo.$inferSelect;
 export type InsertStoricoPrezzo = z.infer<typeof insertStoricoPrezzoSchema>;
+
+// Contatti Portale types
+export const insertContattoPortaleSchema = createInsertSchema(contattiPortale).omit({
+  id: true,
+});
+export type ContattoPortale = typeof contattiPortale.$inferSelect;
+export type InsertContattoPortale = z.infer<typeof insertContattoPortaleSchema>;
 
 // WhatsApp Campaign types
 export const insertWhatsappCampaignSchema = createInsertSchema(whatsappCampaigns).omit({ id: true, createdAt: true });
