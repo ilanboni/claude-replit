@@ -462,6 +462,99 @@ function extractListingData() {
       const prezzoText = prezzoEl.textContent.replace(/[^\d]/g, '');
       data.prezzo = parseInt(prezzoText) || null;
     }
+
+  } else if (hostname.includes('clickcase.it')) {
+    // ClickCase.it - portale privati
+    data.titolo = document.querySelector('h1')?.textContent?.trim() || '';
+    
+    // Sottotitolo con indirizzo: "Appartamento in Vendita da Privato - Via Gentilino 15, Milano"
+    const sottotitolo = document.querySelector('h2')?.textContent?.trim() || '';
+    if (sottotitolo) {
+      const indirizzoMatch = sottotitolo.match(/- (.+)$/);
+      if (indirizzoMatch) {
+        data.indirizzo = indirizzoMatch[1].trim();
+        // Estrai città dall'indirizzo (ultima parola)
+        const parti = data.indirizzo.split(',');
+        if (parti.length > 1) {
+          data.citta = parti[parti.length - 1].trim();
+          data.zona = parti[0].trim();
+        }
+      }
+      // Determina tipologia dal sottotitolo
+      if (sottotitolo.toLowerCase().includes('appartamento')) {
+        data.tipologia = 'Appartamento';
+      } else if (sottotitolo.toLowerCase().includes('villa')) {
+        data.tipologia = 'Villa';
+      } else if (sottotitolo.toLowerCase().includes('attico')) {
+        data.tipologia = 'Attico';
+      }
+      // Tipo contatto
+      if (sottotitolo.toLowerCase().includes('privato')) {
+        data.contatto.tipo = 'Privato';
+      }
+    }
+    
+    // Descrizione - dopo "Descrizione" fino a "Caratteristiche"
+    const pageText = document.body.innerText;
+    const descMatch = pageText.match(/Descrizione\s+([\s\S]*?)(?=Caratteristiche|Classe energetica)/i);
+    if (descMatch) {
+      data.descrizione = descMatch[1].trim()
+        .replace(/È il tuo annuncio[\s\S]*$/i, '')
+        .replace(/Stampa il volantino[\s\S]*$/i, '')
+        .trim();
+    }
+    
+    // Dati principali dalla riga "96 m² | 4 locali | € 550.000"
+    const mainInfoMatch = pageText.match(/(\d+)\s*m[²q]\s*\|\s*(\d+)\s*locali\s*\|\s*€\s*([\d.]+)/i);
+    if (mainInfoMatch) {
+      data.superficie = parseInt(mainInfoMatch[1]);
+      data.locali = parseInt(mainInfoMatch[2]);
+      data.prezzo = parseInt(mainInfoMatch[3].replace(/\./g, ''));
+    }
+    
+    // Classe energetica
+    const energyMatch = pageText.match(/Classe energetica[:\s]*([A-G])/i);
+    if (energyMatch) {
+      data.classeEnergetica = energyMatch[1].toUpperCase();
+    }
+    
+    // IPE
+    const ipeMatch = pageText.match(/IPE[:\s]*([\d,]+)\s*kWh/i);
+    if (ipeMatch) {
+      data.ipe = ipeMatch[1].replace(',', '.');
+    }
+    
+    // Contatto nome
+    const contattoMatch = pageText.match(/Inserzionista\s+(\w+)/i);
+    if (contattoMatch) {
+      data.contatto.nome = contattoMatch[1];
+    }
+    
+    // Immagini
+    const images = document.querySelectorAll('img[src*="media.clickcase.it"]');
+    images.forEach(img => {
+      if (img.src && !img.src.includes('logo') && !img.src.includes('classe')) {
+        data.immagini.push(img.src);
+      }
+    });
+    
+    // Caratteristiche dal testo
+    const textLower = pageText.toLowerCase();
+    data.caratteristiche = {
+      ascensore: textLower.includes('ascensore'),
+      balcone: textLower.includes('balcone'),
+      terrazzo: textLower.includes('terrazzo'),
+      cantina: textLower.includes('cantina'),
+      box: textLower.includes('box') || textLower.includes('garage'),
+      arredato: textLower.includes('arredato') || textLower.includes('arredo')
+    };
+    
+    // Piano
+    const pianoMatch = pageText.match(/(?:al\s+)?(\d+|terzo|secondo|primo|quarto|quinto)\s*(?:ed\s+ultimo\s+)?piano/i);
+    if (pianoMatch) {
+      const pianoMap = { 'primo': '1', 'secondo': '2', 'terzo': '3', 'quarto': '4', 'quinto': '5' };
+      data.piano = pianoMap[pianoMatch[1].toLowerCase()] || pianoMatch[1];
+    }
   }
 
   data.testoCompleto = document.body.innerText.substring(0, 10000);
@@ -478,7 +571,7 @@ async function init() {
   const tab = await getCurrentTab();
   const url = tab?.url || '';
   
-  const supportedSites = ['immobiliare.it', 'idealista.it', 'subito.it', 'casa.it'];
+  const supportedSites = ['immobiliare.it', 'idealista.it', 'subito.it', 'casa.it', 'clickcase.it'];
   const isSupported = supportedSites.some(site => url.includes(site));
   
   if (!url || url.startsWith('chrome://')) {
@@ -487,14 +580,16 @@ async function init() {
   }
 
   if (!isSupported) {
-    setStatus('Sito non supportato. Vai su Immobiliare.it, Idealista, Subito o Casa.it', 'warning');
+    setStatus('Sito non supportato. Vai su Immobiliare.it, Idealista, Subito, Casa.it o ClickCase.it', 'warning');
     return;
   }
 
+  // ClickCase.it ha URL con ID numerico alla fine: /nome-annuncio-123456.html
   const isListingPage = url.includes('/annunci/') || 
                         url.includes('/immobile/') ||
                         url.includes('/vendita/') ||
-                        url.includes('/affitto/');
+                        url.includes('/affitto/') ||
+                        (url.includes('clickcase.it') && url.match(/-\d+\.html$/));
 
   if (!isListingPage) {
     setStatus('Vai sulla pagina di un annuncio specifico', 'info');
