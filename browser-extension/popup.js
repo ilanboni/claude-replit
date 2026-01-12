@@ -160,10 +160,30 @@ function extractListingData() {
                        listing.pricing?.price?.amount;
           if (price) data.prezzo = parseInt(price);
           
-          // Superficie
-          const surface = listing.surface || listing.properties?.surface ||
-                         listing.surfaceValue || listing.properties?.surfaceValue;
-          if (surface) data.superficie = parseInt(surface);
+          // Superficie - gestisci oggetti complessi
+          let surface = listing.surface || listing.properties?.surface ||
+                       listing.surfaceValue || listing.properties?.surfaceValue ||
+                       listing.properties?.surfaceValue?.value ||
+                       listing.features?.surface?.value;
+          
+          // Se surface è un oggetto, estrai il valore
+          if (surface && typeof surface === 'object') {
+            surface = surface.value || surface.main || surface.commercial || Object.values(surface)[0];
+          }
+          
+          // Se è una stringa con "m²", estrai solo il numero
+          if (typeof surface === 'string') {
+            const surfaceMatch = surface.match(/(\d+)/);
+            if (surfaceMatch) surface = surfaceMatch[1];
+          }
+          
+          if (surface) {
+            const surfaceNum = parseInt(surface);
+            // Validazione: superficie realistica (almeno 15 mq)
+            if (surfaceNum >= 15) {
+              data.superficie = surfaceNum;
+            }
+          }
           
           // Locali
           const rooms = listing.rooms || listing.properties?.rooms ||
@@ -271,12 +291,26 @@ function extractListingData() {
         }
       }
       
-      // Cerca nel formato "X locali Y m² Z bagni"
-      const featMatch = pageText.match(/(\d+)\s*locali\s*(\d+)\s*m[²q]\s*(\d+)\s*bagn/i);
-      if (featMatch) {
-        if (!data.locali) data.locali = parseInt(featMatch[1]);
-        if (!data.superficie) data.superficie = parseInt(featMatch[2]);
-        if (!data.bagni) data.bagni = parseInt(featMatch[3]);
+      // Superficie - cerca specificamente "Superficie X m²" nella sezione caratteristiche
+      if (!data.superficie) {
+        const superficieMatch = pageText.match(/Superficie\s*[\n\r]*\s*(\d+)\s*m[²q]/i);
+        if (superficieMatch) {
+          const sup = parseInt(superficieMatch[1]);
+          if (sup >= 15) data.superficie = sup;
+        }
+      }
+      
+      // Cerca nel formato "X locali Y m² Z bagni" (header annuncio)
+      if (!data.superficie || !data.locali) {
+        const featMatch = pageText.match(/(\d+)\s*locali\s*(\d+)\s*m[²q]\s*(\d+)\s*bagn/i);
+        if (featMatch) {
+          if (!data.locali) data.locali = parseInt(featMatch[1]);
+          if (!data.superficie) {
+            const sup = parseInt(featMatch[2]);
+            if (sup >= 15) data.superficie = sup;
+          }
+          if (!data.bagni) data.bagni = parseInt(featMatch[3]);
+        }
       }
       
       // Piano
