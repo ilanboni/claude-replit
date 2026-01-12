@@ -777,8 +777,14 @@ function ImmobileEsternoCard({
   if (immobile.giardino) features.push("Giardino");
   if (immobile.arredato) features.push("Arredato");
 
+  // Determina il tipo di contatto: telefono (WhatsApp) o solo form
+  const hasPhone = !!immobile.contattoTelefono;
+  const cardBorderClass = hasPhone 
+    ? "border-l-4 border-l-green-500" // Verde per WhatsApp
+    : "border-l-4 border-l-blue-500"; // Blu per Form
+
   return (
-    <Card className="relative hover-elevate" data-testid={`card-immobile-esterno-${immobile.id}`}>
+    <Card className={`relative hover-elevate ${cardBorderClass}`} data-testid={`card-immobile-esterno-${immobile.id}`}>
       <div className="aspect-video bg-muted flex items-center justify-center">
         <Building2 className="h-12 w-12 text-muted-foreground/30" />
       </div>
