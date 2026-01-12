@@ -1813,7 +1813,44 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
       if (!parsed.success) {
         return res.status(400).json({ error: "Dati non validi", details: parsed.error });
       }
-      const immobile = await storage.updateImmobileEsterno(id, parsed.data);
+      
+      // Get current immobile to check if this is a form contact registration
+      const currentImmobile = await storage.getImmobileEsterno(id);
+      if (!currentImmobile) {
+        return res.status(404).json({ error: "Immobile non trovato" });
+      }
+      
+      // If registering form submission (ultimoTentativoForm set, no proprietarioId yet, contattoMetodo is form)
+      const isFormContactRegistration = 
+        parsed.data.ultimoTentativoForm && 
+        !currentImmobile.proprietarioId &&
+        currentImmobile.contattoMetodo === "form";
+      
+      let proprietarioId = currentImmobile.proprietarioId;
+      
+      if (isFormContactRegistration) {
+        // Create prospect client "Proprietario Via..."
+        const via = currentImmobile.indirizzo || currentImmobile.zona || "Sconosciuto";
+        const nuovoCliente = await storage.createCliente({
+          nome: "Proprietario",
+          cognome: via,
+          telefono: "",
+          email: currentImmobile.contattoEmail || "",
+          tipoCliente: "venditore",
+          ratingCliente: 1,
+          note: `Prospect da acquisizione form: ${currentImmobile.titolo || via}\nPortale: ${currentImmobile.portale || currentImmobile.fonte || "N/D"}\nURL: ${currentImmobile.urlAnnuncio || "N/D"}`,
+        });
+        proprietarioId = nuovoCliente.id;
+        console.log(`[Form Acquisition] Created prospect client ${nuovoCliente.id}: Proprietario ${via}`);
+      }
+      
+      // Update immobile with proprietarioId if created
+      const updateData = {
+        ...parsed.data,
+        ...(proprietarioId && !currentImmobile.proprietarioId ? { proprietarioId } : {})
+      };
+      
+      const immobile = await storage.updateImmobileEsterno(id, updateData);
       if (!immobile) {
         return res.status(404).json({ error: "Immobile non trovato" });
       }
