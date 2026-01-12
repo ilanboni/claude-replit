@@ -344,7 +344,11 @@ function extractListingData() {
       '[class*="phone"]',
       '[class*="Phone"]',
       '[class*="telefono"]',
-      '.nd-mediaObject__content a[href^="tel:"]'
+      '.nd-mediaObject__content a[href^="tel:"]',
+      // Selettori aggiuntivi per Immobiliare.it sezione Inserzionista
+      '[class*="advertiser"] a[href^="tel:"]',
+      '[class*="Advertiser"] a[href^="tel:"]',
+      '[class*="inserzionista"] a[href^="tel:"]'
     ];
     
     for (const selector of contactSelectors) {
@@ -369,19 +373,27 @@ function extractListingData() {
       }
     }
     
-    // Se non trovato, cerca nel box contatti visibile (sezione laterale)
+    // Se non trovato, cerca nel box contatti o sezione Inserzionista
     if (!data.contatto.telefono) {
-      const contactBox = document.querySelector('[class*="ContactBox"], [class*="contact-box"], [data-testid="contact-box"]');
-      if (contactBox) {
-        const boxText = contactBox.textContent || '';
-        // Cerca pattern telefono italiano nel box contatti
-        const phoneMatch = boxText.match(/(?:chiama|telefono|tel\.?:?\s*)(\d[\d\s\-]{8,14}\d)/i);
+      // Cerca la sezione Inserzionista/Advertiser che contiene "Privato" e il numero
+      const advertiserSection = document.querySelector('[class*="ContactBox"], [class*="contact-box"], [data-testid="contact-box"], [class*="Advertiser"], [class*="advertiser"]');
+      if (advertiserSection) {
+        const boxText = advertiserSection.textContent || '';
+        // Cerca un numero di telefono italiano (10 cifre che inizia con 3)
+        const phoneMatch = boxText.match(/\b(3\d{9})\b/);
         if (phoneMatch) {
-          const cleaned = phoneMatch[1].replace(/[\s\-]/g, '');
-          if (cleaned.length >= 9 && cleaned.length <= 13) {
-            data.contatto.telefono = cleaned;
-          }
+          data.contatto.telefono = phoneMatch[1];
         }
+      }
+    }
+    
+    // Fallback: cerca qualsiasi numero di telefono italiano nella pagina vicino a "Privato" o "Inserzionista"
+    if (!data.contatto.telefono) {
+      const pageText = document.body.innerText || '';
+      // Cerca pattern: Privato seguito da numero di telefono
+      const privatoMatch = pageText.match(/Privato[\s\S]{0,50}?(3\d{9})/i);
+      if (privatoMatch) {
+        data.contatto.telefono = privatoMatch[1];
       }
     }
     
