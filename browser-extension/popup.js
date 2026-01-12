@@ -598,6 +598,7 @@ async function init() {
 
   if (!isSupported) {
     setStatus('Sito non supportato. Vai su Immobiliare.it, Idealista, Subito, Casa.it o ClickCase.it', 'warning');
+    btnExtract.disabled = true;
     return;
   }
 
