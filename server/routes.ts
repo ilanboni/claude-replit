@@ -3529,11 +3529,42 @@ FORMATO RISPOSTE:
         
         // Check if this message already exists (avoid duplicates)
         const existingConv = await storage.getWhatsappConversationByPhone(phoneNumber);
-        if (existingConv && messageId) {
+        if (existingConv) {
           const existingMessages = await storage.getWhatsappMessages(existingConv.id);
-          const alreadyExists = existingMessages.some(m => m.whatsappMessageId === messageId);
-          if (alreadyExists) {
-            return res.status(200).json({ status: "ignored", reason: "duplicate message" });
+          
+          // Check by whatsappMessageId first
+          if (messageId) {
+            const alreadyExists = existingMessages.some(m => m.whatsappMessageId === messageId);
+            if (alreadyExists) {
+              return res.status(200).json({ status: "ignored", reason: "duplicate message by id" });
+            }
+          }
+          
+          // For outbound messages, also check if there's a recent message with same content
+          // This handles the case where CRM sends a message (with null messageId) and webhook arrives later
+          if (isOutbound) {
+            const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+            const recentDuplicate = existingMessages.some(m => 
+              m.direction === "outbound" && 
+              m.content === body &&
+              m.createdAt && new Date(m.createdAt) > fiveMinutesAgo
+            );
+            if (recentDuplicate) {
+              // If we have the messageId from webhook, update the existing message
+              if (messageId) {
+                const msgToUpdate = existingMessages.find(m => 
+                  m.direction === "outbound" && 
+                  m.content === body &&
+                  m.createdAt && new Date(m.createdAt) > fiveMinutesAgo &&
+                  !m.whatsappMessageId
+                );
+                if (msgToUpdate) {
+                  await storage.updateWhatsappMessage(msgToUpdate.id, { whatsappMessageId: messageId });
+                  console.log(`Updated existing message ${msgToUpdate.id} with whatsappMessageId: ${messageId}`);
+                }
+              }
+              return res.status(200).json({ status: "ignored", reason: "duplicate outbound message" });
+            }
           }
         }
 
