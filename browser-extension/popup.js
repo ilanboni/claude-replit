@@ -160,29 +160,38 @@ function extractListingData() {
                        listing.pricing?.price?.amount;
           if (price) data.prezzo = parseInt(price);
           
-          // Superficie - gestisci oggetti complessi
-          let surface = listing.surface || listing.properties?.surface ||
-                       listing.surfaceValue || listing.properties?.surfaceValue ||
-                       listing.properties?.surfaceValue?.value ||
-                       listing.features?.surface?.value;
+          // Superficie - priorità ai campi principali, ignora features secondarie
+          let surface = null;
           
-          // Se surface è un oggetto, estrai il valore
-          if (surface && typeof surface === 'object') {
-            surface = surface.value || surface.main || surface.commercial || Object.values(surface)[0];
-          }
+          // Prima prova i campi principali dedicati alla superficie
+          const surfaceSources = [
+            listing.surface,
+            listing.properties?.surface,
+            listing.surfaceValue,
+            listing.properties?.surfaceValue
+          ];
           
-          // Se è una stringa con "m²", estrai solo il numero
-          if (typeof surface === 'string') {
-            const surfaceMatch = surface.match(/(\d+)/);
-            if (surfaceMatch) surface = surfaceMatch[1];
+          for (const src of surfaceSources) {
+            if (!src) continue;
+            
+            let val = null;
+            if (typeof src === 'number') {
+              val = src;
+            } else if (typeof src === 'object') {
+              val = src.value || src.main || src.commercial;
+            } else if (typeof src === 'string') {
+              const match = src.match(/(\d+)/);
+              if (match) val = parseInt(match[1]);
+            }
+            
+            if (val && val >= 15) {
+              surface = val;
+              break; // Trovato valore valido, non sovrascrivere
+            }
           }
           
           if (surface) {
-            const surfaceNum = parseInt(surface);
-            // Validazione: superficie realistica (almeno 15 mq)
-            if (surfaceNum >= 15) {
-              data.superficie = surfaceNum;
-            }
+            data.superficie = parseInt(surface);
           }
           
           // Locali
@@ -588,8 +597,16 @@ async function init() {
   const tab = await getCurrentTab();
   const url = tab?.url || '';
   
+  // Normalize hostname to lowercase for comparison
+  let hostname = '';
+  try {
+    hostname = new URL(url).hostname.toLowerCase();
+  } catch (e) {
+    hostname = '';
+  }
+  
   const supportedSites = ['immobiliare.it', 'idealista.it', 'subito.it', 'casa.it', 'clickcase.it'];
-  const isSupported = supportedSites.some(site => url.includes(site));
+  const isSupported = supportedSites.some(site => hostname.includes(site));
   
   if (!url || url.startsWith('chrome://')) {
     setStatus('Apri una pagina di annuncio immobiliare', 'warning');
