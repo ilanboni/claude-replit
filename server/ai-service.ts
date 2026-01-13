@@ -1161,3 +1161,24 @@ export async function extractPhoneFromImage(imageUrl: string): Promise<string | 
     return null;
   }
 }
+
+// Generic chat completion function for AI report and other uses
+export async function generateChatCompletion(
+  messages: Array<{ role: "system" | "user" | "assistant"; content: string }>,
+  options: { model?: string; temperature?: number } = {}
+): Promise<{ message: string }> {
+  try {
+    const response = await openai.chat.completions.create({
+      model: options.model || "gpt-4o",
+      temperature: options.temperature ?? 0.7,
+      messages,
+    });
+
+    return {
+      message: response.choices[0]?.message?.content || "",
+    };
+  } catch (error) {
+    console.error("Chat completion error:", error);
+    throw error;
+  }
+}

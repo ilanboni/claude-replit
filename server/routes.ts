@@ -7,7 +7,7 @@ import {
   insertImmobileEsternoSchema, insertWhatsappCampaignSchema, insertCampaignMessageSchema,
   insertAttivitaClienteSchema, sendCommunicationSchema
 } from "@shared/schema";
-import { parseRequestWithAI, calculateMatchScore, generateAICoachMessage, parsePropertyListingWithAI, parsePropertyImageWithAI, generateAcquisitionMessage, generateMirroring, extractPropertyFacts, generateFormContactMessage, extractPhoneFromImage } from "./ai-service";
+import { parseRequestWithAI, calculateMatchScore, generateAICoachMessage, parsePropertyListingWithAI, parsePropertyImageWithAI, generateAcquisitionMessage, generateMirroring, extractPropertyFacts, generateFormContactMessage, extractPhoneFromImage, generateChatCompletion } from "./ai-service";
 import { whatsappWS } from "./websocket";
 import { sendWhatsAppMessage, isUltraMsgConfigured, normalizeItalianPhone } from "./ultramsg";
 import { getUnreadEmails, searchPortalEmails, parsePortalEmail, markAsRead, EmailMessage, sendEmail, isGmailConfigured } from "./gmail-service";
@@ -2488,6 +2488,258 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
     } catch (error) {
       console.error("Toggle preferito error:", error);
       res.status(500).json({ error: "Errore nell'aggiornamento dello stato preferito" });
+    }
+  });
+
+  // ==================== ACQUISIZIONE STATISTICS ====================
+  
+  // Get acquisition campaign statistics
+  app.get("/api/acquisizione/stats", async (req, res) => {
+    try {
+      // Get all immobili esterni with their communication history
+      const immobili = await storage.getImmobiliEsterni();
+      
+      // Get all campaign messages
+      const campaigns = await storage.getWhatsappCampaigns();
+      const allCampaignMessages: any[] = [];
+      for (const campaign of campaigns) {
+        const messages = await storage.getCampaignMessages(campaign.id);
+        allCampaignMessages.push(...messages);
+      }
+      
+      // Get WhatsApp conversations and messages for response tracking
+      const whatsappConversations = await storage.getWhatsappConversations();
+      
+      // Calculate daily statistics
+      const dailyStats: Record<string, { sent: number; responses: number; whatsapp: number; form: number }> = {};
+      const last30Days = new Date();
+      last30Days.setDate(last30Days.getDate() - 30);
+      
+      // Process immobili for messages sent
+      for (const immobile of immobili) {
+        if (immobile.messaggioInviato && immobile.dataMessaggio) {
+          const date = new Date(immobile.dataMessaggio).toISOString().split('T')[0];
+          if (!dailyStats[date]) {
+            dailyStats[date] = { sent: 0, responses: 0, whatsapp: 0, form: 0 };
+          }
+          dailyStats[date].sent++;
+          
+          // Count by type
+          if (immobile.contattoTelefono) {
+            dailyStats[date].whatsapp++;
+          } else {
+            dailyStats[date].form++;
+          }
+          
+          // Check for responses
+          if (immobile.rispostaRicevuta && immobile.dataRisposta) {
+            const respDate = new Date(immobile.dataRisposta).toISOString().split('T')[0];
+            if (!dailyStats[respDate]) {
+              dailyStats[respDate] = { sent: 0, responses: 0, whatsapp: 0, form: 0 };
+            }
+            dailyStats[respDate].responses++;
+          }
+        }
+      }
+      
+      // Process campaign messages
+      for (const msg of allCampaignMessages) {
+        if (msg.sentAt) {
+          const date = new Date(msg.sentAt).toISOString().split('T')[0];
+          if (!dailyStats[date]) {
+            dailyStats[date] = { sent: 0, responses: 0, whatsapp: 0, form: 0 };
+          }
+          dailyStats[date].sent++;
+          dailyStats[date].whatsapp++;
+          
+          if (msg.respondedAt) {
+            const respDate = new Date(msg.respondedAt).toISOString().split('T')[0];
+            if (!dailyStats[respDate]) {
+              dailyStats[respDate] = { sent: 0, responses: 0, whatsapp: 0, form: 0 };
+            }
+            dailyStats[respDate].responses++;
+          }
+        }
+      }
+      
+      // Convert to array sorted by date
+      const dailyStatsArray = Object.entries(dailyStats)
+        .map(([date, stats]) => ({ date, ...stats }))
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .slice(-30); // Last 30 days
+      
+      // Calculate totals
+      const totals = {
+        totalSent: immobili.filter(i => i.messaggioInviato).length + allCampaignMessages.filter(m => m.sentAt).length,
+        totalResponses: immobili.filter(i => i.rispostaRicevuta).length + allCampaignMessages.filter(m => m.respondedAt).length,
+        totalWhatsApp: immobili.filter(i => i.messaggioInviato && i.contattoTelefono).length + allCampaignMessages.filter(m => m.sentAt).length,
+        totalForm: immobili.filter(i => i.messaggioInviato && !i.contattoTelefono).length,
+        totalPending: immobili.filter(i => !i.messaggioInviato && i.stato !== 'scartato').length,
+        totalContacted: immobili.filter(i => i.stato === 'contattato').length,
+        totalInterested: immobili.filter(i => i.stato === 'interessato').length,
+        totalDiscarded: immobili.filter(i => i.stato === 'scartato').length,
+      };
+      
+      // Response rate
+      const responseRate = totals.totalSent > 0 
+        ? Math.round((totals.totalResponses / totals.totalSent) * 100) 
+        : 0;
+      
+      // Response types analysis
+      const responseTypes: Record<string, number> = {
+        interessato: 0,
+        nonInteressato: 0,
+        richiestaInfo: 0,
+        appuntamento: 0,
+        altro: 0,
+      };
+      
+      // Analyze responses from immobili
+      for (const immobile of immobili) {
+        if (immobile.rispostaRicevuta) {
+          if (immobile.stato === 'interessato') {
+            responseTypes.interessato++;
+          } else if (immobile.stato === 'scartato') {
+            responseTypes.nonInteressato++;
+          } else {
+            responseTypes.altro++;
+          }
+        }
+      }
+      
+      // Source distribution
+      const sourceStats: Record<string, number> = {};
+      for (const immobile of immobili) {
+        const fonte = immobile.fonte || 'Sconosciuto';
+        sourceStats[fonte] = (sourceStats[fonte] || 0) + 1;
+      }
+      
+      res.json({
+        dailyStats: dailyStatsArray,
+        totals,
+        responseRate,
+        responseTypes,
+        sourceStats,
+        lastUpdated: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("Get acquisition stats error:", error);
+      res.status(500).json({ error: "Errore nel caricamento delle statistiche" });
+    }
+  });
+  
+  // Generate AI report for acquisition campaigns
+  app.post("/api/acquisizione/ai-report", async (req, res) => {
+    try {
+      // Get statistics first
+      const immobili = await storage.getImmobiliEsterni();
+      const campaigns = await storage.getWhatsappCampaigns();
+      const allCampaignMessages: any[] = [];
+      for (const campaign of campaigns) {
+        const messages = await storage.getCampaignMessages(campaign.id);
+        allCampaignMessages.push(...messages);
+      }
+      
+      // Prepare data for AI analysis
+      const totalSent = immobili.filter(i => i.messaggioInviato).length + allCampaignMessages.filter(m => m.sentAt).length;
+      const totalResponses = immobili.filter(i => i.rispostaRicevuta).length + allCampaignMessages.filter(m => m.respondedAt).length;
+      const responseRate = totalSent > 0 ? Math.round((totalResponses / totalSent) * 100) : 0;
+      
+      const whatsappSent = immobili.filter(i => i.messaggioInviato && i.contattoTelefono).length + allCampaignMessages.filter(m => m.sentAt).length;
+      const formSent = immobili.filter(i => i.messaggioInviato && !i.contattoTelefono).length;
+      
+      const whatsappResponses = immobili.filter(i => i.rispostaRicevuta && i.contattoTelefono).length + allCampaignMessages.filter(m => m.respondedAt).length;
+      const formResponses = immobili.filter(i => i.rispostaRicevuta && !i.contattoTelefono).length;
+      
+      const interested = immobili.filter(i => i.stato === 'interessato').length;
+      const discarded = immobili.filter(i => i.stato === 'scartato').length;
+      
+      // Source analysis
+      const sourceStats: Record<string, { total: number; responses: number }> = {};
+      for (const immobile of immobili) {
+        const fonte = immobile.fonte || 'Sconosciuto';
+        if (!sourceStats[fonte]) {
+          sourceStats[fonte] = { total: 0, responses: 0 };
+        }
+        if (immobile.messaggioInviato) {
+          sourceStats[fonte].total++;
+          if (immobile.rispostaRicevuta) {
+            sourceStats[fonte].responses++;
+          }
+        }
+      }
+      
+      // Sample messages for analysis
+      const sampleMessages = immobili
+        .filter(i => i.messaggioInviato && i.testoMessaggio)
+        .slice(0, 5)
+        .map(i => i.testoMessaggio);
+      
+      // Sample responses for analysis
+      const sampleResponses = immobili
+        .filter(i => i.rispostaRicevuta)
+        .slice(0, 10)
+        .map(i => ({
+          messaggio: i.testoMessaggio?.substring(0, 200),
+          risposta: i.note?.substring(0, 200),
+          stato: i.stato,
+        }));
+      
+      const prompt = `Sei un esperto di marketing immobiliare e acquisizione clienti. Analizza i seguenti dati della campagna di acquisizione immobili e fornisci un report dettagliato con consigli pratici.
+
+DATI CAMPAGNA:
+- Messaggi totali inviati: ${totalSent}
+- Risposte ricevute: ${totalResponses}
+- Tasso di risposta: ${responseRate}%
+
+CANALI:
+- WhatsApp: ${whatsappSent} inviati, ${whatsappResponses} risposte (${whatsappSent > 0 ? Math.round((whatsappResponses/whatsappSent)*100) : 0}%)
+- Form portali: ${formSent} inviati, ${formResponses} risposte (${formSent > 0 ? Math.round((formResponses/formSent)*100) : 0}%)
+
+RISULTATI:
+- Proprietari interessati: ${interested}
+- Contatti scartati: ${discarded}
+
+FONTI (portali):
+${Object.entries(sourceStats).map(([fonte, stats]) => 
+  `- ${fonte}: ${stats.total} contatti, ${stats.responses} risposte (${stats.total > 0 ? Math.round((stats.responses/stats.total)*100) : 0}%)`
+).join('\n')}
+
+${sampleResponses.length > 0 ? `
+ESEMPI DI RISPOSTE RICEVUTE:
+${sampleResponses.map((r, i) => `${i+1}. Stato: ${r.stato}\n   Risposta: ${r.risposta || 'N/A'}`).join('\n')}
+` : ''}
+
+Fornisci un report strutturato con:
+1. ANALISI GENERALE - Valutazione complessiva delle performance
+2. PUNTI DI FORZA - Cosa sta funzionando bene
+3. AREE DI MIGLIORAMENTO - Cosa può essere ottimizzato
+4. ANALISI PER CANALE - Confronto WhatsApp vs Form
+5. CONSIGLI PRATICI - 5 azioni concrete da implementare subito
+6. BENCHMARK - Come si posizionano questi risultati rispetto alle medie del settore
+7. PROSSIMI PASSI - Piano d'azione per i prossimi 7 giorni
+
+Rispondi in italiano con un tono professionale ma accessibile.`;
+
+      const result = await generateChatCompletion([
+        { role: "system", content: "Sei un consulente esperto di marketing immobiliare specializzato in acquisizione proprietari." },
+        { role: "user", content: prompt }
+      ], { model: "gpt-4o", temperature: 0.7 });
+      
+      res.json({
+        report: result.message,
+        generatedAt: new Date().toISOString(),
+        dataSnapshot: {
+          totalSent,
+          totalResponses,
+          responseRate,
+          whatsappRate: whatsappSent > 0 ? Math.round((whatsappResponses/whatsappSent)*100) : 0,
+          formRate: formSent > 0 ? Math.round((formResponses/formSent)*100) : 0,
+        }
+      });
+    } catch (error) {
+      console.error("Generate AI report error:", error);
+      res.status(500).json({ error: "Errore nella generazione del report AI" });
     }
   });
 

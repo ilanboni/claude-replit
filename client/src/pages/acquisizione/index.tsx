@@ -17,8 +17,10 @@ import type { ImmobileEsterno } from "@shared/schema";
 import { 
   Search, Star, StarOff, Phone, Mail, ExternalLink, MapPin, Home, Euro, 
   Trash2, MessageSquare, Copy, Check, Loader2, Sparkles, Building2, Plus,
-  Image, FileText, Upload, X, Ruler, Bath, Eye, Send, FileEdit, ClipboardCheck
+  Image, FileText, Upload, X, Ruler, Bath, Eye, Send, FileEdit, ClipboardCheck,
+  BarChart3, TrendingUp, Bot, RefreshCcw
 } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, Legend } from "recharts";
 
 interface ParsedListing {
   titolo?: string;
@@ -721,6 +723,408 @@ function ParseAnnuncioForm({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
+interface StatsData {
+  dailyStats: Array<{ date: string; sent: number; responses: number; whatsapp: number; form: number }>;
+  totals: {
+    totalSent: number;
+    totalResponses: number;
+    totalWhatsApp: number;
+    totalForm: number;
+    totalPending: number;
+    totalContacted: number;
+    totalInterested: number;
+    totalDiscarded: number;
+  };
+  responseRate: number;
+  responseTypes: Record<string, number>;
+  sourceStats: Record<string, number>;
+  lastUpdated: string;
+}
+
+const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+
+function StatisticsTab() {
+  const { data: stats, isLoading, refetch } = useQuery<StatsData>({
+    queryKey: ["/api/acquisizione/stats"],
+  });
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-32" />
+        <Skeleton className="h-64" />
+      </div>
+    );
+  }
+
+  if (!stats) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center py-12">
+          <BarChart3 className="h-12 w-12 text-muted-foreground mb-4" />
+          <p className="text-muted-foreground">Nessun dato disponibile</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const sourceData = Object.entries(stats.sourceStats).map(([name, value]) => ({ name, value }));
+  const responseTypeData = Object.entries(stats.responseTypes)
+    .filter(([_, value]) => value > 0)
+    .map(([name, value]) => ({ 
+      name: name === 'interessato' ? 'Interessati' : 
+            name === 'nonInteressato' ? 'Non interessati' :
+            name === 'richiestaInfo' ? 'Richiesta info' :
+            name === 'appuntamento' ? 'Appuntamento' : 'Altro', 
+      value 
+    }));
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold">Statistiche Campagne</h2>
+        <Button variant="outline" size="sm" onClick={() => refetch()} data-testid="button-refresh-stats">
+          <RefreshCcw className="h-4 w-4 mr-2" />
+          Aggiorna
+        </Button>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Messaggi Inviati</CardDescription>
+            <CardTitle className="text-3xl">{stats.totals.totalSent}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-xs text-muted-foreground">
+              <span className="text-green-600">{stats.totals.totalWhatsApp} WhatsApp</span>
+              {" / "}
+              <span className="text-blue-600">{stats.totals.totalForm} Form</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Risposte Ricevute</CardDescription>
+            <CardTitle className="text-3xl">{stats.totals.totalResponses}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-1 text-xs">
+              <TrendingUp className="h-3 w-3 text-green-600" />
+              <span className="text-green-600 font-medium">{stats.responseRate}%</span>
+              <span className="text-muted-foreground">tasso di risposta</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Interessati</CardDescription>
+            <CardTitle className="text-3xl text-green-600">{stats.totals.totalInterested}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-xs text-muted-foreground">
+              Proprietari interessati alla collaborazione
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Da Contattare</CardDescription>
+            <CardTitle className="text-3xl text-orange-600">{stats.totals.totalPending}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-xs text-muted-foreground">
+              Annunci in attesa di contatto
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Messaggi per Giorno</CardTitle>
+            <CardDescription>Andamento ultimi 30 giorni</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {stats.dailyStats.length > 0 ? (
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={stats.dailyStats}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis 
+                    dataKey="date" 
+                    tick={{ fontSize: 10 }}
+                    tickFormatter={(value) => new Date(value).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })}
+                  />
+                  <YAxis tick={{ fontSize: 10 }} />
+                  <Tooltip 
+                    labelFormatter={(value) => new Date(value).toLocaleDateString('it-IT', { day: '2-digit', month: 'long' })}
+                    contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+                  />
+                  <Bar dataKey="sent" name="Inviati" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="responses" name="Risposte" fill="#10b981" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-64 text-muted-foreground">
+                Nessun dato disponibile
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">WhatsApp vs Form</CardTitle>
+            <CardDescription>Trend messaggi per canale</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {stats.dailyStats.length > 0 ? (
+              <ResponsiveContainer width="100%" height={250}>
+                <LineChart data={stats.dailyStats}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis 
+                    dataKey="date" 
+                    tick={{ fontSize: 10 }}
+                    tickFormatter={(value) => new Date(value).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })}
+                  />
+                  <YAxis tick={{ fontSize: 10 }} />
+                  <Tooltip 
+                    labelFormatter={(value) => new Date(value).toLocaleDateString('it-IT', { day: '2-digit', month: 'long' })}
+                    contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+                  />
+                  <Line type="monotone" dataKey="whatsapp" name="WhatsApp" stroke="#22c55e" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="form" name="Form" stroke="#3b82f6" strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-64 text-muted-foreground">
+                Nessun dato disponibile
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Fonti Annunci</CardTitle>
+            <CardDescription>Distribuzione per portale</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {sourceData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={250}>
+                <PieChart>
+                  <Pie
+                    data={sourceData}
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    dataKey="value"
+                    label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                    labelLine={false}
+                  >
+                    {sourceData.map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Legend />
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-64 text-muted-foreground">
+                Nessun dato disponibile
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Tipi di Risposta</CardTitle>
+            <CardDescription>Analisi delle risposte ricevute</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {responseTypeData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={250}>
+                <PieChart>
+                  <Pie
+                    data={responseTypeData}
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    dataKey="value"
+                    label={({ name, value }) => `${name}: ${value}`}
+                    labelLine={false}
+                  >
+                    {responseTypeData.map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Legend />
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-64 text-muted-foreground">
+                Nessuna risposta ricevuta
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <p className="text-xs text-muted-foreground text-center">
+        Ultimo aggiornamento: {new Date(stats.lastUpdated).toLocaleString('it-IT')}
+      </p>
+    </div>
+  );
+}
+
+function AIReportTab() {
+  const { toast } = useToast();
+  const [report, setReport] = useState<{ report: string; generatedAt: string; dataSnapshot: any } | null>(null);
+  
+  const generateReportMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/acquisizione/ai-report", {});
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setReport(data);
+    },
+    onError: () => {
+      toast({
+        title: "Errore",
+        description: "Impossibile generare il report AI",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const formatReport = (text: string) => {
+    return text.split('\n').map((line, i) => {
+      if (line.startsWith('# ')) {
+        return <h2 key={i} className="text-xl font-bold mt-6 mb-3">{line.substring(2)}</h2>;
+      }
+      if (line.startsWith('## ')) {
+        return <h3 key={i} className="text-lg font-semibold mt-4 mb-2">{line.substring(3)}</h3>;
+      }
+      if (line.startsWith('### ')) {
+        return <h4 key={i} className="text-base font-medium mt-3 mb-1">{line.substring(4)}</h4>;
+      }
+      if (line.startsWith('- ') || line.startsWith('* ')) {
+        return <li key={i} className="ml-4 my-1">{line.substring(2)}</li>;
+      }
+      if (line.match(/^\d+\. /)) {
+        return <li key={i} className="ml-4 my-1 list-decimal">{line.substring(line.indexOf(' ') + 1)}</li>;
+      }
+      if (line.startsWith('**') && line.endsWith('**')) {
+        return <p key={i} className="font-semibold my-2">{line.slice(2, -2)}</p>;
+      }
+      if (line.trim() === '') {
+        return <br key={i} />;
+      }
+      return <p key={i} className="my-1">{line}</p>;
+    });
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-semibold flex items-center gap-2">
+            <Bot className="h-5 w-5" />
+            Report AI
+          </h2>
+          <p className="text-muted-foreground text-sm">
+            Analisi intelligente delle performance e consigli personalizzati
+          </p>
+        </div>
+        <Button 
+          onClick={() => generateReportMutation.mutate()}
+          disabled={generateReportMutation.isPending}
+          data-testid="button-generate-ai-report"
+        >
+          {generateReportMutation.isPending ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Generazione...
+            </>
+          ) : (
+            <>
+              <Sparkles className="h-4 w-4 mr-2" />
+              Genera Report
+            </>
+          )}
+        </Button>
+      </div>
+
+      {!report && !generateReportMutation.isPending && (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <div className="rounded-full bg-gradient-to-br from-blue-500/20 to-purple-500/20 p-6 mb-4">
+              <Bot className="h-12 w-12 text-primary" />
+            </div>
+            <h3 className="text-lg font-medium">Analisi AI delle Campagne</h3>
+            <p className="text-muted-foreground text-center mt-2 max-w-md">
+              Clicca su "Genera Report" per ottenere un'analisi completa delle tue campagne 
+              di acquisizione con consigli pratici per migliorare le performance.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {generateReportMutation.isPending && (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+            <p className="text-muted-foreground">Analisi in corso...</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              L'AI sta elaborando i dati delle tue campagne
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {report && (
+        <Card>
+          <CardHeader className="border-b">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Report Generato</CardTitle>
+                <CardDescription>
+                  {new Date(report.generatedAt).toLocaleString('it-IT')}
+                </CardDescription>
+              </div>
+              {report.dataSnapshot && (
+                <div className="flex gap-4 text-sm">
+                  <div className="text-center">
+                    <div className="font-semibold text-lg">{report.dataSnapshot.totalSent}</div>
+                    <div className="text-muted-foreground text-xs">Inviati</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="font-semibold text-lg text-green-600">{report.dataSnapshot.responseRate}%</div>
+                    <div className="text-muted-foreground text-xs">Risposte</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="pt-6 prose prose-sm dark:prose-invert max-w-none">
+            {formatReport(report.report)}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
 function ImmobileEsternoCard({ 
   immobile, 
   onGenerateMessage, 
@@ -1251,7 +1655,7 @@ export default function AcquisizionePage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
+        <TabsList className="flex-wrap">
           <TabsTrigger value="daInviare" data-testid="tab-da-inviare">
             Da Inviare ({daInviare.length})
           </TabsTrigger>
@@ -1266,6 +1670,14 @@ export default function AcquisizionePage() {
           <TabsTrigger value="nuovo" data-testid="tab-nuovo">
             <Plus className="h-4 w-4 mr-1" />
             Nuovo
+          </TabsTrigger>
+          <TabsTrigger value="statistiche" data-testid="tab-statistiche">
+            <BarChart3 className="h-4 w-4 mr-1" />
+            Statistiche
+          </TabsTrigger>
+          <TabsTrigger value="report" data-testid="tab-report">
+            <Bot className="h-4 w-4 mr-1" />
+            Report AI
           </TabsTrigger>
         </TabsList>
 
@@ -1375,6 +1787,14 @@ export default function AcquisizionePage() {
               <ParseAnnuncioForm onSuccess={() => setActiveTab("daInviare")} />
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="statistiche" className="mt-6">
+          <StatisticsTab />
+        </TabsContent>
+
+        <TabsContent value="report" className="mt-6">
+          <AIReportTab />
         </TabsContent>
       </Tabs>
 
