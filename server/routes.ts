@@ -1258,6 +1258,95 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
     }
   });
 
+  // Get acquisition campaign statistics (MUST be before :id route)
+  app.get("/api/acquisizione/stats", async (req, res) => {
+    try {
+      const immobili = await storage.getImmobiliEsterni();
+      const campaigns = await storage.getWhatsappCampaigns();
+      const allCampaignMessages: any[] = [];
+      for (const campaign of campaigns) {
+        const messages = await storage.getCampaignMessages(campaign.id);
+        allCampaignMessages.push(...messages);
+      }
+      
+      const dailyStats: Record<string, { sent: number; responses: number; whatsapp: number; form: number }> = {};
+      
+      for (const immobile of immobili) {
+        if (immobile.messaggioInviato && immobile.dataContatto) {
+          const date = new Date(immobile.dataContatto).toISOString().split('T')[0];
+          if (!dailyStats[date]) {
+            dailyStats[date] = { sent: 0, responses: 0, whatsapp: 0, form: 0 };
+          }
+          dailyStats[date].sent++;
+          if (immobile.contattoTelefono) {
+            dailyStats[date].whatsapp++;
+          } else {
+            dailyStats[date].form++;
+          }
+          if (immobile.rispostaRicevuta) {
+            dailyStats[date].responses++;
+          }
+        }
+      }
+      
+      for (const msg of allCampaignMessages) {
+        if (msg.sentAt) {
+          const date = new Date(msg.sentAt).toISOString().split('T')[0];
+          if (!dailyStats[date]) {
+            dailyStats[date] = { sent: 0, responses: 0, whatsapp: 0, form: 0 };
+          }
+          dailyStats[date].sent++;
+          dailyStats[date].whatsapp++;
+          if (msg.respondedAt) {
+            const respDate = new Date(msg.respondedAt).toISOString().split('T')[0];
+            if (!dailyStats[respDate]) {
+              dailyStats[respDate] = { sent: 0, responses: 0, whatsapp: 0, form: 0 };
+            }
+            dailyStats[respDate].responses++;
+          }
+        }
+      }
+      
+      const dailyStatsArray = Object.entries(dailyStats)
+        .map(([date, stats]) => ({ date, ...stats }))
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .slice(-30);
+      
+      const totals = {
+        totalSent: immobili.filter(i => i.messaggioInviato).length + allCampaignMessages.filter(m => m.sentAt).length,
+        totalResponses: immobili.filter(i => i.rispostaRicevuta).length + allCampaignMessages.filter(m => m.respondedAt).length,
+        totalWhatsApp: immobili.filter(i => i.messaggioInviato && i.contattoTelefono).length + allCampaignMessages.filter(m => m.sentAt).length,
+        totalForm: immobili.filter(i => i.messaggioInviato && !i.contattoTelefono).length,
+        totalPending: immobili.filter(i => !i.messaggioInviato && i.statoContatto !== 'scartato').length,
+        totalContacted: immobili.filter(i => i.statoContatto === 'contattato').length,
+        totalInterested: immobili.filter(i => i.statoContatto === 'interessato').length,
+        totalDiscarded: immobili.filter(i => i.statoContatto === 'scartato').length,
+      };
+      
+      const responseRate = totals.totalSent > 0 ? Math.round((totals.totalResponses / totals.totalSent) * 100) : 0;
+      
+      const responseTypes: Record<string, number> = { interessato: 0, nonInteressato: 0, richiestaInfo: 0, appuntamento: 0, altro: 0 };
+      for (const immobile of immobili) {
+        if (immobile.rispostaRicevuta) {
+          if (immobile.statoContatto === 'interessato') responseTypes.interessato++;
+          else if (immobile.statoContatto === 'scartato') responseTypes.nonInteressato++;
+          else responseTypes.altro++;
+        }
+      }
+      
+      const sourceStats: Record<string, number> = {};
+      for (const immobile of immobili) {
+        const portale = immobile.portale || immobile.fonte || 'Sconosciuto';
+        sourceStats[portale] = (sourceStats[portale] || 0) + 1;
+      }
+      
+      res.json({ dailyStats: dailyStatsArray, totals, responseRate, responseTypes, sourceStats, lastUpdated: new Date().toISOString() });
+    } catch (error) {
+      console.error("Get acquisition stats error:", error);
+      res.status(500).json({ error: "Errore nel caricamento delle statistiche" });
+    }
+  });
+
   // Get single external property
   app.get("/api/acquisizione/:id", async (req, res) => {
     try {
@@ -2491,143 +2580,6 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
     }
   });
 
-  // ==================== ACQUISIZIONE STATISTICS ====================
-  
-  // Get acquisition campaign statistics
-  app.get("/api/acquisizione/stats", async (req, res) => {
-    try {
-      // Get all immobili esterni with their communication history
-      const immobili = await storage.getImmobiliEsterni();
-      
-      // Get all campaign messages
-      const campaigns = await storage.getWhatsappCampaigns();
-      const allCampaignMessages: any[] = [];
-      for (const campaign of campaigns) {
-        const messages = await storage.getCampaignMessages(campaign.id);
-        allCampaignMessages.push(...messages);
-      }
-      
-      // Get WhatsApp conversations and messages for response tracking
-      const whatsappConversations = await storage.getWhatsappConversations();
-      
-      // Calculate daily statistics
-      const dailyStats: Record<string, { sent: number; responses: number; whatsapp: number; form: number }> = {};
-      const last30Days = new Date();
-      last30Days.setDate(last30Days.getDate() - 30);
-      
-      // Process immobili for messages sent
-      for (const immobile of immobili) {
-        if (immobile.messaggioInviato && immobile.dataMessaggio) {
-          const date = new Date(immobile.dataMessaggio).toISOString().split('T')[0];
-          if (!dailyStats[date]) {
-            dailyStats[date] = { sent: 0, responses: 0, whatsapp: 0, form: 0 };
-          }
-          dailyStats[date].sent++;
-          
-          // Count by type
-          if (immobile.contattoTelefono) {
-            dailyStats[date].whatsapp++;
-          } else {
-            dailyStats[date].form++;
-          }
-          
-          // Check for responses
-          if (immobile.rispostaRicevuta && immobile.dataRisposta) {
-            const respDate = new Date(immobile.dataRisposta).toISOString().split('T')[0];
-            if (!dailyStats[respDate]) {
-              dailyStats[respDate] = { sent: 0, responses: 0, whatsapp: 0, form: 0 };
-            }
-            dailyStats[respDate].responses++;
-          }
-        }
-      }
-      
-      // Process campaign messages
-      for (const msg of allCampaignMessages) {
-        if (msg.sentAt) {
-          const date = new Date(msg.sentAt).toISOString().split('T')[0];
-          if (!dailyStats[date]) {
-            dailyStats[date] = { sent: 0, responses: 0, whatsapp: 0, form: 0 };
-          }
-          dailyStats[date].sent++;
-          dailyStats[date].whatsapp++;
-          
-          if (msg.respondedAt) {
-            const respDate = new Date(msg.respondedAt).toISOString().split('T')[0];
-            if (!dailyStats[respDate]) {
-              dailyStats[respDate] = { sent: 0, responses: 0, whatsapp: 0, form: 0 };
-            }
-            dailyStats[respDate].responses++;
-          }
-        }
-      }
-      
-      // Convert to array sorted by date
-      const dailyStatsArray = Object.entries(dailyStats)
-        .map(([date, stats]) => ({ date, ...stats }))
-        .sort((a, b) => a.date.localeCompare(b.date))
-        .slice(-30); // Last 30 days
-      
-      // Calculate totals
-      const totals = {
-        totalSent: immobili.filter(i => i.messaggioInviato).length + allCampaignMessages.filter(m => m.sentAt).length,
-        totalResponses: immobili.filter(i => i.rispostaRicevuta).length + allCampaignMessages.filter(m => m.respondedAt).length,
-        totalWhatsApp: immobili.filter(i => i.messaggioInviato && i.contattoTelefono).length + allCampaignMessages.filter(m => m.sentAt).length,
-        totalForm: immobili.filter(i => i.messaggioInviato && !i.contattoTelefono).length,
-        totalPending: immobili.filter(i => !i.messaggioInviato && i.stato !== 'scartato').length,
-        totalContacted: immobili.filter(i => i.stato === 'contattato').length,
-        totalInterested: immobili.filter(i => i.stato === 'interessato').length,
-        totalDiscarded: immobili.filter(i => i.stato === 'scartato').length,
-      };
-      
-      // Response rate
-      const responseRate = totals.totalSent > 0 
-        ? Math.round((totals.totalResponses / totals.totalSent) * 100) 
-        : 0;
-      
-      // Response types analysis
-      const responseTypes: Record<string, number> = {
-        interessato: 0,
-        nonInteressato: 0,
-        richiestaInfo: 0,
-        appuntamento: 0,
-        altro: 0,
-      };
-      
-      // Analyze responses from immobili
-      for (const immobile of immobili) {
-        if (immobile.rispostaRicevuta) {
-          if (immobile.stato === 'interessato') {
-            responseTypes.interessato++;
-          } else if (immobile.stato === 'scartato') {
-            responseTypes.nonInteressato++;
-          } else {
-            responseTypes.altro++;
-          }
-        }
-      }
-      
-      // Source distribution
-      const sourceStats: Record<string, number> = {};
-      for (const immobile of immobili) {
-        const fonte = immobile.fonte || 'Sconosciuto';
-        sourceStats[fonte] = (sourceStats[fonte] || 0) + 1;
-      }
-      
-      res.json({
-        dailyStats: dailyStatsArray,
-        totals,
-        responseRate,
-        responseTypes,
-        sourceStats,
-        lastUpdated: new Date().toISOString(),
-      });
-    } catch (error) {
-      console.error("Get acquisition stats error:", error);
-      res.status(500).json({ error: "Errore nel caricamento delle statistiche" });
-    }
-  });
-  
   // Generate AI report for acquisition campaigns
   app.post("/api/acquisizione/ai-report", async (req, res) => {
     try {
@@ -2651,38 +2603,38 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
       const whatsappResponses = immobili.filter(i => i.rispostaRicevuta && i.contattoTelefono).length + allCampaignMessages.filter(m => m.respondedAt).length;
       const formResponses = immobili.filter(i => i.rispostaRicevuta && !i.contattoTelefono).length;
       
-      const interested = immobili.filter(i => i.stato === 'interessato').length;
-      const discarded = immobili.filter(i => i.stato === 'scartato').length;
+      const interested = immobili.filter(i => i.statoContatto === 'interessato').length;
+      const discarded = immobili.filter(i => i.statoContatto === 'scartato').length;
       
-      // Source analysis
+      // Source analysis by portal
       const sourceStats: Record<string, { total: number; responses: number }> = {};
       for (const immobile of immobili) {
-        const fonte = immobile.fonte || 'Sconosciuto';
-        if (!sourceStats[fonte]) {
-          sourceStats[fonte] = { total: 0, responses: 0 };
+        const portale = immobile.portale || immobile.fonte || 'Sconosciuto';
+        if (!sourceStats[portale]) {
+          sourceStats[portale] = { total: 0, responses: 0 };
         }
         if (immobile.messaggioInviato) {
-          sourceStats[fonte].total++;
+          sourceStats[portale].total++;
           if (immobile.rispostaRicevuta) {
-            sourceStats[fonte].responses++;
+            sourceStats[portale].responses++;
           }
         }
       }
       
       // Sample messages for analysis
       const sampleMessages = immobili
-        .filter(i => i.messaggioInviato && i.testoMessaggio)
+        .filter(i => i.messaggioInviato)
         .slice(0, 5)
-        .map(i => i.testoMessaggio);
+        .map(i => i.messaggioInviato);
       
       // Sample responses for analysis
       const sampleResponses = immobili
         .filter(i => i.rispostaRicevuta)
         .slice(0, 10)
         .map(i => ({
-          messaggio: i.testoMessaggio?.substring(0, 200),
+          messaggio: i.messaggioInviato?.substring(0, 200),
           risposta: i.note?.substring(0, 200),
-          stato: i.stato,
+          stato: i.statoContatto,
         }));
       
       const prompt = `Sei un esperto di marketing immobiliare e acquisizione clienti. Analizza i seguenti dati della campagna di acquisizione immobili e fornisci un report dettagliato con consigli pratici.
