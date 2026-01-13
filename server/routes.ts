@@ -10,7 +10,7 @@ import {
 import { parseRequestWithAI, calculateMatchScore, generateAICoachMessage, parsePropertyListingWithAI, parsePropertyImageWithAI, generateAcquisitionMessage, generateMirroring, extractPropertyFacts, generateFormContactMessage, extractPhoneFromImage, generateChatCompletion } from "./ai-service";
 import { whatsappWS } from "./websocket";
 import { sendWhatsAppMessage, isUltraMsgConfigured, normalizeItalianPhone } from "./ultramsg";
-import { getUnreadEmails, searchPortalEmails, parsePortalEmail, markAsRead, EmailMessage, sendEmail, isGmailConfigured } from "./gmail-service";
+import { getUnreadEmails, searchPortalEmails, parsePortalEmail, markAsRead, EmailMessage, sendEmail, isGmailConfigured, getEmailsByQuery } from "./gmail-service";
 import { processChatbotMessage } from "./services/chatbotService";
 import { exec } from "child_process";
 import { promisify } from "util";
@@ -4480,6 +4480,37 @@ FORMATO RISPOSTE:
         res.status(401).json({ error: "Gmail non connesso", needsAuth: true });
       } else {
         res.status(500).json({ error: "Errore nel recupero email" });
+      }
+    }
+  });
+
+  // Search forwarded emails from Paolo Salvemini (form responses)
+  app.get("/api/gmail/salvemini", async (req, res) => {
+    try {
+      // Search for emails forwarded from Paolo Salvemini (typically form responses from portals)
+      const query = 'from:paolo.salvemini OR (subject:Fw subject:salvemini) OR (subject:Fwd subject:salvemini)';
+      const emails = await getEmailsByQuery(query, 20);
+      
+      // Return full details for analysis
+      res.json({
+        count: emails.length,
+        emails: emails.map(email => ({
+          id: email.id,
+          threadId: email.threadId,
+          from: email.from,
+          subject: email.subject,
+          date: email.date,
+          snippet: email.snippet,
+          bodyPreview: email.body?.substring(0, 1000) || '',
+          fullBody: email.body
+        }))
+      });
+    } catch (error: any) {
+      console.error("Gmail Salvemini search error:", error);
+      if (error.message?.includes('Gmail not connected')) {
+        res.status(401).json({ error: "Gmail non connesso", needsAuth: true });
+      } else {
+        res.status(500).json({ error: "Errore nella ricerca email Salvemini" });
       }
     }
   });
