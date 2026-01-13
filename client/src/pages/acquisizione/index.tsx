@@ -17,7 +17,7 @@ import type { ImmobileEsterno } from "@shared/schema";
 import { 
   Search, Star, StarOff, Phone, Mail, ExternalLink, MapPin, Home, Euro, 
   Trash2, MessageSquare, Copy, Check, Loader2, Sparkles, Building2, Plus,
-  Image, FileText, Upload, X, Ruler, Bath, Eye, Send
+  Image, FileText, Upload, X, Ruler, Bath, Eye, Send, FileEdit, ClipboardCheck
 } from "lucide-react";
 
 interface ParsedListing {
@@ -733,6 +733,49 @@ function ImmobileEsternoCard({
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [formMessageGenerated, setFormMessageGenerated] = useState<string | null>(null);
+
+  const generateFormMessageMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/ai/generate-form-message", {
+        immobileId: immobile.id,
+        indirizzo: immobile.indirizzo,
+        zona: immobile.zona,
+        mq: immobile.mq,
+        prezzo: immobile.prezzo,
+        titolo: immobile.titolo,
+      });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setFormMessageGenerated(data.message);
+      navigator.clipboard.writeText(data.message);
+      toast({ title: "Messaggio copiato negli appunti" });
+      if (immobile.urlAnnuncio) {
+        window.open(immobile.urlAnnuncio, "_blank");
+      }
+    },
+    onError: () => {
+      toast({ title: "Errore", description: "Impossibile generare il messaggio", variant: "destructive" });
+    },
+  });
+
+  const registerFormSentMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/acquisizione/${immobile.id}/register-form-sent`, {
+        message: formMessageGenerated || "Messaggio inviato via form portale",
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Invio registrato", description: "Il contatto è stato salvato" });
+      queryClient.invalidateQueries({ queryKey: ["/api/acquisizione"] });
+      setFormMessageGenerated(null);
+    },
+    onError: () => {
+      toast({ title: "Errore", description: "Impossibile registrare l'invio", variant: "destructive" });
+    },
+  });
 
   const togglePreferitoMutation = useMutation({
     mutationFn: async () => {
@@ -1008,15 +1051,50 @@ function ImmobileEsternoCard({
         >
           {expanded ? "Meno" : "Altro"}
         </Button>
-        <Button 
-          variant="outline" 
-          size="sm"
-          onClick={() => onGenerateMessage(immobile.id)}
-          data-testid={`button-generate-message-${immobile.id}`}
-        >
-          <MessageSquare className="h-4 w-4 mr-1" />
-          Messaggio
-        </Button>
+        {hasPhone ? (
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => onGenerateMessage(immobile.id)}
+            data-testid={`button-generate-message-${immobile.id}`}
+          >
+            <MessageSquare className="h-4 w-4 mr-1" />
+            Messaggio
+          </Button>
+        ) : (
+          <>
+            <Button 
+              variant="outline" 
+              size="icon"
+              onClick={() => generateFormMessageMutation.mutate()}
+              disabled={generateFormMessageMutation.isPending}
+              title="Genera messaggio e apri form"
+              data-testid={`button-form-message-${immobile.id}`}
+            >
+              {generateFormMessageMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <FileEdit className="h-4 w-4 text-blue-600" />
+              )}
+            </Button>
+            {formMessageGenerated && (
+              <Button 
+                variant="outline" 
+                size="icon"
+                onClick={() => registerFormSentMutation.mutate()}
+                disabled={registerFormSentMutation.isPending}
+                title="Registra invio"
+                data-testid={`button-register-form-${immobile.id}`}
+              >
+                {registerFormSentMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ClipboardCheck className="h-4 w-4 text-green-600" />
+                )}
+              </Button>
+            )}
+          </>
+        )}
         <Button 
           variant="ghost" 
           size="icon"
