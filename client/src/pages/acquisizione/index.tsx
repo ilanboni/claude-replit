@@ -18,7 +18,7 @@ import {
   Search, Star, StarOff, Phone, Mail, ExternalLink, MapPin, Home, Euro, 
   Trash2, MessageSquare, Copy, Check, Loader2, Sparkles, Building2, Plus,
   Image, FileText, Upload, X, Ruler, Bath, Eye, Send, FileEdit, ClipboardCheck,
-  BarChart3, TrendingUp, Bot, RefreshCcw
+  BarChart3, TrendingUp, Bot, RefreshCcw, Link2
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, Legend } from "recharts";
 
@@ -1631,6 +1631,12 @@ export default function AcquisizionePage() {
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
+          <Link href="/acquisizione/url">
+            <Button data-testid="button-acquisisci-url">
+              <Link2 className="h-4 w-4 mr-2" />
+              Da URL (iPad)
+            </Button>
+          </Link>
           <Button variant="outline" asChild data-testid="button-search-immobiliare">
             <a
               href="https://www.immobiliare.it/vendita-case/milano/da-privati/?utm_source=chatgpt.com"

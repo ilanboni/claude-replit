@@ -23,6 +23,7 @@ import AppuntamentiPage from "@/pages/appuntamenti";
 import MatchingPage from "@/pages/matching";
 import AcquisizionePage from "@/pages/acquisizione";
 import AcquisizioneDetailPage from "@/pages/acquisizione/detail";
+import AcquisisciUrlPage from "@/pages/acquisisci-url";
 import BotPage from "@/pages/bot";
 import WhatsAppPage from "@/pages/whatsapp";
 import AttivitaPage from "@/pages/attivita";
@@ -45,6 +46,7 @@ function Router() {
       <Route path="/conferma-appuntamenti" component={ConfermaAppuntamentiPage} />
       <Route path="/matching" component={MatchingPage} />
       <Route path="/acquisizione" component={AcquisizionePage} />
+      <Route path="/acquisizione/url" component={AcquisisciUrlPage} />
       <Route path="/acquisizione/:id" component={AcquisizioneDetailPage} />
       <Route path="/bot" component={BotPage} />
       <Route path="/whatsapp" component={WhatsAppPage} />

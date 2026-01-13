@@ -5298,4 +5298,99 @@ FORMATO RISPOSTE:
       res.status(500).json({ error: error.message });
     }
   });
+
+  // ==================== SCRAPE URL (per iPad/mobile) ====================
+  const { scrapePropertyUrl, isApifyConfigured } = await import('./apify-scraper');
+
+  app.get("/api/scrape/status", async (req, res) => {
+    res.json({ configured: isApifyConfigured() });
+  });
+
+  app.post("/api/scrape/url", async (req, res) => {
+    try {
+      const { url } = req.body;
+      
+      if (!url) {
+        return res.status(400).json({ error: "URL richiesto" });
+      }
+
+      if (!isApifyConfigured()) {
+        return res.status(500).json({ error: "Apify non configurato. Aggiungi APIFY_API_TOKEN." });
+      }
+
+      console.log('[Scrape] Avvio scraping per:', url);
+      const data = await scrapePropertyUrl(url);
+      
+      if (!data) {
+        return res.status(404).json({ error: "Nessun dato trovato per questo URL" });
+      }
+
+      res.json(data);
+    } catch (error: any) {
+      console.error("Scrape URL error:", error);
+      res.status(500).json({ error: error.message || "Errore durante lo scraping" });
+    }
+  });
+
+  app.post("/api/scrape/save", async (req, res) => {
+    try {
+      const data = req.body;
+      
+      if (!data.urlAnnuncio) {
+        return res.status(400).json({ error: "Dati immobile mancanti" });
+      }
+
+      // Crea cliente proprietario
+      const cliente = await storage.createCliente({
+        nome: "Proprietario",
+        cognome: data.indirizzo || data.zona || "da URL",
+        telefono: data.contattoTelefono || null,
+        email: data.contattoEmail || null,
+        tipoCliente: "venditore",
+        ratingCliente: 3,
+        attivo: true
+      });
+
+      // Crea immobile esterno
+      const immobileEsterno = await storage.createImmobileEsterno({
+        titolo: data.titolo || "Immobile da " + data.portale,
+        descrizione: data.descrizione || "",
+        indirizzo: data.indirizzo || "",
+        zona: data.zona || "",
+        citta: data.citta || "Milano",
+        prezzo: data.prezzo ? String(data.prezzo) : null,
+        mq: data.mq || null,
+        camere: data.camere || null,
+        bagni: data.bagni || null,
+        piano: data.piano || null,
+        ascensore: data.ascensore || false,
+        balcone: data.balcone || false,
+        terrazzo: data.terrazzo || false,
+        box: data.box || false,
+        cantina: data.cantina || false,
+        giardino: data.giardino || false,
+        arredato: data.arredato || false,
+        classeEnergetica: data.classeEnergetica || null,
+        urlAnnuncio: data.urlAnnuncio,
+        riferimentoAnnuncio: data.riferimentoAnnuncio || null,
+        portale: data.portale || "Web",
+        fonte: "privato",
+        statoContatto: "nuovo",
+        immagini: data.immagini || [],
+        testoOriginale: JSON.stringify(data.raw || {}),
+        clienteId: cliente.id,
+        attivo: true
+      });
+
+      res.json({ 
+        success: true, 
+        immobileEsternoId: immobileEsterno.id,
+        clienteId: cliente.id,
+        message: "Immobile salvato con successo"
+      });
+    } catch (error: any) {
+      console.error("Save scraped property error:", error);
+      res.status(500).json({ error: error.message || "Errore durante il salvataggio" });
+    }
+  });
 }
