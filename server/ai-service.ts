@@ -1113,3 +1113,51 @@ export async function generateFormContactMessage(propertyData: {
       .replace(/\{\{caratteristiche\}\}/g, "le sue caratteristiche");
   }
 }
+
+// OCR per estrarre numero di telefono da immagine (immobiliare.it nasconde il telefono come immagine)
+export async function extractPhoneFromImage(imageUrl: string): Promise<string | null> {
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      temperature: 0,
+      max_tokens: 50,
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: "Estrai il numero di telefono da questa immagine. Rispondi SOLO con il numero di telefono (solo cifre), senza spazi o altri caratteri. Se non riesci a leggerlo, rispondi 'NESSUNO'."
+            },
+            {
+              type: "image_url",
+              image_url: { url: imageUrl }
+            }
+          ]
+        }
+      ]
+    });
+
+    const result = response.choices[0]?.message?.content?.trim();
+    if (!result || result === 'NESSUNO' || result.length < 8) {
+      return null;
+    }
+    
+    // Pulisci e normalizza il numero
+    const cleaned = result.replace(/\D/g, '');
+    if (cleaned.length >= 9 && cleaned.length <= 13) {
+      // Normalizza in formato +39
+      if (cleaned.length === 10 && cleaned.startsWith('3')) {
+        return '+39' + cleaned;
+      } else if (cleaned.length === 12 && cleaned.startsWith('39')) {
+        return '+' + cleaned;
+      }
+      return cleaned;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error("OCR phone extraction error:", error);
+    return null;
+  }
+}

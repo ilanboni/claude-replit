@@ -7,7 +7,7 @@ import {
   insertImmobileEsternoSchema, insertWhatsappCampaignSchema, insertCampaignMessageSchema,
   insertAttivitaClienteSchema, sendCommunicationSchema
 } from "@shared/schema";
-import { parseRequestWithAI, calculateMatchScore, generateAICoachMessage, parsePropertyListingWithAI, parsePropertyImageWithAI, generateAcquisitionMessage, generateMirroring, extractPropertyFacts, generateFormContactMessage } from "./ai-service";
+import { parseRequestWithAI, calculateMatchScore, generateAICoachMessage, parsePropertyListingWithAI, parsePropertyImageWithAI, generateAcquisitionMessage, generateMirroring, extractPropertyFacts, generateFormContactMessage, extractPhoneFromImage } from "./ai-service";
 import { whatsappWS } from "./websocket";
 import { sendWhatsAppMessage, isUltraMsgConfigured, normalizeItalianPhone } from "./ultramsg";
 import { getUnreadEmails, searchPortalEmails, parsePortalEmail, markAsRead, EmailMessage, sendEmail, isGmailConfigured } from "./gmail-service";
@@ -1620,6 +1620,25 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         } catch (e) {
           console.log("AI parsing failed, using raw data:", e);
         }
+      }
+      
+      // Se telefono non disponibile ma c'è immagine del telefono, usa OCR con GPT-4o Vision
+      if (!parsedData.contattoTelefono && data.contatto?.telefonoImmagine) {
+        console.log("Phone hidden as image, attempting OCR:", data.contatto.telefonoImmagine);
+        try {
+          const extractedPhone = await extractPhoneFromImage(data.contatto.telefonoImmagine);
+          if (extractedPhone) {
+            parsedData.contattoTelefono = extractedPhone;
+            console.log("OCR extracted phone:", extractedPhone);
+          }
+        } catch (e) {
+          console.log("OCR phone extraction failed:", e);
+        }
+      }
+      
+      // Prendi il telefono dal contatto se non già presente
+      if (!parsedData.contattoTelefono && data.contatto?.telefono) {
+        parsedData.contattoTelefono = data.contatto.telefono;
       }
       
       // Build and validate immobile data - map AI fields to storage fields
