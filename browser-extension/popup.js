@@ -70,7 +70,7 @@ async function extractFromPage() {
 }
 
 async function sendToImmoGest() {
-  const serverUrl = serverUrlEl.value.trim();
+  const serverUrl = serverUrlEl.value.trim().replace(/\/+$/, ''); // Rimuovi slash finali
   
   if (!serverUrl) {
     setStatus('Inserisci l\'URL di ImmoGest', 'warning');
