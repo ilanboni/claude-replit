@@ -19,6 +19,37 @@ import * as path from "path";
 import * as os from "os";
 const execAsync = promisify(exec);
 
+// Normalizza numeri di telefono italiani in formato internazionale: 3xx → +393xx
+function normalizeItalianPhoneNumber(phone: string): string {
+  let cleaned = phone.replace(/[\s\-]/g, '');
+  
+  // Rimuovi + se presente per processare
+  if (cleaned.startsWith('+')) {
+    cleaned = cleaned.slice(1);
+  }
+  
+  // Rimuovi eventuale prefisso 0039
+  if (cleaned.startsWith('0039')) {
+    cleaned = cleaned.slice(4);
+  }
+  // Rimuovi eventuale prefisso 39 iniziale
+  else if (cleaned.startsWith('39') && cleaned.length > 10) {
+    cleaned = cleaned.slice(2);
+  }
+  
+  // Se è un numero italiano (10 cifre che inizia con 3), aggiungi +39
+  if (cleaned.length === 10 && cleaned.startsWith('3')) {
+    return '+39' + cleaned;
+  }
+  
+  // Se già ha 12 cifre con 39, aggiungi solo +
+  if (cleaned.length === 12 && cleaned.startsWith('39')) {
+    return '+' + cleaned;
+  }
+  
+  return phone.substring(0, 50);
+}
+
 export async function registerRoutes(server: Server, app: Express): Promise<void> {
   // ==================== RICERCA GLOBALE ====================
   app.get("/api/search", async (req, res) => {
@@ -1628,7 +1659,7 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         contattoNome: parsedData.contattoNome 
           ? String(parsedData.contattoNome).substring(0, 200) 
           : (parsedData.indirizzo ? `Proprietario di ${String(parsedData.indirizzo).substring(0, 150)}` : undefined),
-        contattoTelefono: parsedData.contattoTelefono ? String(parsedData.contattoTelefono).substring(0, 50) : undefined,
+        contattoTelefono: parsedData.contattoTelefono ? normalizeItalianPhoneNumber(String(parsedData.contattoTelefono)) : undefined,
         contattoEmail: parsedData.contattoEmail ? String(parsedData.contattoEmail).substring(0, 200) : undefined,
         urlAnnuncio: parsedData.url ? String(parsedData.url).substring(0, 1000) : undefined,
         testoOriginale: parsedData.testoCompleto ? String(parsedData.testoCompleto).substring(0, 5000) : undefined,
