@@ -50,6 +50,106 @@ function normalizeItalianPhoneNumber(phone: string): string {
   return phone.substring(0, 50);
 }
 
+// Calcola orario di invio rispettando orari lavorativi (8:30-19:00, lun-ven, fuso orario Italia)
+function calculateWorkingHoursSchedule(): Date {
+  const minDelayMs = 4 * 60 * 1000;  // 4 minuti
+  const maxDelayMs = 25 * 60 * 1000; // 25 minuti
+  const delayMs = Math.floor(Math.random() * (maxDelayMs - minDelayMs + 1)) + minDelayMs;
+  
+  // Orario attuale in Italia (Europe/Rome)
+  const now = new Date();
+  const italyOffset = getItalyTimezoneOffset(now);
+  const italyTime = new Date(now.getTime() + italyOffset);
+  
+  const hours = italyTime.getUTCHours();
+  const minutes = italyTime.getUTCMinutes();
+  const dayOfWeek = italyTime.getUTCDay(); // 0=dom, 1=lun, ..., 6=sab
+  
+  // Orari lavorativi: 8:30 - 19:00
+  const workStartHour = 8;
+  const workStartMinute = 30;
+  const workEndHour = 19;
+  const workEndMinute = 0;
+  
+  const currentTimeMinutes = hours * 60 + minutes;
+  const workStartMinutes = workStartHour * 60 + workStartMinute; // 8:30 = 510
+  const workEndMinutes = workEndHour * 60 + workEndMinute; // 19:00 = 1140
+  
+  // Calcola scheduledAt con delay
+  let scheduledAt = new Date(now.getTime() + delayMs);
+  const scheduledItalyTime = new Date(scheduledAt.getTime() + italyOffset);
+  const scheduledHours = scheduledItalyTime.getUTCHours();
+  const scheduledMinutes = scheduledItalyTime.getUTCMinutes();
+  const scheduledTimeMinutes = scheduledHours * 60 + scheduledMinutes;
+  const scheduledDayOfWeek = scheduledItalyTime.getUTCDay();
+  
+  // Verifica se l'orario schedulato è dentro gli orari lavorativi
+  const isWorkingDay = scheduledDayOfWeek >= 1 && scheduledDayOfWeek <= 5; // lun-ven
+  const isWorkingHours = scheduledTimeMinutes >= workStartMinutes && scheduledTimeMinutes < workEndMinutes;
+  
+  if (isWorkingDay && isWorkingHours) {
+    // Orario OK, usa scheduledAt calcolato
+    console.log(`[Bot IA] Scheduled time ${scheduledHours}:${String(scheduledMinutes).padStart(2, '0')} is within working hours`);
+    return scheduledAt;
+  }
+  
+  // Fuori orario: schedula per la prossima mattina lavorativa alle 8:30 + delay random
+  console.log(`[Bot IA] Time ${scheduledHours}:${String(scheduledMinutes).padStart(2, '0')} is outside working hours (8:30-19:00)`);
+  
+  // Calcola quanti giorni aggiungere per arrivare al prossimo giorno lavorativo
+  let daysToAdd = 1;
+  let nextDay = (scheduledDayOfWeek + 1) % 7;
+  
+  // Se è dopo le 19 di venerdì, sabato o domenica, vai a lunedì
+  while (nextDay === 0 || nextDay === 6) {
+    daysToAdd++;
+    nextDay = (nextDay + 1) % 7;
+  }
+  
+  // Se siamo prima delle 8:30 di un giorno lavorativo, schedula per oggi alle 8:30
+  if (isWorkingDay && currentTimeMinutes < workStartMinutes) {
+    daysToAdd = 0;
+  }
+  
+  // Crea data per la prossima mattina lavorativa
+  const nextWorkingDay = new Date(italyTime);
+  nextWorkingDay.setUTCDate(nextWorkingDay.getUTCDate() + daysToAdd);
+  nextWorkingDay.setUTCHours(workStartHour, workStartMinute, 0, 0);
+  
+  // Aggiungi delay random (4-25 minuti)
+  const morningDelayMs = Math.floor(Math.random() * (maxDelayMs - minDelayMs + 1)) + minDelayMs;
+  const finalScheduledItalyTime = new Date(nextWorkingDay.getTime() + morningDelayMs);
+  
+  // Converti da ora Italia a UTC
+  const finalScheduledAt = new Date(finalScheduledItalyTime.getTime() - italyOffset);
+  
+  console.log(`[Bot IA] Rescheduled to next working day: ${finalScheduledAt.toISOString()}`);
+  return finalScheduledAt;
+}
+
+// Ottieni offset fuso orario Italia (gestisce ora legale/solare)
+function getItalyTimezoneOffset(date: Date): number {
+  // Crea una data in formato Italia per determinare se è ora legale
+  const year = date.getFullYear();
+  
+  // Ultima domenica di marzo (inizio ora legale)
+  const marchLast = new Date(Date.UTC(year, 2, 31));
+  while (marchLast.getUTCDay() !== 0) marchLast.setUTCDate(marchLast.getUTCDate() - 1);
+  marchLast.setUTCHours(1, 0, 0, 0); // 01:00 UTC = 02:00 CET
+  
+  // Ultima domenica di ottobre (fine ora legale)
+  const octoberLast = new Date(Date.UTC(year, 9, 31));
+  while (octoberLast.getUTCDay() !== 0) octoberLast.setUTCDate(octoberLast.getUTCDate() - 1);
+  octoberLast.setUTCHours(1, 0, 0, 0); // 01:00 UTC = 03:00 CEST
+  
+  // Se siamo in periodo di ora legale (CEST), offset = +2 ore
+  // Altrimenti ora solare (CET), offset = +1 ora
+  if (date >= marchLast && date < octoberLast) {
+    return 2 * 60 * 60 * 1000; // +2 ore in ms
+  }
+  return 1 * 60 * 60 * 1000; // +1 ora in ms
+}
+
 export async function registerRoutes(server: Server, app: Express): Promise<void> {
   // ==================== RICERCA GLOBALE ====================
   app.get("/api/search", async (req, res) => {
@@ -4109,17 +4209,11 @@ FORMATO RISPOSTE:
             );
 
             if (activeCampaignMessage) {
-              // Delay random tra 4 e 25 minuti per sembrare umano
-              const minDelayMs = 4 * 60 * 1000;  // 4 minuti
-              const maxDelayMs = 25 * 60 * 1000; // 25 minuti
-              const delayMs = Math.floor(Math.random() * (maxDelayMs - minDelayMs + 1)) + minDelayMs;
-              const delayMinutes = Math.round(delayMs / 60000);
-              
-              // Calcola quando inviare la risposta
-              const scheduledAt = new Date(Date.now() + delayMs);
+              // Calcola scheduledAt rispettando orari lavorativi (8:30-19:00, lun-ven)
+              const scheduledAt = calculateWorkingHoursSchedule();
               
               console.log(`[Bot IA] Found active campaign message ${activeCampaignMessage.id} for ${normalizedPhone}`);
-              console.log(`[Bot IA] Scheduling response in ${delayMinutes} minutes (at ${scheduledAt.toISOString()})`);
+              console.log(`[Bot IA] Scheduling response at ${scheduledAt.toISOString()} (working hours: 8:30-19:00)`);
               
               // Salva nel database per elaborazione dal worker (persistente!)
               await storage.createScheduledBotMessage({
