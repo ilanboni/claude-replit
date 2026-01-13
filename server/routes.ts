@@ -2190,8 +2190,21 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         return withoutNumber || address;
       };
       
-      // Use address (via) first, fallback to zona only if no address
-      const streetName = immobile.indirizzo ? extractStreetName(immobile.indirizzo) : (immobile.zona || "Immobile");
+      // Use address (via) first, fallback to titolo (which often contains the via), then zona
+      let streetName = "Immobile";
+      if (immobile.indirizzo) {
+        streetName = extractStreetName(immobile.indirizzo);
+      } else if (immobile.titolo) {
+        // Titolo spesso contiene la via, es: "Bilocale via Antonio Panizzi 15, Lorenteggio, Milano"
+        const viaMatch = immobile.titolo.match(/(Via|Viale|Piazza|Corso|Largo|Vicolo|Piazzale)\s+[^,\d]+/i);
+        if (viaMatch) {
+          streetName = extractStreetName(viaMatch[0]);
+        } else if (immobile.zona) {
+          streetName = immobile.zona;
+        }
+      } else if (immobile.zona) {
+        streetName = immobile.zona;
+      }
       
       // Helper for comparing phones (strip 39 prefix for comparison)
       const stripPrefix = (p: string) => p?.replace(/\D/g, '').replace(/^(0039|39)/, '') || '';
@@ -2340,7 +2353,20 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         return withoutNumber || address;
       };
       
-      const streetName = immobile.indirizzo ? extractStreetName(immobile.indirizzo) : (immobile.zona || "Immobile");
+      // Use address (via) first, fallback to titolo (which often contains the via), then zona
+      let streetName = "Immobile";
+      if (immobile.indirizzo) {
+        streetName = extractStreetName(immobile.indirizzo);
+      } else if (immobile.titolo) {
+        const viaMatch = immobile.titolo.match(/(Via|Viale|Piazza|Corso|Largo|Vicolo|Piazzale)\s+[^,\d]+/i);
+        if (viaMatch) {
+          streetName = extractStreetName(viaMatch[0]);
+        } else if (immobile.zona) {
+          streetName = immobile.zona;
+        }
+      } else if (immobile.zona) {
+        streetName = immobile.zona;
+      }
       
       // Check if client already exists by email (for form contacts we don't have phone)
       const clienti = await storage.getClienti();
