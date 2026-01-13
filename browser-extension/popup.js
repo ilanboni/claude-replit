@@ -397,6 +397,24 @@ function extractListingData() {
       }
     }
     
+    // Normalizza il telefono in formato internazionale: 3xx → +393xx
+    if (data.contatto.telefono) {
+      let phone = data.contatto.telefono.replace(/[\s\-\+]/g, '');
+      // Se inizia con 3 e ha 10 cifre, aggiungi +39
+      if (phone.match(/^3\d{9}$/)) {
+        phone = '+39' + phone;
+      }
+      // Se inizia con 39 e ha 12 cifre, aggiungi +
+      else if (phone.match(/^39\d{10}$/)) {
+        phone = '+' + phone;
+      }
+      // Se inizia con 0039, sostituisci con +39
+      else if (phone.match(/^0039\d{10}$/)) {
+        phone = '+39' + phone.substring(4);
+      }
+      data.contatto.telefono = phone;
+    }
+    
     // Controlla se c'è l'immagine del telefono (numero nascosto come immagine)
     const telImg = document.querySelector('img[src*="tel_"]');
     if (telImg && !data.contatto.telefono) {
