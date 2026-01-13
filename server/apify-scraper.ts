@@ -116,6 +116,12 @@ Rispondi SOLO con un JSON valido con questa struttura esatta:
   "contattoEmail": "email" o null
 }
 
+IMPORTANTE PER IL TELEFONO:
+- Cerca numeri di telefono OVUNQUE nel testo, specialmente nella descrizione
+- I privati spesso nascondono il numero nella descrizione (es: "trecentoquarantacinque..." o "3.4.5...")
+- Formato italiano: inizia con 3 (cellulare) o 02/06 etc (fisso), 9-10 cifre
+- Se trovi un numero scritto in lettere o con punti/spazi, convertilo in cifre
+
 IMPORTANTE: Rispondi SOLO con il JSON, senza markdown o altro testo.`;
 
   try {
