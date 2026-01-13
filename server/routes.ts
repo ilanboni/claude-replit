@@ -5300,7 +5300,7 @@ FORMATO RISPOSTE:
   });
 
   // ==================== SCRAPE URL (per iPad/mobile) ====================
-  const { scrapePropertyUrl, isApifyConfigured } = await import('./apify-scraper');
+  const { scrapePropertyUrl, isApifyConfigured, extractPhoneFromImage } = await import('./apify-scraper');
 
   app.get("/api/scrape/status", async (req, res) => {
     res.json({ configured: isApifyConfigured() });
@@ -5329,6 +5329,34 @@ FORMATO RISPOSTE:
     } catch (error: any) {
       console.error("Scrape URL error:", error);
       res.status(500).json({ error: error.message || "Errore durante lo scraping" });
+    }
+  });
+
+  // OCR per estrarre telefono da screenshot
+  app.post("/api/scrape/ocr-phone", async (req, res) => {
+    try {
+      const { image } = req.body;
+      
+      if (!image) {
+        return res.status(400).json({ error: "Immagine richiesta (base64)" });
+      }
+
+      // Rimuovi prefisso data:image/... se presente
+      const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
+      
+      console.log('[OCR] Analisi screenshot per telefono...');
+      const phone = await extractPhoneFromImage(base64Data);
+      
+      if (phone) {
+        console.log('[OCR] Telefono trovato:', phone);
+        res.json({ phone, found: true });
+      } else {
+        console.log('[OCR] Nessun telefono trovato');
+        res.json({ phone: null, found: false });
+      }
+    } catch (error: any) {
+      console.error("OCR phone error:", error);
+      res.status(500).json({ error: error.message || "Errore durante l'OCR" });
     }
   });
 

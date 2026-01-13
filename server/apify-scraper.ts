@@ -84,6 +84,63 @@ async function fetchPageContent(url: string): Promise<string> {
   return `TESTO PAGINA:\n${textContent.slice(0, 15000)}\n\nIMAGINI TROVATE:\n${uniqueImages.join('\n')}`;
 }
 
+async function extractPhoneFromScreenshot(screenshotBase64: string): Promise<string | null> {
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: `Analizza questa immagine/screenshot di un annuncio immobiliare.
+              
+OBIETTIVO: Trova e estrai SOLO il numero di telefono del venditore/proprietario.
+
+ISTRUZIONI:
+- Cerca numeri di telefono italiani (iniziano con 3 per cellulari, o 02/06 etc per fissi)
+- Il numero potrebbe essere visualizzato come immagine, parzialmente nascosto, o in formato particolare
+- Ignora numeri di riferimento annuncio, codici, prezzi
+- Formato atteso: 9-10 cifre, può avere prefisso +39
+
+RISPONDI SOLO con il numero di telefono trovato (solo cifre, senza spazi).
+Se non trovi un numero di telefono, rispondi con la parola "NESSUNO".`
+            },
+            {
+              type: "image_url",
+              image_url: {
+                url: `data:image/png;base64,${screenshotBase64}`
+              }
+            }
+          ]
+        }
+      ],
+      max_tokens: 100
+    });
+
+    const result = response.choices[0]?.message?.content?.trim() || '';
+    
+    if (result === 'NESSUNO' || result.length < 8) {
+      return null;
+    }
+    
+    const cleaned = result.replace(/\D/g, '');
+    if (cleaned.length >= 9 && cleaned.length <= 12) {
+      return cleaned;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Errore OCR screenshot:', error);
+    return null;
+  }
+}
+
+export async function extractPhoneFromImage(imageBase64: string): Promise<string | null> {
+  return extractPhoneFromScreenshot(imageBase64);
+}
+
 async function extractWithAI(content: string, url: string, portal: string): Promise<ScrapedProperty | null> {
   const prompt = `Analizza questo contenuto di un annuncio immobiliare da ${portal} e estrai i dati strutturati.
 

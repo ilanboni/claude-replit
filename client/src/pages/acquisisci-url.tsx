@@ -22,7 +22,9 @@ import {
   Building2,
   CheckCircle,
   AlertCircle,
-  ArrowLeft
+  ArrowLeft,
+  Camera,
+  Phone
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -57,6 +59,7 @@ interface ScrapedData {
 export default function AcquisisciUrl() {
   const [url, setUrl] = useState("");
   const [scrapedData, setScrapedData] = useState<ScrapedData | null>(null);
+  const [isOcrLoading, setIsOcrLoading] = useState(false);
   const { toast } = useToast();
 
   const scrapeMutation = useMutation({
@@ -117,6 +120,47 @@ export default function AcquisisciUrl() {
   const handleSave = () => {
     if (scrapedData) {
       saveMutation.mutate(scrapedData);
+    }
+  };
+
+  const handleOcrScreenshot = async (file: File) => {
+    setIsOcrLoading(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const base64 = e.target?.result as string;
+        try {
+          const res = await apiRequest("POST", "/api/scrape/ocr-phone", { image: base64 });
+          const data = await res.json();
+          
+          if (data.found && data.phone) {
+            toast({
+              title: "Telefono trovato!",
+              description: data.phone,
+            });
+            if (scrapedData) {
+              setScrapedData({ ...scrapedData, contattoTelefono: data.phone });
+            }
+          } else {
+            toast({
+              title: "Telefono non trovato",
+              description: "Prova con uno screenshot più chiaro",
+              variant: "destructive",
+            });
+          }
+        } catch (err: any) {
+          toast({
+            title: "Errore OCR",
+            description: err.message,
+            variant: "destructive",
+          });
+        } finally {
+          setIsOcrLoading(false);
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      setIsOcrLoading(false);
     }
   };
 
@@ -214,6 +258,61 @@ export default function AcquisisciUrl() {
                 </Label>
                 <p className="font-medium">{scrapedData.zona || scrapedData.citta || "N/D"}</p>
               </div>
+            </div>
+
+            {/* Sezione telefono con OCR */}
+            <div className="bg-muted/50 rounded-lg p-3">
+              <Label className="text-muted-foreground text-xs flex items-center gap-1 mb-2">
+                <Phone className="h-3 w-3" /> Telefono
+              </Label>
+              {scrapedData.contattoTelefono ? (
+                <p className="font-semibold text-lg">{scrapedData.contattoTelefono}</p>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    Non trovato - Carica uno screenshot del numero
+                  </p>
+                  <div className="flex gap-2 items-center">
+                    <Input
+                      type="text"
+                      placeholder="Inserisci manualmente"
+                      className="flex-1"
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          setScrapedData({ ...scrapedData, contattoTelefono: e.target.value });
+                        }
+                      }}
+                      data-testid="input-phone-manual"
+                    />
+                    <label className="cursor-pointer">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleOcrScreenshot(file);
+                        }}
+                        data-testid="input-screenshot"
+                      />
+                      <Button 
+                        variant="outline" 
+                        asChild
+                        disabled={isOcrLoading}
+                      >
+                        <span>
+                          {isOcrLoading ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Camera className="h-4 w-4" />
+                          )}
+                          <span className="ml-2">OCR</span>
+                        </span>
+                      </Button>
+                    </label>
+                  </div>
+                </div>
+              )}
             </div>
 
             <Separator />
