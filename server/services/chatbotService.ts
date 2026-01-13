@@ -365,7 +365,7 @@ export async function processChatbotMessage(
     userMessage,
     botResponse: botResponse.message,
     intent: botResponse.intent,
-    confidence: botResponse.confidence,
+    confidence: botResponse.confidence ? Math.round(botResponse.confidence * 100) : null,
     metadata: {
       shouldEndConversation: botResponse.shouldEndConversation,
       suggestedActions: botResponse.suggestedActions
