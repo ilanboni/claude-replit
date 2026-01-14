@@ -1,0 +1,176 @@
+OBIETTIVO
+Voglio potenziare il CRM per gestire in modo ordinato, produttivo e guidato
+gli immobili INTERESSANTI per i miei clienti, pubblicizzati da più agenzie,
+con l’obiettivo di arrivare a un mandato e poterli offrire a uno o più clienti.
+
+IMPORTANTE:
+- NON modificare nulla di ciò che è già stato implementato e funziona:
+  • gestione clienti
+  • import immobili da Idealista / Immobiliare
+  • acquisizione privati
+  • messaggistica WhatsApp / Gmail
+- Questo intervento riguarda SOLO:
+  • immobili multi-agenzia (opportunità esterne)
+  • produttività giornaliera
+  • matching immobili ↔ richieste clienti
+  • pipeline per arrivare al mandato
+
+------------------------------------------------
+1) IMMOBILE ESTERNO (OPPORTUNITÀ)
+------------------------------------------------
+
+Quando importo un annuncio trovato durante una ricerca cliente:
+- l’immobile NON entra nel mio portafoglio
+- viene creato come “Immobile Esterno / Opportunità”
+
+Nella scheda immobile devono esserci:
+
+SEZIONE: PUBBLICIZZATO DA
+- lista annunci collegati allo stesso immobile
+- per ogni annuncio:
+  • nome agenzia
+  • portale (Immobiliare / Idealista / altro)
+  • link
+  • data rilevazione
+- il primo annuncio viene creato automaticamente all’import
+- posso aggiungere manualmente altri annunci (copiando link)
+
+REGOLA MULTI-AGENZIA:
+- se esistono ≥ 2 annunci con AGENZIE DIVERSE
+  → stato automatico: MULTI-AGENZIA
+- possibilità di conferma manuale (flag “multi-agenzia confermata”)
+
+Badge visivo chiaro sull’immobile: MULTI-AGENZIA
+
+------------------------------------------------
+2) MATCHING IMMOBILE ↔ CLIENTI
+------------------------------------------------
+
+Ogni immobile esterno deve essere confrontato con TUTTE le richieste attive.
+
+MATCHING:
+- utilizza i campi già presenti nelle richieste:
+  • zona
+  • budget
+  • mq
+  • piano
+  • stato
+  • caratteristiche obbligatorie
+- se una caratteristica è obbligatoria e manca → NO MATCH
+- se è gradita → punteggio più alto
+
+OUTPUT MATCHING (OBBLIGATORIO):
+
+A) NELLA SCHEDA IMMOBILE
+- sezione “Clienti potenzialmente interessati”
+- elenco clienti con:
+  • nome
+  • rating richiesta
+  • livello match (alto / medio)
+- evidenziare il cliente che ha generato la ricerca (cliente trigger)
+
+B) NELLA SCHEDA RICHIESTA CLIENTE
+- sezione “Immobili compatibili”
+- mostrare anche immobili ESTERNI
+- indicare chiaramente:
+  • “Immobile non in portafoglio”
+  • stato: multi-agenzia / in lavorazione / mandato acquisito
+
+------------------------------------------------
+3) AVVIO ITER PER ARRIVARE AL MANDATO
+------------------------------------------------
+
+Dalla scheda immobile multi-agenzia deve esserci un bottone:
+
+“Avvia percorso per arrivare al mandato”
+
+Cliccando:
+- si crea un ITER DI ACQUISIZIONE collegato all’immobile
+- collegato anche al cliente trigger (senza escludere altri clienti)
+
+------------------------------------------------
+4) ITER DI ACQUISIZIONE (LEGGERO E USABILE)
+------------------------------------------------
+
+Poche fasi, molto concrete:
+
+1. Selezionato (vale la pena)
+2. Verifica multi-agenzia completata
+3. Ricerca proprietario
+4. Contatto avviato
+5. Follow-up
+6. Incontro fissato / svolto
+7. Esito (mandato sì / no / sospeso)
+
+Ogni iter ha:
+- UNA fase attiva alla volta
+- UNO o POCHI task alla volta (non sovraccaricare)
+
+------------------------------------------------
+5) TASK E PRODUTTIVITÀ GIORNALIERA
+------------------------------------------------
+
+Ogni iter genera task GUIDATI (template semplici), es:
+- “Ricerca dati proprietario”
+- “Tentativo contatto”
+- “Follow-up”
+- “Preparare proposta”
+
+Ogni task ha:
+- tipo attività:
+  • chiamate
+  • follow-up
+  • ricerca
+- NON serve data rigida, ma BLOCCO DI LAVORO
+
+------------------------------------------------
+6) BLOCCHI DELLA GIORNATA
+------------------------------------------------
+
+Voglio lavorare per blocchi.
+
+Blocchi STANDARD (modificabili):
+- Mattina: chiamate / primo contatto
+- Pomeriggio: follow-up
+- Fine giornata: ricerca / documenti
+
+Ogni task è assegnato a un blocco.
+
+VISTA PRINCIPALE DEL CRM:
+- “Oggi”
+- mostra:
+  • blocco
+  • task
+  • immobile
+  • cliente collegato
+
+------------------------------------------------
+7) AVVISI E SOLLECITI (INTELLIGENTI)
+------------------------------------------------
+
+Il sistema deve SOLLECITARMI, non stressarmi.
+
+Avvisi utili:
+- task non completato → riproposto il giorno dopo
+- iter fermo da X giorni → avviso
+- immobile multi-agenzia con clienti matchati ma iter NON avviato → alert
+- mandato acquisito → suggerire:
+  “Ora puoi proporre questo immobile ai clienti X, Y, Z”
+
+NO:
+- notifiche continue
+- automazioni invasive
+
+------------------------------------------------
+8) OBIETTIVO FINALE (CHIARO)
+------------------------------------------------
+
+Il CRM deve aiutarmi a:
+- non dimenticare immobili validi
+- lavorare in modo ordinato
+- arrivare al mandato
+- sfruttare ogni immobile per PIÙ clienti
+- sapere sempre:
+  • cosa devo fare oggi
+  • su quale immobile
+  • per quale cliente
