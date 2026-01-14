@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { RefreshCw, Database, CheckCircle, AlertCircle, Upload, Download } from "lucide-react";
+import { RefreshCw, Database, CheckCircle, AlertCircle, Upload, Download, Calendar, Link, Unlink } from "lucide-react";
 
 type SyncResult = {
   success: boolean;
@@ -18,7 +18,31 @@ export default function Impostazioni() {
   const [isSyncingTo, setIsSyncingTo] = useState(false);
   const [syncFromResult, setSyncFromResult] = useState<SyncResult | null>(null);
   const [syncToResult, setSyncToResult] = useState<SyncResult | null>(null);
+  const [calendarStatus, setCalendarStatus] = useState<{ connected: boolean; email?: string } | null>(null);
+  const [isCheckingCalendar, setIsCheckingCalendar] = useState(true);
   const { toast } = useToast();
+
+  useEffect(() => {
+    checkCalendarStatus();
+  }, []);
+
+  const checkCalendarStatus = async () => {
+    setIsCheckingCalendar(true);
+    try {
+      const response = await fetch("/api/calendar/auth-status");
+      const data = await response.json();
+      setCalendarStatus(data);
+    } catch (error) {
+      console.error("Error checking calendar status:", error);
+      setCalendarStatus({ connected: false });
+    } finally {
+      setIsCheckingCalendar(false);
+    }
+  };
+
+  const handleConnectCalendar = () => {
+    window.location.href = "/api/calendar/auth";
+  };
 
   const handleSyncFromProduction = async () => {
     setIsSyncingFrom(true);
@@ -106,6 +130,61 @@ export default function Impostazioni() {
         <h1 className="text-2xl font-bold">Impostazioni</h1>
         <p className="text-muted-foreground">Configurazione e strumenti di amministrazione</p>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Calendar className="h-5 w-5" />
+            Google Calendar
+          </CardTitle>
+          <CardDescription>
+            Collega il tuo account Google per sincronizzare automaticamente gli appuntamenti.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {isCheckingCalendar ? (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <RefreshCw className="h-4 w-4 animate-spin" />
+              <span>Verifica connessione...</span>
+            </div>
+          ) : calendarStatus?.connected ? (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                <CheckCircle className="h-4 w-4" />
+                <span>Calendario connesso{calendarStatus.email ? `: ${calendarStatus.email}` : ""}</span>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Gli appuntamenti creati in ImmoGest verranno sincronizzati automaticamente con il tuo Google Calendar.
+              </p>
+              <Button 
+                onClick={handleConnectCalendar} 
+                variant="outline"
+                data-testid="button-reconnect-calendar"
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Ricollega Calendario
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+                <AlertCircle className="h-4 w-4" />
+                <span>Calendario non connesso</span>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Collega il tuo account Google per sincronizzare gli appuntamenti con Google Calendar.
+              </p>
+              <Button 
+                onClick={handleConnectCalendar}
+                data-testid="button-connect-calendar"
+              >
+                <Link className="h-4 w-4 mr-2" />
+                Collega Google Calendar
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
