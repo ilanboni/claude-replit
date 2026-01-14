@@ -328,8 +328,27 @@ export const immobiliEsterni = pgTable("immobili_esterni", {
   rispostaRicevuta: boolean("risposta_ricevuta").default(false),
   portale: text("portale"), // clickcase.it, immobiliare.it, ecc.
   attivo: boolean("attivo").default(true),
+  // Multi-agenzia
+  multiAgenzia: boolean("multi_agenzia").default(false), // Automatico: true se ≥2 annunci con agenzie diverse
+  multiAgenziaConfermata: boolean("multi_agenzia_confermata").default(false), // Conferma manuale
+  clienteTrigger: integer("cliente_trigger").references(() => clienti.id, { onDelete: "set null" }), // Cliente che ha generato la ricerca
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// ANNUNCI IMMOBILE - Annunci collegati a immobili esterni (multi-agenzia)
+export const annunciImmobile = pgTable("annunci_immobile", {
+  id: serial("id").primaryKey(),
+  immobileEsternoId: integer("immobile_esterno_id").notNull().references(() => immobiliEsterni.id, { onDelete: "cascade" }),
+  nomeAgenzia: text("nome_agenzia"), // Nome agenzia o "Privato"
+  portale: text("portale").notNull(), // immobiliare.it, idealista, subito, altro
+  urlAnnuncio: text("url_annuncio"),
+  codiceAnnuncio: text("codice_annuncio"), // Riferimento annuncio sul portale
+  prezzo: decimal("prezzo", { precision: 12, scale: 2 }), // Prezzo su questo annuncio (può variare)
+  dataRilevazione: timestamp("data_rilevazione").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  note: text("note"),
+  attivo: boolean("attivo").default(true), // Se l'annuncio è ancora online
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
 // MATCHING - Match results between requests and properties
@@ -711,6 +730,16 @@ export type InsertMessage = z.infer<typeof insertMessageSchema>;
 
 export type ImmobileEsterno = typeof immobiliEsterni.$inferSelect;
 export type InsertImmobileEsterno = z.infer<typeof insertImmobileEsternoSchema>;
+
+// Annunci Immobile types
+export const insertAnnuncioImmobileSchema = createInsertSchema(annunciImmobile).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  prezzo: coerceOptionalDecimal,
+});
+export type AnnuncioImmobile = typeof annunciImmobile.$inferSelect;
+export type InsertAnnuncioImmobile = z.infer<typeof insertAnnuncioImmobileSchema>;
 
 export type AttivitaImmobile = typeof attivitaImmobile.$inferSelect;
 export type InsertAttivitaImmobile = z.infer<typeof insertAttivitaImmobileSchema>;
