@@ -377,16 +377,34 @@ function ContactCard({ immobile }: { immobile: ImmobileEsterno }) {
               <>
                 <Separator />
                 <div>
-                  <p className="text-sm text-muted-foreground mb-2">Cliente Collegato</p>
+                  <p className="text-sm text-muted-foreground mb-2">Proprietario Collegato</p>
                   <Link href={`/clienti/${cliente.id}`}>
-                    <div className="flex items-center gap-3 p-3 bg-muted rounded-md hover-elevate cursor-pointer">
-                      <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                        <User className="h-5 w-5 text-primary" />
+                    <div className="p-3 bg-muted rounded-md hover-elevate cursor-pointer border border-primary/20" data-testid="link-cliente-collegato">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                          <User className="h-5 w-5 text-primary" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-primary">{cliente.nome} {cliente.cognome}</p>
+                          <p className="text-xs text-muted-foreground">Clicca per vedere la scheda</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium">{cliente.nome} {cliente.cognome}</p>
-                        <p className="text-sm text-muted-foreground">{cliente.tipoCliente}</p>
-                      </div>
+                      {(cliente.telefono || cliente.email) && (
+                        <div className="mt-2 pt-2 border-t border-border/50 space-y-1">
+                          {cliente.telefono && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <Phone className="h-3 w-3 text-muted-foreground" />
+                              <span>{cliente.telefono}</span>
+                            </div>
+                          )}
+                          {cliente.email && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <Mail className="h-3 w-3 text-muted-foreground" />
+                              <span>{cliente.email}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </Link>
                 </div>
