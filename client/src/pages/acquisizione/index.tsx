@@ -1311,6 +1311,11 @@ function ImmobileEsternoCard({
           <Badge className={statoColors[immobile.statoContatto || 'nuovo']}>
             {immobile.statoContatto || 'nuovo'}
           </Badge>
+          {immobile.multiAgenzia && (
+            <Badge className="bg-orange-500 text-white" data-testid={`badge-multi-agenzia-${immobile.id}`}>
+              MULTI-AGENZIA
+            </Badge>
+          )}
           {getStatoLabel() && (
             <Badge variant="secondary">{getStatoLabel()}</Badge>
           )}

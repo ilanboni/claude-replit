@@ -69,9 +69,9 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import type { ImmobileEsterno, Cliente } from "@shared/schema";
+import type { ImmobileEsterno, Cliente, AnnuncioImmobile } from "@shared/schema";
 import { Label } from "@/components/ui/label";
-import { User } from "lucide-react";
+import { User, Building, Store } from "lucide-react";
 
 function FormContactBanner({ immobile }: { immobile: ImmobileEsterno }) {
   const { toast } = useToast();
@@ -820,6 +820,8 @@ function TabDettagli({ immobile }: { immobile: ImmobileEsterno }) {
           </CardContent>
         </Card>
 
+        <PubblicatoDaSection immobileId={immobile.id} immobile={immobile} />
+
         {immobile.note && (
           <Card>
             <CardHeader>
@@ -832,6 +834,202 @@ function TabDettagli({ immobile }: { immobile: ImmobileEsterno }) {
         )}
       </div>
     </div>
+  );
+}
+
+function PubblicatoDaSection({ immobileId, immobile }: { immobileId: number; immobile: ImmobileEsterno }) {
+  const { toast } = useToast();
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newAnnuncio, setNewAnnuncio] = useState({
+    nomeAgenzia: "",
+    portale: "",
+    urlAnnuncio: "",
+    codiceAnnuncio: "",
+    prezzoRichiesto: "",
+  });
+
+  const { data: annunci = [], isLoading } = useQuery<AnnuncioImmobile[]>({
+    queryKey: ["/api/acquisizione", immobileId, "annunci"],
+    queryFn: async () => {
+      const res = await fetch(`/api/acquisizione/${immobileId}/annunci`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (data: typeof newAnnuncio) => {
+      return apiRequest("POST", `/api/acquisizione/${immobileId}/annunci`, {
+        ...data,
+        prezzoRichiesto: data.prezzoRichiesto ? parseFloat(data.prezzoRichiesto) : null,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/acquisizione", immobileId, "annunci"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/acquisizione", immobileId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/acquisizione"] });
+      toast({ title: "Annuncio aggiunto" });
+      setShowAddForm(false);
+      setNewAnnuncio({ nomeAgenzia: "", portale: "", urlAnnuncio: "", codiceAnnuncio: "", prezzoRichiesto: "" });
+    },
+    onError: () => {
+      toast({ title: "Errore", description: "Impossibile aggiungere l'annuncio", variant: "destructive" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return apiRequest("DELETE", `/api/annunci/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/acquisizione", immobileId, "annunci"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/acquisizione", immobileId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/acquisizione"] });
+      toast({ title: "Annuncio rimosso" });
+    },
+  });
+
+  const hasMultipleAgencies = immobile.multiAgenzia;
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-3">
+        <div className="flex items-center gap-2">
+          <CardTitle className="text-base">Pubblicizzato da</CardTitle>
+          {hasMultipleAgencies && (
+            <Badge className="bg-orange-500 text-white" data-testid="badge-multi-agenzia">
+              MULTI-AGENZIA
+            </Badge>
+          )}
+        </div>
+        <Button
+          size="icon"
+          variant="ghost"
+          onClick={() => setShowAddForm(!showAddForm)}
+          data-testid="button-add-annuncio"
+        >
+          <Plus className="h-4 w-4" />
+        </Button>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {showAddForm && (
+          <div className="p-3 border rounded-md space-y-3 bg-muted/30">
+            <Input
+              placeholder="Nome agenzia *"
+              value={newAnnuncio.nomeAgenzia}
+              onChange={(e) => setNewAnnuncio({ ...newAnnuncio, nomeAgenzia: e.target.value })}
+              data-testid="input-nome-agenzia"
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                placeholder="Portale"
+                value={newAnnuncio.portale}
+                onChange={(e) => setNewAnnuncio({ ...newAnnuncio, portale: e.target.value })}
+                data-testid="input-portale"
+              />
+              <Input
+                placeholder="Prezzo (€)"
+                type="number"
+                value={newAnnuncio.prezzoRichiesto}
+                onChange={(e) => setNewAnnuncio({ ...newAnnuncio, prezzoRichiesto: e.target.value })}
+                data-testid="input-prezzo-annuncio"
+              />
+            </div>
+            <Input
+              placeholder="URL annuncio"
+              value={newAnnuncio.urlAnnuncio}
+              onChange={(e) => setNewAnnuncio({ ...newAnnuncio, urlAnnuncio: e.target.value })}
+              data-testid="input-url-annuncio"
+            />
+            <Input
+              placeholder="Codice annuncio"
+              value={newAnnuncio.codiceAnnuncio}
+              onChange={(e) => setNewAnnuncio({ ...newAnnuncio, codiceAnnuncio: e.target.value })}
+              data-testid="input-codice-annuncio"
+            />
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                onClick={() => createMutation.mutate(newAnnuncio)}
+                disabled={!newAnnuncio.nomeAgenzia || createMutation.isPending}
+                data-testid="button-save-annuncio"
+              >
+                {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salva"}
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setShowAddForm(false)}>
+                Annulla
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {isLoading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+          </div>
+        ) : annunci.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-3">
+            Nessun annuncio registrato
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {annunci.map((annuncio) => (
+              <div
+                key={annuncio.id}
+                className="flex items-start justify-between gap-2 p-2 rounded-md border bg-card hover-elevate"
+                data-testid={`annuncio-item-${annuncio.id}`}
+              >
+                <div className="flex items-start gap-2 min-w-0">
+                  <div className="p-1.5 rounded bg-muted">
+                    <Store className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm truncate">{annuncio.nomeAgenzia}</p>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      {annuncio.portale && <span>{annuncio.portale}</span>}
+                      {annuncio.prezzoRichiesto && (
+                        <span className="font-medium text-foreground">
+                          €{Number(annuncio.prezzoRichiesto).toLocaleString("it-IT")}
+                        </span>
+                      )}
+                    </div>
+                    {annuncio.urlAnnuncio && (
+                      <a
+                        href={annuncio.urlAnnuncio}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        Vedi annuncio
+                      </a>
+                    )}
+                  </div>
+                </div>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                  onClick={() => deleteMutation.mutate(annuncio.id)}
+                  data-testid={`button-delete-annuncio-${annuncio.id}`}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {hasMultipleAgencies && (
+          <div className="pt-2 border-t">
+            <p className="text-xs text-orange-600 dark:text-orange-400">
+              Questo immobile è pubblicizzato da {annunci.filter(a => a.nomeAgenzia?.toLowerCase() !== 'privato').length} agenzie diverse
+            </p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
