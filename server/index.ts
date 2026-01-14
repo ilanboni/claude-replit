@@ -5,6 +5,7 @@ import { createServer } from "http";
 import { whatsappWS } from "./websocket";
 import { startScheduledMessageWorker } from "./services/scheduledMessageWorker";
 import { startEmailImportWorker } from "./email-import-worker";
+import { startCalendarMonitorWorker } from "./calendar-monitor-worker";
 
 const app = express();
 const httpServer = createServer(app);
@@ -105,6 +106,9 @@ app.use((req, res, next) => {
       
       // Start the email import worker (checks every 5 minutes)
       startEmailImportWorker(5);
+      
+      // Start the calendar connection monitor (checks every 10 minutes)
+      startCalendarMonitorWorker(10);
     },
   );
 })();
