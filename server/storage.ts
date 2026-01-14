@@ -78,6 +78,7 @@ export interface IStorage {
   getImmobileEsterno(id: number): Promise<ImmobileEsterno | undefined>;
   getImmobileEsternoByUrl(url: string): Promise<ImmobileEsterno | undefined>;
   getImmobiliEsterniByCliente(clienteId: number): Promise<ImmobileEsterno[]>;
+  getImmobiliEsterniByRichiesta(richiestaId: number): Promise<ImmobileEsterno[]>;
   createImmobileEsterno(data: InsertImmobileEsterno): Promise<ImmobileEsterno>;
   updateImmobileEsterno(id: number, data: Partial<InsertImmobileEsterno>): Promise<ImmobileEsterno | undefined>;
   deleteImmobileEsterno(id: number): Promise<boolean>;
@@ -384,6 +385,10 @@ export class DatabaseStorage implements IStorage {
 
   async getImmobiliEsterniByCliente(clienteId: number): Promise<ImmobileEsterno[]> {
     return db.select().from(immobiliEsterni).where(eq(immobiliEsterni.clienteId, clienteId)).orderBy(desc(immobiliEsterni.createdAt));
+  }
+
+  async getImmobiliEsterniByRichiesta(richiestaId: number): Promise<ImmobileEsterno[]> {
+    return db.select().from(immobiliEsterni).where(eq(immobiliEsterni.richiestaId, richiestaId)).orderBy(desc(immobiliEsterni.createdAt));
   }
 
   async createImmobileEsterno(data: InsertImmobileEsterno): Promise<ImmobileEsterno> {

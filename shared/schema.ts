@@ -274,6 +274,7 @@ export const immobiliEsterni = pgTable("immobili_esterni", {
   id: serial("id").primaryKey(),
   idWeb: text("id_web").unique(), // ID univoco per identificazione via email/web
   clienteId: integer("cliente_id").references(() => clienti.id, { onDelete: "set null" }),
+  richiestaId: integer("richiesta_id").references(() => richieste.id, { onDelete: "set null" }), // Immobile suggerito per questa richiesta specifica
   titolo: text("titolo").notNull(),
   descrizione: text("descrizione"),
   indirizzo: text("indirizzo"),

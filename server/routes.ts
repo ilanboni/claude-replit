@@ -712,6 +712,92 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
     }
   });
 
+  // Get external properties suggested for a specific request
+  app.get("/api/richieste/:id/immobili-esterni", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const immobili = await storage.getImmobiliEsterniByRichiesta(id);
+      res.json(immobili);
+    } catch (error) {
+      console.error("Get immobili esterni by richiesta error:", error);
+      res.status(500).json({ error: "Errore nel recupero degli immobili esterni" });
+    }
+  });
+
+  // Add external property suggestion for a specific request
+  app.post("/api/richieste/:id/add-external-property", async (req, res) => {
+    try {
+      const richiestaId = parseInt(req.params.id);
+      const { url, titolo, zona, prezzo, mq, camere, bagni, descrizione } = req.body;
+
+      // Validate request exists
+      const richiesta = await storage.getRichiesta(richiestaId);
+      if (!richiesta) {
+        return res.status(404).json({ error: "Richiesta non trovata" });
+      }
+
+      // If URL provided, try to scrape property data
+      let propertyData: any = {
+        richiestaId,
+        clienteId: richiesta.clienteId,
+        titolo: titolo || "Immobile esterno",
+        zona,
+        prezzo,
+        mq,
+        camere,
+        bagni,
+        descrizione,
+        fonte: "manuale",
+        statoContatto: "nuovo",
+      };
+
+      if (url) {
+        // Check if property already exists by URL
+        const existing = await storage.getImmobileEsternoByUrl(url);
+        if (existing) {
+          // Update existing property to link to this request
+          const updated = await storage.updateImmobileEsterno(existing.id, { richiestaId, clienteId: richiesta.clienteId });
+          return res.json({ success: true, immobile: updated, message: "Immobile esistente collegato alla richiesta" });
+        }
+
+        propertyData.urlAnnuncio = url;
+        
+        // Try to detect portal from URL
+        if (url.includes("idealista")) {
+          propertyData.fonte = "idealista.it";
+        } else if (url.includes("immobiliare.it")) {
+          propertyData.fonte = "immobiliare.it";
+        } else if (url.includes("casa.it")) {
+          propertyData.fonte = "casa.it";
+        } else if (url.includes("subito.it")) {
+          propertyData.fonte = "subito.it";
+        }
+
+        // Try to scrape property using Apify if available
+        try {
+          const { scrapePropertyWithApify } = await import("./apify-scraper");
+          const scrapedData = await scrapePropertyWithApify(url);
+          if (scrapedData) {
+            propertyData = {
+              ...propertyData,
+              ...scrapedData,
+              richiestaId,
+              clienteId: richiesta.clienteId,
+            };
+          }
+        } catch (scrapeError) {
+          console.log("Scraping not available, using manual data:", scrapeError);
+        }
+      }
+
+      const immobile = await storage.createImmobileEsterno(propertyData);
+      res.status(201).json({ success: true, immobile, message: "Immobile aggiunto come suggerimento per la richiesta" });
+    } catch (error) {
+      console.error("Add external property to richiesta error:", error);
+      res.status(500).json({ error: "Errore nell'aggiunta dell'immobile esterno" });
+    }
+  });
+
   // ==================== IMMOBILI ====================
   app.get("/api/immobili", async (req, res) => {
     try {

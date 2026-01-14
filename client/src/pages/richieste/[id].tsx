@@ -10,16 +10,23 @@ import {
   Sparkles,
   ExternalLink,
   Calendar,
+  Plus,
+  Building2,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -34,7 +41,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { RichiestaForm } from "./richiesta-form";
-import type { Richiesta, Cliente } from "@shared/schema";
+import type { Richiesta, Cliente, ImmobileEsterno } from "@shared/schema";
 
 export default function RichiestaDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -42,6 +49,12 @@ export default function RichiestaDetailPage() {
   const { toast } = useToast();
   const [showEditForm, setShowEditForm] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showAddExternalDialog, setShowAddExternalDialog] = useState(false);
+  const [externalPropertyUrl, setExternalPropertyUrl] = useState("");
+  const [externalPropertyTitolo, setExternalPropertyTitolo] = useState("");
+  const [externalPropertyZona, setExternalPropertyZona] = useState("");
+  const [externalPropertyPrezzo, setExternalPropertyPrezzo] = useState("");
+  const [externalPropertyMq, setExternalPropertyMq] = useState("");
 
   const { data: richiesta, isLoading } = useQuery<Richiesta>({
     queryKey: ["/api/richieste", id],
@@ -60,6 +73,41 @@ export default function RichiestaDetailPage() {
       return res.json();
     },
     enabled: !!richiesta?.clienteId,
+  });
+
+  const { data: immobiliEsterni = [] } = useQuery<ImmobileEsterno[]>({
+    queryKey: ["/api/richieste", id, "immobili-esterni"],
+    queryFn: async () => {
+      const res = await fetch(`/api/richieste/${id}/immobili-esterni`);
+      if (!res.ok) throw new Error("Errore caricamento immobili");
+      return res.json();
+    },
+    enabled: !!id,
+  });
+
+  const addExternalMutation = useMutation({
+    mutationFn: async (data: { url?: string; titolo?: string; zona?: string; prezzo?: string; mq?: string }) => {
+      const res = await apiRequest("POST", `/api/richieste/${id}/add-external-property`, data);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/richieste", id, "immobili-esterni"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/acquisizione"] });
+      toast({ title: data.message || "Immobile aggiunto con successo" });
+      setShowAddExternalDialog(false);
+      setExternalPropertyUrl("");
+      setExternalPropertyTitolo("");
+      setExternalPropertyZona("");
+      setExternalPropertyPrezzo("");
+      setExternalPropertyMq("");
+    },
+    onError: () => {
+      toast({
+        title: "Errore",
+        description: "Impossibile aggiungere l'immobile",
+        variant: "destructive",
+      });
+    },
   });
 
   const deleteMutation = useMutation({
@@ -158,6 +206,10 @@ export default function RichiestaDetailPage() {
               Matching
             </Button>
           </Link>
+          <Button variant="outline" onClick={() => setShowAddExternalDialog(true)} data-testid="button-add-external">
+            <Plus className="h-4 w-4 mr-2" />
+            Aggiungi Immobile
+          </Button>
           <Button variant="outline" onClick={() => setShowEditForm(true)} data-testid="button-edit">
             <Edit className="h-4 w-4 mr-2" />
             Modifica
@@ -329,6 +381,142 @@ export default function RichiestaDetailPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Dialog per aggiungere immobile esterno */}
+      <Dialog open={showAddExternalDialog} onOpenChange={setShowAddExternalDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Aggiungi Immobile Esterno</DialogTitle>
+            <DialogDescription>
+              Incolla l'URL di un annuncio oppure inserisci i dati manualmente
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              addExternalMutation.mutate({
+                url: externalPropertyUrl || undefined,
+                titolo: externalPropertyTitolo || undefined,
+                zona: externalPropertyZona || undefined,
+                prezzo: externalPropertyPrezzo || undefined,
+                mq: externalPropertyMq || undefined,
+              });
+            }}
+            className="space-y-4"
+          >
+            <div className="space-y-2">
+              <Label htmlFor="url">URL Annuncio (Idealista, Immobiliare.it, ecc.)</Label>
+              <Input
+                id="url"
+                placeholder="https://www.idealista.it/immobile/..."
+                value={externalPropertyUrl}
+                onChange={(e) => setExternalPropertyUrl(e.target.value)}
+                data-testid="input-external-url"
+              />
+            </div>
+            <div className="text-center text-sm text-muted-foreground">oppure inserisci manualmente</div>
+            <div className="space-y-2">
+              <Label htmlFor="titolo">Titolo</Label>
+              <Input
+                id="titolo"
+                placeholder="Es: Bilocale in Via Roma"
+                value={externalPropertyTitolo}
+                onChange={(e) => setExternalPropertyTitolo(e.target.value)}
+                data-testid="input-external-titolo"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="zona">Zona</Label>
+                <Input
+                  id="zona"
+                  placeholder="Es: Centro, Milano"
+                  value={externalPropertyZona}
+                  onChange={(e) => setExternalPropertyZona(e.target.value)}
+                  data-testid="input-external-zona"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="prezzo">Prezzo (€)</Label>
+                <Input
+                  id="prezzo"
+                  type="number"
+                  placeholder="350000"
+                  value={externalPropertyPrezzo}
+                  onChange={(e) => setExternalPropertyPrezzo(e.target.value)}
+                  data-testid="input-external-prezzo"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="mq">Superficie (mq)</Label>
+              <Input
+                id="mq"
+                type="number"
+                placeholder="80"
+                value={externalPropertyMq}
+                onChange={(e) => setExternalPropertyMq(e.target.value)}
+                data-testid="input-external-mq"
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-4">
+              <Button type="button" variant="outline" onClick={() => setShowAddExternalDialog(false)}>
+                Annulla
+              </Button>
+              <Button type="submit" disabled={addExternalMutation.isPending} data-testid="button-submit-external">
+                {addExternalMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Aggiungi
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Sezione Immobili Suggeriti */}
+      {immobiliEsterni.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              Immobili Suggeriti ({immobiliEsterni.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {immobiliEsterni.map((immobile) => (
+                <Card key={immobile.id} className="hover-elevate border-l-4 border-l-blue-500">
+                  <CardContent className="p-4">
+                    <Link href={`/acquisizione/${immobile.id}`}>
+                      <h4 className="font-medium hover:underline cursor-pointer line-clamp-2" data-testid={`text-suggested-${immobile.id}`}>
+                        {immobile.titolo}
+                      </h4>
+                    </Link>
+                    <div className="mt-2 flex flex-wrap gap-2 text-sm text-muted-foreground">
+                      {immobile.zona && (
+                        <span className="flex items-center gap-1">
+                          <MapPin className="h-3 w-3" />
+                          {immobile.zona}
+                        </span>
+                      )}
+                      {immobile.prezzo && (
+                        <span className="font-medium text-foreground">
+                          €{Number(immobile.prezzo).toLocaleString('it-IT')}
+                        </span>
+                      )}
+                      {immobile.mq && <span>{immobile.mq} mq</span>}
+                    </div>
+                    {immobile.fonte && (
+                      <Badge variant="secondary" className="mt-2">
+                        {immobile.fonte}
+                      </Badge>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
