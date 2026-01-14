@@ -2,7 +2,7 @@ import {
   clienti, richieste, immobili, comunicazioni, appuntamenti, matching, immobiliEsterni,
   attivitaImmobile, attivitaCliente, documentiImmobile, portaliImmobile, storicoPrezzo,
   whatsappCampaigns, campaignMessages, botConversationLogs, scheduledBotMessages,
-  whatsappConversations, whatsappMessages,
+  whatsappConversations, whatsappMessages, annunciImmobile,
   oauthTokens, calendarEvents, appointmentConfirmations, notifiche,
   type Cliente, type InsertCliente,
   type Richiesta, type InsertRichiesta,
@@ -26,6 +26,7 @@ import {
   type CalendarEvent, type InsertCalendarEvent,
   type AppointmentConfirmation, type InsertAppointmentConfirmation,
   type Notifica, type InsertNotifica,
+  type AnnuncioImmobile, type InsertAnnuncioImmobile,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, or, desc, sql, lte } from "drizzle-orm";
@@ -159,6 +160,12 @@ export interface IStorage {
   createWhatsappMessage(data: InsertWhatsappMessage): Promise<WhatsappMessage>;
   updateWhatsappMessage(id: number, data: Partial<InsertWhatsappMessage>): Promise<WhatsappMessage | undefined>;
   updateWhatsappMessageStatus(id: number, status: string): Promise<WhatsappMessage | undefined>;
+
+  // Annunci Immobile (multi-agenzia)
+  getAnnunciImmobile(immobileEsternoId: number): Promise<AnnuncioImmobile[]>;
+  createAnnuncioImmobile(data: InsertAnnuncioImmobile): Promise<AnnuncioImmobile>;
+  deleteAnnuncioImmobile(id: number): Promise<boolean>;
+  updateMultiAgenziaStatus(immobileEsternoId: number): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -790,6 +797,50 @@ export class DatabaseStorage implements IStorage {
   async getImmobileByIdPortale(idPortale: string): Promise<Immobile | undefined> {
     const [immobile] = await db.select().from(immobili).where(eq(immobili.idPortale, idPortale));
     return immobile;
+  }
+
+  // Annunci Immobile (multi-agenzia)
+  async getAnnunciImmobile(immobileEsternoId: number): Promise<AnnuncioImmobile[]> {
+    return db.select().from(annunciImmobile)
+      .where(eq(annunciImmobile.immobileEsternoId, immobileEsternoId))
+      .orderBy(desc(annunciImmobile.dataRilevazione));
+  }
+
+  async createAnnuncioImmobile(data: InsertAnnuncioImmobile): Promise<AnnuncioImmobile> {
+    const [annuncio] = await db.insert(annunciImmobile).values(data).returning();
+    // Dopo aver creato l'annuncio, aggiorna lo stato multi-agenzia
+    await this.updateMultiAgenziaStatus(data.immobileEsternoId);
+    return annuncio;
+  }
+
+  async deleteAnnuncioImmobile(id: number): Promise<boolean> {
+    // Prima recupera l'ID dell'immobile per aggiornare lo stato
+    const [annuncio] = await db.select().from(annunciImmobile).where(eq(annunciImmobile.id, id));
+    if (annuncio) {
+      await db.delete(annunciImmobile).where(eq(annunciImmobile.id, id));
+      await this.updateMultiAgenziaStatus(annuncio.immobileEsternoId);
+    }
+    return true;
+  }
+
+  async updateMultiAgenziaStatus(immobileEsternoId: number): Promise<boolean> {
+    // Conta le agenzie uniche (nomi diversi e non nulli)
+    const annunci = await db.select().from(annunciImmobile)
+      .where(eq(annunciImmobile.immobileEsternoId, immobileEsternoId));
+    
+    const agenzieUniche = new Set(
+      annunci
+        .map(a => a.nomeAgenzia?.toLowerCase().trim())
+        .filter(nome => nome && nome !== 'privato')
+    );
+    
+    const isMultiAgenzia = agenzieUniche.size >= 2;
+    
+    await db.update(immobiliEsterni)
+      .set({ multiAgenzia: isMultiAgenzia })
+      .where(eq(immobiliEsterni.id, immobileEsternoId));
+    
+    return isMultiAgenzia;
   }
 }
 

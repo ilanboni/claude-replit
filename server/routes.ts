@@ -2688,6 +2688,74 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
     }
   });
 
+  // ========== ANNUNCI IMMOBILE (MULTI-AGENZIA) ==========
+  
+  // Get annunci for an immobile esterno
+  app.get("/api/acquisizione/:id/annunci", async (req, res) => {
+    try {
+      const immobileEsternoId = parseInt(req.params.id);
+      const annunci = await storage.getAnnunciImmobile(immobileEsternoId);
+      res.json(annunci);
+    } catch (error) {
+      console.error("Get annunci error:", error);
+      res.status(500).json({ error: "Errore nel recupero degli annunci" });
+    }
+  });
+
+  // Create new annuncio for an immobile esterno
+  app.post("/api/acquisizione/:id/annunci", async (req, res) => {
+    try {
+      const immobileEsternoId = parseInt(req.params.id);
+      const { insertAnnuncioImmobileSchema } = await import("@shared/schema");
+      
+      const parsed = insertAnnuncioImmobileSchema.safeParse({
+        ...req.body,
+        immobileEsternoId
+      });
+      
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Dati non validi", details: parsed.error });
+      }
+      
+      const annuncio = await storage.createAnnuncioImmobile(parsed.data);
+      res.status(201).json(annuncio);
+    } catch (error) {
+      console.error("Create annuncio error:", error);
+      res.status(500).json({ error: "Errore nella creazione dell'annuncio" });
+    }
+  });
+
+  // Delete annuncio
+  app.delete("/api/annunci/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteAnnuncioImmobile(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Delete annuncio error:", error);
+      res.status(500).json({ error: "Errore nell'eliminazione dell'annuncio" });
+    }
+  });
+
+  // Toggle conferma multi-agenzia
+  app.post("/api/acquisizione/:id/toggle-multi-agenzia-confermata", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const immobile = await storage.getImmobileEsterno(id);
+      if (!immobile) {
+        return res.status(404).json({ error: "Immobile non trovato" });
+      }
+      
+      const updated = await storage.updateImmobileEsterno(id, { 
+        multiAgenziaConfermata: !immobile.multiAgenziaConfermata 
+      });
+      res.json(updated);
+    } catch (error) {
+      console.error("Toggle multi-agenzia confermata error:", error);
+      res.status(500).json({ error: "Errore nell'aggiornamento dello stato multi-agenzia" });
+    }
+  });
+
   // Generate AI report for acquisition campaigns
   app.post("/api/acquisizione/ai-report", async (req, res) => {
     try {
