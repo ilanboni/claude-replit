@@ -24,6 +24,8 @@ import MatchingPage from "@/pages/matching";
 import AcquisizionePage from "@/pages/acquisizione";
 import AcquisizioneDetailPage from "@/pages/acquisizione/detail";
 import AcquisisciUrlPage from "@/pages/acquisisci-url";
+import MercatoPage from "@/pages/mercato";
+import MercatoDetailPage from "@/pages/mercato/detail";
 import BotPage from "@/pages/bot";
 import WhatsAppPage from "@/pages/whatsapp";
 import AttivitaPage from "@/pages/attivita";
@@ -48,6 +50,8 @@ function Router() {
       <Route path="/acquisizione" component={AcquisizionePage} />
       <Route path="/acquisizione/url" component={AcquisisciUrlPage} />
       <Route path="/acquisizione/:id" component={AcquisizioneDetailPage} />
+      <Route path="/mercato" component={MercatoPage} />
+      <Route path="/mercato/:id" component={MercatoDetailPage} />
       <Route path="/bot" component={BotPage} />
       <Route path="/whatsapp" component={WhatsAppPage} />
       <Route path="/attivita" component={AttivitaPage} />

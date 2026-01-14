@@ -5680,4 +5680,416 @@ FORMATO RISPOSTE:
       res.status(500).json({ error: error.message || "Errore durante il salvataggio" });
     }
   });
+
+  // ==================== OPPORTUNITA MERCATO ====================
+
+  // Lista opportunità con filtri
+  app.get("/api/mercato", async (req, res) => {
+    try {
+      const { stato, zona, prezzoMin, prezzoMax } = req.query;
+      const opportunita = await storage.getOpportunitaMercato({
+        stato: stato as string,
+        zona: zona as string,
+        prezzoMin: prezzoMin ? Number(prezzoMin) : undefined,
+        prezzoMax: prezzoMax ? Number(prezzoMax) : undefined,
+      });
+      res.json(opportunita);
+    } catch (error: any) {
+      console.error("Get opportunita mercato error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Dettaglio opportunità
+  app.get("/api/mercato/:id", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const opportunita = await storage.getOpportunitaMercatoById(id);
+      if (!opportunita) {
+        return res.status(404).json({ error: "Opportunità non trovata" });
+      }
+      
+      // Carica dati correlati
+      const [pubblicizzatoDa, attivita, documenti, matchingList] = await Promise.all([
+        storage.getPubblicizzatoDa(id),
+        storage.getAttivitaOpportunita(id),
+        storage.getDocumentiOpportunita(id),
+        storage.getMatchingOpportunita(id),
+      ]);
+      
+      res.json({
+        ...opportunita,
+        pubblicizzatoDa,
+        attivita,
+        documenti,
+        matching: matchingList,
+      });
+    } catch (error: any) {
+      console.error("Get opportunita mercato detail error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Crea opportunità
+  app.post("/api/mercato", async (req, res) => {
+    try {
+      const opportunita = await storage.createOpportunitaMercato(req.body);
+      
+      // Se c'è richiestaOrigineId, calcola matching
+      if (req.body.richiestaOrigineId) {
+        // Crea matching con la richiesta origine
+        const richiesta = await storage.getRichiesta(req.body.richiestaOrigineId);
+        if (richiesta) {
+          await storage.createMatchingOpportunita({
+            opportunitaId: opportunita.id,
+            richiestaId: richiesta.id,
+            punteggio: 80, // Score alto perché collegato manualmente
+          });
+        }
+      }
+      
+      res.json(opportunita);
+    } catch (error: any) {
+      console.error("Create opportunita mercato error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Aggiorna opportunità
+  app.patch("/api/mercato/:id", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const opportunita = await storage.updateOpportunitaMercato(id, req.body);
+      if (!opportunita) {
+        return res.status(404).json({ error: "Opportunità non trovata" });
+      }
+      res.json(opportunita);
+    } catch (error: any) {
+      console.error("Update opportunita mercato error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Cambia stato opportunità
+  app.patch("/api/mercato/:id/stato", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const { stato, motivoScarto, noteScarto } = req.body;
+      
+      const updateData: any = { stato };
+      if (stato === "scartato") {
+        updateData.motivoScarto = motivoScarto;
+        updateData.noteScarto = noteScarto;
+      }
+      if (stato === "acquisito") {
+        updateData.dataAcquisizione = new Date();
+      }
+      
+      const opportunita = await storage.updateOpportunitaMercato(id, updateData);
+      if (!opportunita) {
+        return res.status(404).json({ error: "Opportunità non trovata" });
+      }
+      res.json(opportunita);
+    } catch (error: any) {
+      console.error("Update opportunita stato error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Elimina opportunità
+  app.delete("/api/mercato/:id", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      await storage.deleteOpportunitaMercato(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Delete opportunita mercato error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Opportunità collegate a una richiesta
+  app.get("/api/richieste/:id/opportunita", async (req, res) => {
+    try {
+      const richiestaId = Number(req.params.id);
+      const opportunita = await storage.getOpportunitaMercatoByRichiesta(richiestaId);
+      res.json(opportunita);
+    } catch (error: any) {
+      console.error("Get opportunita by richiesta error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Aggiungi opportunità da richiesta (con link automatico)
+  app.post("/api/richieste/:id/add-opportunita", async (req, res) => {
+    try {
+      const richiestaId = Number(req.params.id);
+      const richiesta = await storage.getRichiesta(richiestaId);
+      if (!richiesta) {
+        return res.status(404).json({ error: "Richiesta non trovata" });
+      }
+
+      const opportunita = await storage.createOpportunitaMercato({
+        ...req.body,
+        richiestaOrigineId: richiestaId,
+        stato: "in_valutazione",
+      });
+
+      // Crea matching con la richiesta
+      await storage.createMatchingOpportunita({
+        opportunitaId: opportunita.id,
+        richiestaId: richiestaId,
+        punteggio: 80, // Score alto - collegamento manuale
+      });
+
+      // Aggiorna contatori match
+      await storage.updateOpportunitaMercato(opportunita.id, {
+        matchCount: 1,
+        matchAlti: 1,
+      });
+
+      res.json({ 
+        success: true, 
+        opportunita,
+        message: "Opportunità aggiunta e collegata alla richiesta"
+      });
+    } catch (error: any) {
+      console.error("Add opportunita from richiesta error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Pubblicizzato Da - CRUD
+  app.post("/api/mercato/:id/pubblicizzato-da", async (req, res) => {
+    try {
+      const opportunitaId = Number(req.params.id);
+      const pub = await storage.createPubblicizzatoDa({
+        ...req.body,
+        opportunitaId,
+      });
+      res.json(pub);
+    } catch (error: any) {
+      console.error("Create pubblicizzato da error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/mercato/pubblicizzato-da/:id", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      await storage.deletePubblicizzatoDa(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Delete pubblicizzato da error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Attività Opportunità - CRUD
+  app.post("/api/mercato/:id/attivita", async (req, res) => {
+    try {
+      const opportunitaId = Number(req.params.id);
+      const attivita = await storage.createAttivitaOpportunita({
+        ...req.body,
+        opportunitaId,
+      });
+      res.json(attivita);
+    } catch (error: any) {
+      console.error("Create attivita opportunita error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/mercato/attivita/:id", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      await storage.deleteAttivitaOpportunita(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Delete attivita opportunita error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Documenti Opportunità - CRUD
+  app.post("/api/mercato/:id/documenti", async (req, res) => {
+    try {
+      const opportunitaId = Number(req.params.id);
+      const doc = await storage.createDocumentoOpportunita({
+        ...req.body,
+        opportunitaId,
+      });
+      res.json(doc);
+    } catch (error: any) {
+      console.error("Create documento opportunita error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/mercato/documenti/:id", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      await storage.deleteDocumentoOpportunita(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Delete documento opportunita error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Matching Opportunità
+  app.get("/api/mercato/:id/matching", async (req, res) => {
+    try {
+      const opportunitaId = Number(req.params.id);
+      const matching = await storage.getMatchingOpportunita(opportunitaId);
+      
+      // Arricchisci con dati richiesta e cliente
+      const enrichedMatching = await Promise.all(matching.map(async (m) => {
+        const richiesta = await storage.getRichiesta(m.richiestaId);
+        const cliente = richiesta ? await storage.getCliente(richiesta.clienteId) : null;
+        return {
+          ...m,
+          richiesta,
+          cliente,
+        };
+      }));
+      
+      res.json(enrichedMatching);
+    } catch (error: any) {
+      console.error("Get matching opportunita error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Aggiorna matching (es. segna messaggio inviato)
+  app.patch("/api/mercato/matching/:id", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const matching = await storage.updateMatchingOpportunita(id, req.body);
+      if (!matching) {
+        return res.status(404).json({ error: "Matching non trovato" });
+      }
+      res.json(matching);
+    } catch (error: any) {
+      console.error("Update matching opportunita error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Converti opportunità in immobile portafoglio
+  app.post("/api/mercato/:id/converti-portafoglio", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const opportunita = await storage.getOpportunitaMercatoById(id);
+      if (!opportunita) {
+        return res.status(404).json({ error: "Opportunità non trovata" });
+      }
+
+      // Crea nuovo immobile nel portafoglio con i dati dell'opportunità
+      const immobile = await storage.createImmobile({
+        titolo: opportunita.titolo,
+        descrizione: opportunita.descrizione,
+        indirizzo: opportunita.indirizzo,
+        zona: opportunita.zona,
+        citta: opportunita.citta,
+        mq: opportunita.mq,
+        prezzo: opportunita.prezzo,
+        piano: opportunita.piano,
+        pianiEdificio: opportunita.pianiEdificio,
+        camere: opportunita.camere,
+        bagni: opportunita.bagni,
+        ascensore: opportunita.ascensore,
+        balcone: opportunita.balcone,
+        terrazzo: opportunita.terrazzo,
+        box: opportunita.box,
+        cantina: opportunita.cantina,
+        giardino: opportunita.giardino,
+        arredato: opportunita.arredato,
+        statoNuovo: opportunita.statoNuovo,
+        statoRistrutturato: opportunita.statoRistrutturato,
+        statoBuono: opportunita.statoBuono,
+        statoDaRistrutturare: opportunita.statoDaRistrutturare,
+        classeEnergetica: opportunita.classeEnergetica,
+        prestazioneEnergetica: opportunita.prestazioneEnergetica,
+        speseCondominiali: opportunita.speseCondominiali,
+        riscaldamento: opportunita.riscaldamento,
+        esposizione: opportunita.esposizione,
+        annoCostruzione: opportunita.annoCostruzione,
+        urlAnnuncio: opportunita.urlAnnuncio,
+        immagini: opportunita.immagini as string[],
+        caratteristiche: opportunita.caratteristiche as Record<string, any>,
+        origine: "acquisizione",
+        statoVendita: "disponibile",
+        attivo: true,
+      });
+
+      // Aggiorna opportunità con riferimento al nuovo immobile
+      await storage.updateOpportunitaMercato(id, {
+        stato: "acquisito",
+        immobilePortafoglioId: immobile.id,
+        dataAcquisizione: new Date(),
+      });
+
+      // Log attività
+      await storage.createAttivitaOpportunita({
+        opportunitaId: id,
+        tipo: "nota",
+        titolo: "Convertito in portafoglio",
+        descrizione: `Immobile aggiunto al portafoglio con ID ${immobile.id}`,
+        esito: "positivo",
+      });
+
+      res.json({ 
+        success: true, 
+        immobile,
+        message: "Opportunità convertita in immobile di portafoglio"
+      });
+    } catch (error: any) {
+      console.error("Convert to portafoglio error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Proponi clienti matchati per opportunità acquisita
+  app.get("/api/mercato/:id/proponi-clienti", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const opportunita = await storage.getOpportunitaMercatoById(id);
+      if (!opportunita) {
+        return res.status(404).json({ error: "Opportunità non trovata" });
+      }
+
+      // Recupera tutti i matching
+      const matchingList = await storage.getMatchingOpportunita(id);
+      
+      // Arricchisci con dati cliente e genera bozze messaggi
+      const proposte = await Promise.all(matchingList.map(async (m) => {
+        const richiesta = await storage.getRichiesta(m.richiestaId);
+        if (!richiesta) return null;
+        
+        const cliente = await storage.getCliente(richiesta.clienteId);
+        if (!cliente) return null;
+
+        // Genera bozza messaggio se non esiste
+        let bozzaMessaggio = m.bozzaMessaggio;
+        if (!bozzaMessaggio) {
+          bozzaMessaggio = `Gentile ${cliente.nome || 'Cliente'}, abbiamo un immobile che potrebbe interessarle: ${opportunita.titolo} in ${opportunita.zona}. ${opportunita.mq ? opportunita.mq + ' mq' : ''} ${opportunita.prezzo ? '€' + Number(opportunita.prezzo).toLocaleString('it-IT') : ''}. Le interessa fissare una visita?`;
+        }
+
+        return {
+          matchingId: m.id,
+          richiesta,
+          cliente,
+          punteggio: m.punteggio,
+          bozzaMessaggio,
+          messaggioInviato: m.messaggioInviato,
+        };
+      }));
+
+      res.json(proposte.filter(Boolean));
+    } catch (error: any) {
+      console.error("Get proponi clienti error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
 }

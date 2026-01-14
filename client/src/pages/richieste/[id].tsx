@@ -13,6 +13,14 @@ import {
   Plus,
   Building2,
   Loader2,
+  TrendingUp,
+  Euro,
+  Home,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  Link2,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -41,7 +49,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { RichiestaForm } from "./richiesta-form";
-import type { Richiesta, Cliente, ImmobileEsterno } from "@shared/schema";
+import type { Richiesta, Cliente, ImmobileEsterno, OpportunitaMercato } from "@shared/schema";
 
 export default function RichiestaDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -50,11 +58,18 @@ export default function RichiestaDetailPage() {
   const [showEditForm, setShowEditForm] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showAddExternalDialog, setShowAddExternalDialog] = useState(false);
+  const [showAddMercatoDialog, setShowAddMercatoDialog] = useState(false);
   const [externalPropertyUrl, setExternalPropertyUrl] = useState("");
   const [externalPropertyTitolo, setExternalPropertyTitolo] = useState("");
   const [externalPropertyZona, setExternalPropertyZona] = useState("");
   const [externalPropertyPrezzo, setExternalPropertyPrezzo] = useState("");
   const [externalPropertyMq, setExternalPropertyMq] = useState("");
+  const [mercatoTitolo, setMercatoTitolo] = useState("");
+  const [mercatoZona, setMercatoZona] = useState("");
+  const [mercatoPrezzo, setMercatoPrezzo] = useState("");
+  const [mercatoMq, setMercatoMq] = useState("");
+  const [mercatoUrl, setMercatoUrl] = useState("");
+  const [mercatoNote, setMercatoNote] = useState("");
 
   const { data: richiesta, isLoading } = useQuery<Richiesta>({
     queryKey: ["/api/richieste", id],
@@ -85,6 +100,16 @@ export default function RichiestaDetailPage() {
     enabled: !!id,
   });
 
+  const { data: opportunitaMercato = [] } = useQuery<OpportunitaMercato[]>({
+    queryKey: ["/api/richieste", id, "opportunita"],
+    queryFn: async () => {
+      const res = await fetch(`/api/richieste/${id}/opportunita`);
+      if (!res.ok) throw new Error("Errore caricamento opportunità");
+      return res.json();
+    },
+    enabled: !!id,
+  });
+
   const addExternalMutation = useMutation({
     mutationFn: async (data: { url?: string; titolo?: string; zona?: string; prezzo?: string; mq?: string }) => {
       const res = await apiRequest("POST", `/api/richieste/${id}/add-external-property`, data);
@@ -105,6 +130,40 @@ export default function RichiestaDetailPage() {
       toast({
         title: "Errore",
         description: "Impossibile aggiungere l'immobile",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const addMercatoMutation = useMutation({
+    mutationFn: async (data: { titolo?: string; zona?: string; prezzo?: string; mq?: string; urlAnnuncio?: string; note?: string }) => {
+      const res = await apiRequest("POST", `/api/richieste/${id}/add-opportunita`, {
+        titolo: data.titolo || null,
+        zona: data.zona || null,
+        prezzo: data.prezzo || null,
+        mq: data.mq ? Number(data.mq) : null,
+        urlAnnuncio: data.urlAnnuncio || null,
+        note: data.note || null,
+        citta: "Milano",
+      });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/richieste", id, "opportunita"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/mercato"] });
+      toast({ title: data.message || "Opportunità aggiunta e collegata" });
+      setShowAddMercatoDialog(false);
+      setMercatoTitolo("");
+      setMercatoZona("");
+      setMercatoPrezzo("");
+      setMercatoMq("");
+      setMercatoUrl("");
+      setMercatoNote("");
+    },
+    onError: () => {
+      toast({
+        title: "Errore",
+        description: "Impossibile aggiungere l'opportunità",
         variant: "destructive",
       });
     },
@@ -209,6 +268,10 @@ export default function RichiestaDetailPage() {
           <Button variant="outline" onClick={() => setShowAddExternalDialog(true)} data-testid="button-add-external">
             <Plus className="h-4 w-4 mr-2" />
             Aggiungi Immobile
+          </Button>
+          <Button variant="outline" onClick={() => setShowAddMercatoDialog(true)} data-testid="button-add-mercato">
+            <TrendingUp className="h-4 w-4 mr-2" />
+            Aggiungi da Mercato
           </Button>
           <Button variant="outline" onClick={() => setShowEditForm(true)} data-testid="button-edit">
             <Edit className="h-4 w-4 mr-2" />
@@ -471,6 +534,178 @@ export default function RichiestaDetailPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog per aggiungere opportunità da mercato */}
+      <Dialog open={showAddMercatoDialog} onOpenChange={setShowAddMercatoDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Aggiungi Opportunità di Mercato</DialogTitle>
+            <DialogDescription>
+              Crea una nuova opportunità di mercato collegata a questa richiesta
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              addMercatoMutation.mutate({
+                titolo: mercatoTitolo,
+                zona: mercatoZona,
+                prezzo: mercatoPrezzo,
+                mq: mercatoMq,
+                urlAnnuncio: mercatoUrl,
+                note: mercatoNote,
+              });
+            }}
+            className="space-y-4"
+          >
+            <div className="space-y-2">
+              <Label htmlFor="mercato-titolo">Titolo</Label>
+              <Input
+                id="mercato-titolo"
+                placeholder="Es: Trilocale San Siro"
+                value={mercatoTitolo}
+                onChange={(e) => setMercatoTitolo(e.target.value)}
+                data-testid="input-mercato-titolo"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="mercato-zona">Zona</Label>
+                <Input
+                  id="mercato-zona"
+                  placeholder="Es: San Siro"
+                  value={mercatoZona}
+                  onChange={(e) => setMercatoZona(e.target.value)}
+                  data-testid="input-mercato-zona"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="mercato-prezzo">Prezzo (€)</Label>
+                <Input
+                  id="mercato-prezzo"
+                  placeholder="350000"
+                  value={mercatoPrezzo}
+                  onChange={(e) => setMercatoPrezzo(e.target.value)}
+                  data-testid="input-mercato-prezzo"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="mercato-mq">Superficie (mq)</Label>
+              <Input
+                id="mercato-mq"
+                type="number"
+                placeholder="80"
+                value={mercatoMq}
+                onChange={(e) => setMercatoMq(e.target.value)}
+                data-testid="input-mercato-mq"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="mercato-url">URL Annuncio (opzionale)</Label>
+              <Input
+                id="mercato-url"
+                placeholder="https://www.immobiliare.it/..."
+                value={mercatoUrl}
+                onChange={(e) => setMercatoUrl(e.target.value)}
+                data-testid="input-mercato-url"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="mercato-note">Note</Label>
+              <Textarea
+                id="mercato-note"
+                placeholder="Note sull'opportunità..."
+                value={mercatoNote}
+                onChange={(e) => setMercatoNote(e.target.value)}
+                data-testid="input-mercato-note"
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-4">
+              <Button type="button" variant="outline" onClick={() => setShowAddMercatoDialog(false)}>
+                Annulla
+              </Button>
+              <Button type="submit" disabled={addMercatoMutation.isPending} data-testid="button-submit-mercato">
+                {addMercatoMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Aggiungi e Collega
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Sezione Opportunità di Mercato Collegate */}
+      {opportunitaMercato.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5" />
+              Opportunità di Mercato Collegate ({opportunitaMercato.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {opportunitaMercato.map((opp) => {
+                const statoConfig: Record<string, { color: string; icon: typeof Clock }> = {
+                  in_valutazione: { color: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400", icon: Clock },
+                  iter_proprietario: { color: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400", icon: TrendingUp },
+                  acquisito: { color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400", icon: CheckCircle2 },
+                  scartato: { color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400", icon: XCircle },
+                };
+                const config = statoConfig[opp.stato] || statoConfig.in_valutazione;
+                const Icon = config.icon;
+                return (
+                  <Link key={opp.id} href={`/mercato/${opp.id}`}>
+                    <Card className="hover-elevate border-l-4 border-l-primary cursor-pointer">
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Badge variant="secondary" className={`gap-1 ${config.color}`}>
+                            <Icon className="h-3 w-3" />
+                            {opp.stato.replace(/_/g, " ")}
+                          </Badge>
+                          <Badge variant="outline" className="gap-1 text-xs">
+                            <Link2 className="h-3 w-3" />
+                            Collegata
+                          </Badge>
+                        </div>
+                        <h4 className="font-medium line-clamp-2" data-testid={`text-mercato-${opp.id}`}>
+                          {opp.titolo || "Opportunità"}
+                        </h4>
+                        <div className="mt-2 flex flex-wrap gap-2 text-sm text-muted-foreground">
+                          {opp.zona && (
+                            <span className="flex items-center gap-1">
+                              <MapPin className="h-3 w-3" />
+                              {opp.zona}
+                            </span>
+                          )}
+                          {opp.prezzo && (
+                            <span className="flex items-center gap-1">
+                              <Euro className="h-3 w-3" />
+                              {Number(opp.prezzo).toLocaleString('it-IT')}
+                            </span>
+                          )}
+                          {opp.mq && (
+                            <span className="flex items-center gap-1">
+                              <Home className="h-3 w-3" />
+                              {opp.mq} mq
+                            </span>
+                          )}
+                        </div>
+                        {opp.matchCount && opp.matchCount > 0 && (
+                          <div className="mt-2 flex items-center gap-1 text-sm">
+                            <Users className="h-3.5 w-3.5 text-primary" />
+                            <span className="font-medium">{opp.matchCount} match</span>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </Link>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Sezione Immobili Suggeriti */}
       {immobiliEsterni.length > 0 && (

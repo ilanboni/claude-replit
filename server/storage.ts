@@ -4,6 +4,7 @@ import {
   whatsappCampaigns, campaignMessages, botConversationLogs, scheduledBotMessages,
   whatsappConversations, whatsappMessages, annunciImmobile,
   oauthTokens, calendarEvents, appointmentConfirmations, notifiche,
+  opportunitaMercato, pubblicizzatoDa, attivitaOpportunita, documentiOpportunita, matchingOpportunita,
   type Cliente, type InsertCliente,
   type Richiesta, type InsertRichiesta,
   type Immobile, type InsertImmobile,
@@ -27,6 +28,11 @@ import {
   type AppointmentConfirmation, type InsertAppointmentConfirmation,
   type Notifica, type InsertNotifica,
   type AnnuncioImmobile, type InsertAnnuncioImmobile,
+  type OpportunitaMercato, type InsertOpportunitaMercato,
+  type PubblicizzatoDa, type InsertPubblicizzatoDa,
+  type AttivitaOpportunita, type InsertAttivitaOpportunita,
+  type DocumentoOpportunita, type InsertDocumentoOpportunita,
+  type MatchingOpportunita, type InsertMatchingOpportunita,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, or, desc, sql, lte } from "drizzle-orm";
@@ -167,6 +173,36 @@ export interface IStorage {
   createAnnuncioImmobile(data: InsertAnnuncioImmobile): Promise<AnnuncioImmobile>;
   deleteAnnuncioImmobile(id: number): Promise<boolean>;
   updateMultiAgenziaStatus(immobileEsternoId: number): Promise<boolean>;
+
+  // Opportunità Mercato
+  getOpportunitaMercato(filters?: { stato?: string; zona?: string; prezzoMin?: number; prezzoMax?: number }): Promise<OpportunitaMercato[]>;
+  getOpportunitaMercatoById(id: number): Promise<OpportunitaMercato | undefined>;
+  getOpportunitaMercatoByRichiesta(richiestaId: number): Promise<OpportunitaMercato[]>;
+  createOpportunitaMercato(data: InsertOpportunitaMercato): Promise<OpportunitaMercato>;
+  updateOpportunitaMercato(id: number, data: Partial<InsertOpportunitaMercato>): Promise<OpportunitaMercato | undefined>;
+  deleteOpportunitaMercato(id: number): Promise<boolean>;
+
+  // Pubblicizzato Da
+  getPubblicizzatoDa(opportunitaId: number): Promise<PubblicizzatoDa[]>;
+  createPubblicizzatoDa(data: InsertPubblicizzatoDa): Promise<PubblicizzatoDa>;
+  deletePubblicizzatoDa(id: number): Promise<boolean>;
+
+  // Attivita Opportunita
+  getAttivitaOpportunita(opportunitaId: number): Promise<AttivitaOpportunita[]>;
+  createAttivitaOpportunita(data: InsertAttivitaOpportunita): Promise<AttivitaOpportunita>;
+  deleteAttivitaOpportunita(id: number): Promise<boolean>;
+
+  // Documenti Opportunita
+  getDocumentiOpportunita(opportunitaId: number): Promise<DocumentoOpportunita[]>;
+  createDocumentoOpportunita(data: InsertDocumentoOpportunita): Promise<DocumentoOpportunita>;
+  deleteDocumentoOpportunita(id: number): Promise<boolean>;
+
+  // Matching Opportunita
+  getMatchingOpportunita(opportunitaId: number): Promise<MatchingOpportunita[]>;
+  getMatchingOpportunitaByRichiesta(richiestaId: number): Promise<MatchingOpportunita[]>;
+  createMatchingOpportunita(data: InsertMatchingOpportunita): Promise<MatchingOpportunita>;
+  updateMatchingOpportunita(id: number, data: Partial<InsertMatchingOpportunita>): Promise<MatchingOpportunita | undefined>;
+  deleteMatchingOpportunita(id: number): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -524,7 +560,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAppuntamentiByImmobileEsterno(immobileEsternoId: number): Promise<Appuntamento[]> {
-    return db.select().from(appuntamenti).where(eq(appuntamenti.immobileEsternoId, immobileEsternoId)).orderBy(desc(appuntamenti.dataOra));
+    // Note: appuntamenti table doesn't have immobileEsternoId column yet - returning empty array
+    return [];
   }
 
   // Matching per Immobile
@@ -846,6 +883,136 @@ export class DatabaseStorage implements IStorage {
       .where(eq(immobiliEsterni.id, immobileEsternoId));
     
     return isMultiAgenzia;
+  }
+
+  // Opportunità Mercato
+  async getOpportunitaMercato(filters?: { stato?: string; zona?: string; prezzoMin?: number; prezzoMax?: number }): Promise<OpportunitaMercato[]> {
+    let query = db.select().from(opportunitaMercato).where(eq(opportunitaMercato.attivo, true));
+    
+    const conditions = [eq(opportunitaMercato.attivo, true)];
+    
+    if (filters?.stato) {
+      conditions.push(eq(opportunitaMercato.stato, filters.stato));
+    }
+    if (filters?.zona) {
+      conditions.push(sql`LOWER(${opportunitaMercato.zona}) LIKE LOWER(${'%' + filters.zona + '%'})`);
+    }
+    
+    return db.select().from(opportunitaMercato)
+      .where(and(...conditions))
+      .orderBy(desc(opportunitaMercato.matchCount), desc(opportunitaMercato.createdAt));
+  }
+
+  async getOpportunitaMercatoById(id: number): Promise<OpportunitaMercato | undefined> {
+    const [opp] = await db.select().from(opportunitaMercato).where(eq(opportunitaMercato.id, id));
+    return opp;
+  }
+
+  async getOpportunitaMercatoByRichiesta(richiestaId: number): Promise<OpportunitaMercato[]> {
+    return db.select().from(opportunitaMercato)
+      .where(eq(opportunitaMercato.richiestaOrigineId, richiestaId))
+      .orderBy(desc(opportunitaMercato.createdAt));
+  }
+
+  async createOpportunitaMercato(data: InsertOpportunitaMercato): Promise<OpportunitaMercato> {
+    const idWeb = `OPP-${Date.now().toString(36).toUpperCase()}`;
+    const [opp] = await db.insert(opportunitaMercato).values({ ...data, idWeb }).returning();
+    return opp;
+  }
+
+  async updateOpportunitaMercato(id: number, data: Partial<InsertOpportunitaMercato>): Promise<OpportunitaMercato | undefined> {
+    const [opp] = await db.update(opportunitaMercato)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(opportunitaMercato.id, id))
+      .returning();
+    return opp;
+  }
+
+  async deleteOpportunitaMercato(id: number): Promise<boolean> {
+    await db.delete(opportunitaMercato).where(eq(opportunitaMercato.id, id));
+    return true;
+  }
+
+  // Pubblicizzato Da
+  async getPubblicizzatoDa(opportunitaId: number): Promise<PubblicizzatoDa[]> {
+    return db.select().from(pubblicizzatoDa)
+      .where(eq(pubblicizzatoDa.opportunitaId, opportunitaId))
+      .orderBy(desc(pubblicizzatoDa.dataRilevazione));
+  }
+
+  async createPubblicizzatoDa(data: InsertPubblicizzatoDa): Promise<PubblicizzatoDa> {
+    const [pub] = await db.insert(pubblicizzatoDa).values(data).returning();
+    return pub;
+  }
+
+  async deletePubblicizzatoDa(id: number): Promise<boolean> {
+    await db.delete(pubblicizzatoDa).where(eq(pubblicizzatoDa.id, id));
+    return true;
+  }
+
+  // Attivita Opportunita
+  async getAttivitaOpportunita(opportunitaId: number): Promise<AttivitaOpportunita[]> {
+    return db.select().from(attivitaOpportunita)
+      .where(eq(attivitaOpportunita.opportunitaId, opportunitaId))
+      .orderBy(desc(attivitaOpportunita.dataAttivita));
+  }
+
+  async createAttivitaOpportunita(data: InsertAttivitaOpportunita): Promise<AttivitaOpportunita> {
+    const [att] = await db.insert(attivitaOpportunita).values(data).returning();
+    return att;
+  }
+
+  async deleteAttivitaOpportunita(id: number): Promise<boolean> {
+    await db.delete(attivitaOpportunita).where(eq(attivitaOpportunita.id, id));
+    return true;
+  }
+
+  // Documenti Opportunita
+  async getDocumentiOpportunita(opportunitaId: number): Promise<DocumentoOpportunita[]> {
+    return db.select().from(documentiOpportunita)
+      .where(eq(documentiOpportunita.opportunitaId, opportunitaId))
+      .orderBy(desc(documentiOpportunita.createdAt));
+  }
+
+  async createDocumentoOpportunita(data: InsertDocumentoOpportunita): Promise<DocumentoOpportunita> {
+    const [doc] = await db.insert(documentiOpportunita).values(data).returning();
+    return doc;
+  }
+
+  async deleteDocumentoOpportunita(id: number): Promise<boolean> {
+    await db.delete(documentiOpportunita).where(eq(documentiOpportunita.id, id));
+    return true;
+  }
+
+  // Matching Opportunita
+  async getMatchingOpportunita(opportunitaId: number): Promise<MatchingOpportunita[]> {
+    return db.select().from(matchingOpportunita)
+      .where(eq(matchingOpportunita.opportunitaId, opportunitaId))
+      .orderBy(desc(matchingOpportunita.punteggio));
+  }
+
+  async getMatchingOpportunitaByRichiesta(richiestaId: number): Promise<MatchingOpportunita[]> {
+    return db.select().from(matchingOpportunita)
+      .where(eq(matchingOpportunita.richiestaId, richiestaId))
+      .orderBy(desc(matchingOpportunita.punteggio));
+  }
+
+  async createMatchingOpportunita(data: InsertMatchingOpportunita): Promise<MatchingOpportunita> {
+    const [match] = await db.insert(matchingOpportunita).values(data).returning();
+    return match;
+  }
+
+  async updateMatchingOpportunita(id: number, data: Partial<InsertMatchingOpportunita>): Promise<MatchingOpportunita | undefined> {
+    const [match] = await db.update(matchingOpportunita)
+      .set(data)
+      .where(eq(matchingOpportunita.id, id))
+      .returning();
+    return match;
+  }
+
+  async deleteMatchingOpportunita(id: number): Promise<boolean> {
+    await db.delete(matchingOpportunita).where(eq(matchingOpportunita.id, id));
+    return true;
   }
 }
 

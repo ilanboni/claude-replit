@@ -438,6 +438,120 @@ export const scheduledBotMessages = pgTable("scheduled_bot_messages", {
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
+// OPPORTUNITA MERCATO - External market opportunities (multi-agency properties)
+export const opportunitaMercato = pgTable("opportunita_mercato", {
+  id: serial("id").primaryKey(),
+  idWeb: text("id_web").unique(), // ID univoco
+  richiestaOrigineId: integer("richiesta_origine_id").references(() => richieste.id, { onDelete: "set null" }), // Richiesta che ha originato l'interesse
+  titolo: text("titolo").notNull(),
+  descrizione: text("descrizione"),
+  indirizzo: text("indirizzo"),
+  zona: text("zona"),
+  citta: text("citta"),
+  mq: integer("mq"),
+  prezzo: decimal("prezzo", { precision: 12, scale: 2 }),
+  piano: integer("piano"),
+  pianiEdificio: integer("piani_edificio"),
+  camere: integer("camere"),
+  bagni: integer("bagni"),
+  // Caratteristiche booleane
+  ascensore: boolean("ascensore").default(false),
+  balcone: boolean("balcone").default(false),
+  terrazzo: boolean("terrazzo").default(false),
+  box: boolean("box").default(false),
+  cantina: boolean("cantina").default(false),
+  giardino: boolean("giardino").default(false),
+  arredato: boolean("arredato").default(false),
+  // Stato immobile
+  statoNuovo: boolean("stato_nuovo").default(false),
+  statoRistrutturato: boolean("stato_ristrutturato").default(false),
+  statoBuono: boolean("stato_buono").default(false),
+  statoDaRistrutturare: boolean("stato_da_ristrutturare").default(false),
+  // Info aggiuntive
+  classeEnergetica: text("classe_energetica"),
+  prestazioneEnergetica: text("prestazione_energetica"),
+  speseCondominiali: decimal("spese_condominiali", { precision: 10, scale: 2 }),
+  riscaldamento: text("riscaldamento"),
+  esposizione: text("esposizione"),
+  annoCostruzione: integer("anno_costruzione"),
+  riferimentoAnnuncio: text("riferimento_annuncio"),
+  // URL e fonte
+  urlAnnuncio: text("url_annuncio"),
+  testoOriginale: text("testo_originale"),
+  caratteristiche: json("caratteristiche").$type<Record<string, any>>().default({}),
+  immagini: json("immagini").$type<string[]>().default([]),
+  dataPubblicazione: text("data_pubblicazione"),
+  // Stati workflow: in_valutazione, iter_proprietario, acquisito, scartato
+  stato: text("stato").default("in_valutazione").notNull(),
+  motivoScarto: text("motivo_scarto"), // prezzo_alto, zona_non_interessante, gia_venduto, altro
+  noteScarto: text("note_scarto"),
+  // Matching cache
+  matchCount: integer("match_count").default(0),
+  matchAlti: integer("match_alti").default(0), // score >= 70
+  matchMedi: integer("match_medi").default(0), // score >= 50 < 70
+  // Transizione a portafoglio
+  immobilePortafoglioId: integer("immobile_portafoglio_id").references(() => immobili.id, { onDelete: "set null" }), // Quando acquisito
+  dataAcquisizione: timestamp("data_acquisizione"),
+  note: text("note"),
+  preferito: boolean("preferito").default(false),
+  attivo: boolean("attivo").default(true),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// PUBBLICIZZATO DA - Agenzie che pubblicizzano l'opportunità
+export const pubblicizzatoDa = pgTable("pubblicizzato_da", {
+  id: serial("id").primaryKey(),
+  opportunitaId: integer("opportunita_id").notNull().references(() => opportunitaMercato.id, { onDelete: "cascade" }),
+  nomeAgenzia: text("nome_agenzia").notNull(), // Nome agenzia o "Privato"
+  portale: text("portale"), // immobiliare.it, idealista, subito
+  urlAnnuncio: text("url_annuncio"),
+  codiceAnnuncio: text("codice_annuncio"),
+  prezzo: decimal("prezzo", { precision: 12, scale: 2 }),
+  telefono: text("telefono"),
+  email: text("email"),
+  dataRilevazione: timestamp("data_rilevazione").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  note: text("note"),
+  attivo: boolean("attivo").default(true),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// ATTIVITA OPPORTUNITA - Log operativo per iter proprietario
+export const attivitaOpportunita = pgTable("attivita_opportunita", {
+  id: serial("id").primaryKey(),
+  opportunitaId: integer("opportunita_id").notNull().references(() => opportunitaMercato.id, { onDelete: "cascade" }),
+  tipo: text("tipo").notNull(), // contatto, nota, telefonata, email, sopralluogo, documento
+  titolo: text("titolo").notNull(),
+  descrizione: text("descrizione"),
+  esito: text("esito"), // positivo, negativo, in_attesa
+  dataAttivita: timestamp("data_attivita").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// DOCUMENTI OPPORTUNITA - Documenti allegati all'opportunità
+export const documentiOpportunita = pgTable("documenti_opportunita", {
+  id: serial("id").primaryKey(),
+  opportunitaId: integer("opportunita_id").notNull().references(() => opportunitaMercato.id, { onDelete: "cascade" }),
+  nome: text("nome").notNull(),
+  tipo: text("tipo"), // planimetria, visura, certificato, foto, altro
+  url: text("url"),
+  contenuto: text("contenuto"), // Per note testuali
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// MATCHING OPPORTUNITA - Match tra opportunità e richieste clienti
+export const matchingOpportunita = pgTable("matching_opportunita", {
+  id: serial("id").primaryKey(),
+  opportunitaId: integer("opportunita_id").notNull().references(() => opportunitaMercato.id, { onDelete: "cascade" }),
+  richiestaId: integer("richiesta_id").notNull().references(() => richieste.id, { onDelete: "cascade" }),
+  punteggio: integer("punteggio").notNull().default(0), // 0-100
+  bozzaMessaggio: text("bozza_messaggio"), // Bozza generata per proposta cliente
+  messaggioInviato: boolean("messaggio_inviato").default(false),
+  dataInvio: timestamp("data_invio"),
+  risposta: text("risposta"), // interessato, non_interessato, da_valutare
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
 // OAUTH TOKENS - Token OAuth per servizi esterni (Google Calendar, etc.)
 export const oauthTokens = pgTable("oauth_tokens", {
   id: serial("id").primaryKey(),
@@ -566,6 +680,33 @@ export const appuntamentiRelations = relations(appuntamenti, ({ one }) => ({
 export const matchingRelations = relations(matching, ({ one }) => ({
   richiesta: one(richieste, { fields: [matching.richiestaId], references: [richieste.id] }),
   immobile: one(immobili, { fields: [matching.immobileId], references: [immobili.id] }),
+}));
+
+// Opportunita Mercato relations
+export const opportunitaMercatoRelations = relations(opportunitaMercato, ({ one, many }) => ({
+  richiestaOrigine: one(richieste, { fields: [opportunitaMercato.richiestaOrigineId], references: [richieste.id] }),
+  immobilePortafoglio: one(immobili, { fields: [opportunitaMercato.immobilePortafoglioId], references: [immobili.id] }),
+  pubblicizzatoDa: many(pubblicizzatoDa),
+  attivita: many(attivitaOpportunita),
+  documenti: many(documentiOpportunita),
+  matching: many(matchingOpportunita),
+}));
+
+export const pubblicizzatoDaRelations = relations(pubblicizzatoDa, ({ one }) => ({
+  opportunita: one(opportunitaMercato, { fields: [pubblicizzatoDa.opportunitaId], references: [opportunitaMercato.id] }),
+}));
+
+export const attivitaOpportunitaRelations = relations(attivitaOpportunita, ({ one }) => ({
+  opportunita: one(opportunitaMercato, { fields: [attivitaOpportunita.opportunitaId], references: [opportunitaMercato.id] }),
+}));
+
+export const documentiOpportunitaRelations = relations(documentiOpportunita, ({ one }) => ({
+  opportunita: one(opportunitaMercato, { fields: [documentiOpportunita.opportunitaId], references: [opportunitaMercato.id] }),
+}));
+
+export const matchingOpportunitaRelations = relations(matchingOpportunita, ({ one }) => ({
+  opportunita: one(opportunitaMercato, { fields: [matchingOpportunita.opportunitaId], references: [opportunitaMercato.id] }),
+  richiesta: one(richieste, { fields: [matchingOpportunita.richiestaId], references: [richieste.id] }),
 }));
 
 // Helper to coerce numeric strings to numbers - handles empty strings, null, undefined, NaN
@@ -819,3 +960,74 @@ export type InsertAppointmentConfirmation = z.infer<typeof insertAppointmentConf
 export const insertNotificaSchema = createInsertSchema(notifiche).omit({ id: true, createdAt: true });
 export type Notifica = typeof notifiche.$inferSelect;
 export type InsertNotifica = z.infer<typeof insertNotificaSchema>;
+
+// Opportunita Mercato types
+export const insertOpportunitaMercatoSchema = createInsertSchema(opportunitaMercato).omit({
+  id: true,
+  idWeb: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  prezzo: z.preprocess(
+    (val) => {
+      if (val === "" || val === null || val === undefined) return undefined;
+      const num = Number(val);
+      return isNaN(num) ? undefined : String(num);
+    },
+    z.string().optional().nullable()
+  ),
+  mq: z.preprocess(
+    (val) => {
+      if (val === "" || val === null || val === undefined) return undefined;
+      const num = Number(val);
+      return isNaN(num) ? undefined : num;
+    },
+    z.number().optional().nullable()
+  ),
+  piano: z.preprocess(
+    (val) => {
+      if (val === "" || val === null || val === undefined) return undefined;
+      const num = Number(val);
+      return isNaN(num) ? undefined : num;
+    },
+    z.number().optional().nullable()
+  ),
+  camere: z.preprocess(
+    (val) => {
+      if (val === "" || val === null || val === undefined) return undefined;
+      const num = Number(val);
+      return isNaN(num) ? undefined : num;
+    },
+    z.number().optional().nullable()
+  ),
+  bagni: z.preprocess(
+    (val) => {
+      if (val === "" || val === null || val === undefined) return undefined;
+      const num = Number(val);
+      return isNaN(num) ? undefined : num;
+    },
+    z.number().optional().nullable()
+  ),
+});
+export type OpportunitaMercato = typeof opportunitaMercato.$inferSelect;
+export type InsertOpportunitaMercato = z.infer<typeof insertOpportunitaMercatoSchema>;
+
+// Pubblicizzato Da types
+export const insertPubblicizzatoDaSchema = createInsertSchema(pubblicizzatoDa).omit({ id: true, createdAt: true });
+export type PubblicizzatoDa = typeof pubblicizzatoDa.$inferSelect;
+export type InsertPubblicizzatoDa = z.infer<typeof insertPubblicizzatoDaSchema>;
+
+// Attivita Opportunita types
+export const insertAttivitaOpportunitaSchema = createInsertSchema(attivitaOpportunita).omit({ id: true, createdAt: true });
+export type AttivitaOpportunita = typeof attivitaOpportunita.$inferSelect;
+export type InsertAttivitaOpportunita = z.infer<typeof insertAttivitaOpportunitaSchema>;
+
+// Documenti Opportunita types
+export const insertDocumentiOpportunitaSchema = createInsertSchema(documentiOpportunita).omit({ id: true, createdAt: true });
+export type DocumentoOpportunita = typeof documentiOpportunita.$inferSelect;
+export type InsertDocumentoOpportunita = z.infer<typeof insertDocumentiOpportunitaSchema>;
+
+// Matching Opportunita types
+export const insertMatchingOpportunitaSchema = createInsertSchema(matchingOpportunita).omit({ id: true, createdAt: true });
+export type MatchingOpportunita = typeof matchingOpportunita.$inferSelect;
+export type InsertMatchingOpportunita = z.infer<typeof insertMatchingOpportunitaSchema>;
