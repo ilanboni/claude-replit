@@ -1318,10 +1318,18 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
 
   // ==================== ACQUISIZIONE (Immobili Esterni) ====================
   
-  // Get all external properties
+  // Get all external properties (with optional clienteId filter)
   app.get("/api/acquisizione", async (req, res) => {
     try {
       const preferiti = req.query.preferiti === 'true' ? true : req.query.preferiti === 'false' ? false : undefined;
+      const clienteId = req.query.clienteId ? parseInt(req.query.clienteId as string) : undefined;
+      
+      if (clienteId) {
+        // Filter by cliente
+        const immobili = await storage.getImmobiliEsterniByCliente(clienteId);
+        return res.json(immobili);
+      }
+      
       const immobili = await storage.getImmobiliEsterni(preferiti);
       res.json(immobili);
     } catch (error) {
@@ -5473,7 +5481,7 @@ FORMATO RISPOSTE:
         attivo: true
       });
 
-      // Crea immobile esterno
+      // Crea immobile esterno con dati contatto
       const immobileEsterno = await storage.createImmobileEsterno({
         titolo: data.titolo || "Immobile da " + data.portale,
         descrizione: data.descrizione || "",
@@ -5501,6 +5509,9 @@ FORMATO RISPOSTE:
         immagini: data.immagini || [],
         testoOriginale: JSON.stringify(data.raw || {}),
         clienteId: cliente.id,
+        contattoNome: data.contattoNome || null,
+        contattoTelefono: data.contattoTelefono || null,
+        contattoEmail: data.contattoEmail || null,
         attivo: true
       });
 

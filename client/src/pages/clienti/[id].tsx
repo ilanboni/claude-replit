@@ -56,7 +56,7 @@ import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { ClienteForm } from "./cliente-form";
 import { RichiestaForm } from "../richieste/richiesta-form";
-import type { Cliente, Richiesta, Immobile, Comunicazione, Appuntamento, AttivitaCliente } from "@shared/schema";
+import type { Cliente, Richiesta, Immobile, ImmobileEsterno, Comunicazione, Appuntamento, AttivitaCliente } from "@shared/schema";
 
 function ClienteHeader({ cliente, onEdit, onDelete }: { 
   cliente: Cliente; 
@@ -301,7 +301,8 @@ function TabRichieste({ clienteId, onAddRichiesta }: { clienteId: number; onAddR
 }
 
 function TabImmobili({ clienteId }: { clienteId: number }) {
-  const { data: immobili = [], isLoading } = useQuery<Immobile[]>({
+  // Immobili interni (portafoglio agenzia)
+  const { data: immobili = [], isLoading: loadingInterni } = useQuery<Immobile[]>({
     queryKey: ["/api/immobili", "proprietario", clienteId],
     queryFn: async () => {
       const res = await fetch(`/api/immobili?proprietarioId=${clienteId}`);
@@ -309,6 +310,19 @@ function TabImmobili({ clienteId }: { clienteId: number }) {
       return res.json();
     },
   });
+
+  // Immobili esterni (acquisizioni)
+  const { data: immobiliEsterni = [], isLoading: loadingEsterni } = useQuery<ImmobileEsterno[]>({
+    queryKey: ["/api/acquisizione", "cliente", clienteId],
+    queryFn: async () => {
+      const res = await fetch(`/api/acquisizione?clienteId=${clienteId}`);
+      if (!res.ok) throw new Error("Failed to fetch");
+      return res.json();
+    },
+  });
+
+  const isLoading = loadingInterni || loadingEsterni;
+  const hasAny = immobili.length > 0 || immobiliEsterni.length > 0;
 
   if (isLoading) {
     return (
@@ -320,7 +334,7 @@ function TabImmobili({ clienteId }: { clienteId: number }) {
     );
   }
 
-  if (immobili.length === 0) {
+  if (!hasAny) {
     return (
       <Card>
         <CardContent className="flex flex-col items-center justify-center py-12">
@@ -341,33 +355,82 @@ function TabImmobili({ clienteId }: { clienteId: number }) {
   }
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
-      {immobili.map((immobile) => (
-        <Card key={immobile.id} className="hover-elevate">
-          <CardContent className="p-4">
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <Link href={`/immobili/${immobile.id}`}>
-                  <h3 className="font-medium hover:underline cursor-pointer" data-testid={`text-property-${immobile.id}`}>
-                    {immobile.titolo}
-                  </h3>
-                </Link>
-                <p className="text-sm text-muted-foreground">{immobile.zona || immobile.indirizzo}</p>
-              </div>
-              <Badge variant={immobile.attivo ? "default" : "secondary"}>
-                {immobile.attivo ? "Attivo" : "Inattivo"}
-              </Badge>
-            </div>
-            <div className="flex items-center gap-4 mt-3 text-sm">
-              {immobile.prezzo && (
-                <span className="font-medium">€{Number(immobile.prezzo).toLocaleString('it-IT')}</span>
-              )}
-              {immobile.mq && <span>{immobile.mq} mq</span>}
-              {immobile.camere && <span>{immobile.camere} camere</span>}
-            </div>
-          </CardContent>
-        </Card>
-      ))}
+    <div className="space-y-6">
+      {/* Immobili esterni (acquisizioni) */}
+      {immobiliEsterni.length > 0 && (
+        <div>
+          <h3 className="text-sm font-medium text-muted-foreground mb-3">Acquisizioni ({immobiliEsterni.length})</h3>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {immobiliEsterni.map((immobile) => (
+              <Card key={`ext-${immobile.id}`} className="hover-elevate border-l-4 border-l-orange-500">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <Link href={`/acquisizione/${immobile.id}`}>
+                        <h3 className="font-medium hover:underline cursor-pointer" data-testid={`text-ext-property-${immobile.id}`}>
+                          {immobile.titolo}
+                        </h3>
+                      </Link>
+                      <p className="text-sm text-muted-foreground">{immobile.zona || immobile.indirizzo}</p>
+                    </div>
+                    <Badge variant="outline" className="border-orange-500 text-orange-600">
+                      {immobile.statoContatto || "nuovo"}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-4 mt-3 text-sm">
+                    {immobile.prezzo && (
+                      <span className="font-medium">€{Number(immobile.prezzo).toLocaleString('it-IT')}</span>
+                    )}
+                    {immobile.mq && <span>{immobile.mq} mq</span>}
+                    {immobile.camere && <span>{immobile.camere} camere</span>}
+                  </div>
+                  {immobile.contattoTelefono && (
+                    <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
+                      <Phone className="h-3 w-3" />
+                      {immobile.contattoTelefono}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Immobili interni (portafoglio) */}
+      {immobili.length > 0 && (
+        <div>
+          <h3 className="text-sm font-medium text-muted-foreground mb-3">Portafoglio ({immobili.length})</h3>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {immobili.map((immobile) => (
+              <Card key={immobile.id} className="hover-elevate">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <Link href={`/immobili/${immobile.id}`}>
+                        <h3 className="font-medium hover:underline cursor-pointer" data-testid={`text-property-${immobile.id}`}>
+                          {immobile.titolo}
+                        </h3>
+                      </Link>
+                      <p className="text-sm text-muted-foreground">{immobile.zona || immobile.indirizzo}</p>
+                    </div>
+                    <Badge variant={immobile.attivo ? "default" : "secondary"}>
+                      {immobile.attivo ? "Attivo" : "Inattivo"}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-4 mt-3 text-sm">
+                    {immobile.prezzo && (
+                      <span className="font-medium">€{Number(immobile.prezzo).toLocaleString('it-IT')}</span>
+                    )}
+                    {immobile.mq && <span>{immobile.mq} mq</span>}
+                    {immobile.camere && <span>{immobile.camere} camere</span>}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
