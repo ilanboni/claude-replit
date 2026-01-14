@@ -430,38 +430,130 @@ function extractListingData() {
 
   } else if (hostname.includes('idealista.it')) {
     data.titolo = document.querySelector('h1, .main-info__title')?.textContent?.trim() || '';
-    data.descrizione = document.querySelector('.comment, .adCommentsLanguage')?.textContent?.trim() || '';
+    data.descrizione = document.querySelector('.comment, .adCommentsLanguage, [class*="comment"]')?.textContent?.trim() || '';
     
-    const prezzoEl = document.querySelector('.info-data-price, .price');
+    // Prezzo
+    const prezzoEl = document.querySelector('.info-data-price, .price, [class*="price"]');
     if (prezzoEl) {
       const prezzoText = prezzoEl.textContent.replace(/[^\d]/g, '');
       data.prezzo = parseInt(prezzoText) || null;
     }
 
-    const details = document.querySelectorAll('.info-features span, .details-property_features li');
-    details.forEach(d => {
-      const text = d.textContent?.toLowerCase() || '';
-      if (text.includes('m²') || text.includes('mq')) {
-        const num = text.match(/\d+/);
-        if (num) data.superficie = parseInt(num[0]);
-      }
-      if (text.includes('local') || text.includes('hab')) {
-        const num = text.match(/\d+/);
-        if (num) data.locali = parseInt(num[0]);
-      }
-      if (text.includes('bagn') || text.includes('baño')) {
-        const num = text.match(/\d+/);
-        if (num) data.bagni = parseInt(num[0]);
-      }
-      if (text.includes('piano') || text.includes('planta')) {
-        data.piano = text;
-      }
-    });
+    // Cerca i dati principali nella sezione info-features
+    // Formato tipico: "109 m2 | 2 locali | 3º piano senza ascensore"
+    const infoFeatures = document.querySelector('.info-features');
+    if (infoFeatures) {
+      const spans = infoFeatures.querySelectorAll('span');
+      spans.forEach(span => {
+        const text = span.textContent?.trim() || '';
+        const textLower = text.toLowerCase();
+        
+        // Superficie - pattern "XXX m2" o "XXX m²"
+        if ((textLower.includes('m2') || textLower.includes('m²')) && !data.superficie) {
+          const match = text.match(/(\d+)\s*m[²2]/i);
+          if (match) {
+            const sup = parseInt(match[1]);
+            if (sup >= 15) data.superficie = sup;
+          }
+        }
+        
+        // Locali
+        if ((textLower.includes('local') || textLower.includes('hab')) && !data.locali) {
+          const match = text.match(/(\d+)\s*local/i);
+          if (match) data.locali = parseInt(match[1]);
+        }
+        
+        // Bagni
+        if ((textLower.includes('bagn') || textLower.includes('baño')) && !data.bagni) {
+          const match = text.match(/(\d+)\s*bagn/i);
+          if (match) data.bagni = parseInt(match[1]);
+        }
+        
+        // Piano - formato "Xº piano" o "piano terra"
+        if ((textLower.includes('piano') || textLower.includes('planta')) && !data.piano) {
+          if (textLower.includes('terra')) {
+            data.piano = 'Terra';
+          } else {
+            const pianoMatch = text.match(/(\d+)[ºª°]?\s*piano/i);
+            if (pianoMatch) data.piano = pianoMatch[1];
+          }
+          // Ascensore
+          if (textLower.includes('senza ascensore')) {
+            data.caratteristiche.ascensore = false;
+          } else if (textLower.includes('con ascensore')) {
+            data.caratteristiche.ascensore = true;
+          }
+        }
+      });
+    }
 
-    const locationEl = document.querySelector('.main-info__title-minor, .location');
+    // Fallback: cerca nei dettagli proprietà
+    if (!data.superficie || !data.locali) {
+      const details = document.querySelectorAll('.details-property_features li, [class*="detail"] li');
+      details.forEach(d => {
+        const text = d.textContent?.toLowerCase() || '';
+        if ((text.includes('m²') || text.includes('m2') || text.includes('mq')) && !data.superficie) {
+          const num = text.match(/(\d+)\s*m/);
+          if (num) {
+            const sup = parseInt(num[1]);
+            if (sup >= 15) data.superficie = sup;
+          }
+        }
+        if ((text.includes('local') || text.includes('hab')) && !data.locali) {
+          const num = text.match(/\d+/);
+          if (num) data.locali = parseInt(num[0]);
+        }
+      });
+    }
+
+    // Zona/Location
+    const locationEl = document.querySelector('.main-info__title-minor, .location, [class*="location"]');
     if (locationEl) {
       const locText = locationEl.textContent?.trim() || '';
-      data.zona = locText;
+      // Pulisci "Vedi mappa" dal testo
+      data.zona = locText.replace(/Vedi mappa/gi, '').trim();
+      // Estrai città se presente (formato: "Zona, Milano")
+      const parti = data.zona.split(',');
+      if (parti.length > 1) {
+        data.citta = parti[parti.length - 1].trim();
+      }
+    }
+    
+    // Indirizzo dal titolo (se contiene Via/Viale/Piazza)
+    const titoloH1 = document.querySelector('h1')?.textContent || '';
+    const indirizzoMatch = titoloH1.match(/(?:Via|Viale|Piazza|Corso|Largo)[^,\n]+(?:,\s*\d+)?/i);
+    if (indirizzoMatch) {
+      data.indirizzo = indirizzoMatch[0].trim();
+    }
+    
+    // Contatto privato
+    const advertiserSection = document.querySelector('[class*="professional-name"], [class*="owner-name"], [class*="advertiser"]');
+    if (advertiserSection) {
+      const nomeText = advertiserSection.textContent?.trim();
+      if (nomeText && nomeText.length < 50) {
+        data.contatto.nome = nomeText;
+      }
+    }
+    
+    // Tipo contatto
+    const pageText = document.body.innerText || '';
+    if (pageText.toLowerCase().includes('privato')) {
+      data.contatto.tipo = 'Privato';
+    }
+    
+    // Telefono - cerca in vari posti
+    const telLink = document.querySelector('a[href^="tel:"]');
+    if (telLink) {
+      const href = telLink.getAttribute('href');
+      if (href) {
+        let phone = href.replace('tel:', '').replace(/[\s\-+]/g, '');
+        if (phone.match(/^3\d{9}$/)) {
+          phone = '+39' + phone;
+        } else if (phone.match(/^39\d{10}$/)) {
+          phone = '+' + phone;
+        }
+        data.contatto.telefono = phone;
+      }
     }
 
   } else if (hostname.includes('subito.it')) {
