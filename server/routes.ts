@@ -2145,19 +2145,26 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
       const agencyKeywords = [
         "immobiliare", "agenzia", "real estate", "realty", "agency", 
         "s.r.l.", "srl", "s.p.a.", "spa", "s.n.c.", "snc", "s.a.s.", "sas",
-        "group", "properties", "consulting", "servizi", "mediazione",
-        "casa", "home", "house", "abitare"
+        "group", "properties", "consulting", "servizi", "mediazione"
       ];
       const nomeAgenzia = typeof contattoNome === "string" && 
         agencyKeywords.some(kw => contattoNome.toLowerCase().includes(kw));
       
+      // Check for agency keywords in the listing text (bottom of immobiliare.it pages)
+      const testoHasAgencyKeywords = agencyKeywords.some(kw => testoCompleto.includes(kw));
+      
       // Check for phrases in text that indicate agency listing
       const testoIndicaAgenzia = testoCompleto.includes("proponiamo in vendita") ||
+        testoCompleto.includes("proponiamo in stabile") ||
+        testoCompleto.includes("proponiamo splendido") ||
+        testoCompleto.includes("proponiamo questo") ||
         testoCompleto.includes("la nostra agenzia") ||
         testoCompleto.includes("l'agenzia propone") ||
         testoCompleto.includes("propone in vendita") ||
         testoCompleto.includes("l'immobiliare") ||
-        testoCompleto.includes("la nostra società");
+        testoCompleto.includes("la nostra società") ||
+        testoCompleto.includes("contatta l'inserzionista") ||
+        testoHasAgencyKeywords;
       
       const isAgenzia = tipoAgenzia || nomeAgenzia || testoIndicaAgenzia;
       
