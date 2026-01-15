@@ -1175,14 +1175,11 @@ function ImmobileEsternoCard({
       // Usa fallback per clipboard (più affidabile in contesti async)
       const copied = copyToClipboardFallback(data.message);
       if (copied) {
-        toast({ title: "Messaggio copiato negli appunti" });
+        toast({ title: "Messaggio copiato negli appunti", description: "Incolla nel form del portale" });
       } else {
-        toast({ title: "Messaggio generato", description: "Copia manualmente dalla scheda" });
+        toast({ title: "Messaggio generato", description: "Clicca per copiare manualmente" });
       }
-      // Apri sempre l'URL dell'annuncio
-      if (immobile.urlAnnuncio) {
-        window.open(immobile.urlAnnuncio, "_blank");
-      }
+      // URL già aperto nel click handler (sincrono)
     },
     onError: () => {
       toast({ title: "Errore", description: "Impossibile generare il messaggio", variant: "destructive" });
@@ -1509,7 +1506,14 @@ function ImmobileEsternoCard({
             <Button 
               variant="outline" 
               size="icon"
-              onClick={() => generateFormMessageMutation.mutate()}
+              onClick={() => {
+                // PRIMA apri l'URL (deve essere sincrono nel contesto click)
+                if (immobile.urlAnnuncio) {
+                  window.open(immobile.urlAnnuncio, "_blank");
+                }
+                // POI genera il messaggio in background
+                generateFormMessageMutation.mutate();
+              }}
               disabled={generateFormMessageMutation.isPending}
               title="Genera messaggio e apri form"
               data-testid={`button-form-message-${immobile.id}`}
