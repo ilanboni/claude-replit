@@ -1,23 +1,28 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { OpportunitaMercato } from "@shared/schema";
 import { 
   Search, Plus, MapPin, Home, Euro, ExternalLink, Building2, 
-  Users, ChevronRight, Filter, ArrowUpRight, TrendingUp, Clock,
-  CheckCircle2, XCircle, AlertCircle, Link2, Loader2, Eye
+  Users, Filter, Clock, CheckCircle2, XCircle, TrendingUp,
+  Loader2, MoreHorizontal, Eye, Edit, Trash2, Ruler, Bath
 } from "lucide-react";
 
 type OpportunitaStato = "in_valutazione" | "iter_proprietario" | "acquisito" | "scartato";
@@ -29,18 +34,8 @@ const STATI_CONFIG: Record<OpportunitaStato, { label: string; color: string; ico
   scartato: { label: "Scartato", color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400", icon: XCircle },
 };
 
-const MOTIVI_SCARTO = [
-  "Prezzo troppo alto",
-  "Proprietario non interessato",
-  "Immobile già venduto",
-  "Non risponde/irreperibile",
-  "Esclusiva con altra agenzia",
-  "Requisiti non soddisfatti",
-  "Altro",
-];
-
 function StatoBadge({ stato }: { stato: OpportunitaStato }) {
-  const config = STATI_CONFIG[stato];
+  const config = STATI_CONFIG[stato] || STATI_CONFIG.in_valutazione;
   const Icon = config.icon;
   return (
     <Badge variant="secondary" className={`gap-1 ${config.color}`}>
@@ -50,88 +45,164 @@ function StatoBadge({ stato }: { stato: OpportunitaStato }) {
   );
 }
 
-function MatchIndicator({ matchCount, matchAlti, matchMedi }: { matchCount?: number | null; matchAlti?: number | null; matchMedi?: number | null }) {
-  const count = matchCount || 0;
-  const alti = matchAlti || 0;
-  const medi = matchMedi || 0;
-
-  if (count === 0) {
-    return (
-      <span className="text-muted-foreground text-sm">Nessun match</span>
-    );
-  }
+function OpportunitaCard({ opportunita, onDelete }: { 
+  opportunita: OpportunitaMercato;
+  onDelete: () => void;
+}) {
+  const features: string[] = [];
+  if (opportunita.balcone) features.push("Balcone");
+  if (opportunita.terrazzo) features.push("Terrazzo");
+  if (opportunita.ascensore) features.push("Ascensore");
+  if (opportunita.box) features.push("Box");
 
   return (
-    <div className="flex items-center gap-1.5">
-      <Users className="h-4 w-4 text-primary" />
-      <span className="font-medium">{count}</span>
-      {(alti > 0 || medi > 0) && (
-        <span className="text-xs text-muted-foreground">
-          ({alti > 0 && <span className="text-green-600 dark:text-green-400">{alti} alti</span>}
-          {alti > 0 && medi > 0 && ", "}
-          {medi > 0 && <span className="text-amber-600 dark:text-amber-400">{medi} medi</span>})
-        </span>
-      )}
-    </div>
+    <Card className="hover-elevate overflow-hidden">
+      <div className="aspect-video bg-muted flex items-center justify-center relative">
+        <Building2 className="h-12 w-12 text-muted-foreground/30" />
+        <div className="absolute top-2 left-2">
+          <StatoBadge stato={(opportunita.stato as OpportunitaStato) || "in_valutazione"} />
+        </div>
+        {opportunita.matchCount && opportunita.matchCount > 0 && (
+          <Badge className="absolute top-2 right-2 bg-primary text-primary-foreground">
+            <Users className="h-3 w-3 mr-1" />
+            {opportunita.matchCount} match
+          </Badge>
+        )}
+      </div>
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <Link href={`/mercato/${opportunita.id}`}>
+              <h3 className="font-medium hover:underline cursor-pointer truncate" data-testid={`text-opportunita-title-${opportunita.id}`}>
+                {opportunita.titolo || opportunita.indirizzo || "Opportunità senza titolo"}
+              </h3>
+            </Link>
+            {opportunita.zona && (
+              <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
+                <MapPin className="h-3 w-3" />
+                <span className="truncate">{opportunita.zona}{opportunita.citta ? `, ${opportunita.citta}` : ''}</span>
+              </p>
+            )}
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" data-testid={`button-opportunita-menu-${opportunita.id}`}>
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem asChild>
+                <Link href={`/mercato/${opportunita.id}`}>
+                  <Eye className="h-4 w-4 mr-2" />
+                  Visualizza
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href={`/mercato/${opportunita.id}?edit=true`}>
+                  <Edit className="h-4 w-4 mr-2" />
+                  Modifica
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={onDelete}
+                className="text-destructive focus:text-destructive"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Elimina
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        <div className="mt-3">
+          <p className="text-2xl font-bold" data-testid={`text-opportunita-price-${opportunita.id}`}>
+            {opportunita.prezzo 
+              ? `€${Number(opportunita.prezzo).toLocaleString('it-IT')}` 
+              : "Prezzo N/D"}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-4 mt-3 text-sm text-muted-foreground">
+          {opportunita.mq && (
+            <span className="flex items-center gap-1">
+              <Ruler className="h-4 w-4" />
+              {opportunita.mq} mq
+            </span>
+          )}
+          {opportunita.camere && (
+            <span className="flex items-center gap-1">
+              <Home className="h-4 w-4" />
+              {opportunita.camere} cam.
+            </span>
+          )}
+          {opportunita.bagni && (
+            <span className="flex items-center gap-1">
+              <Bath className="h-4 w-4" />
+              {opportunita.bagni} bagni
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 mt-3 flex-wrap">
+          {opportunita.piano !== null && opportunita.piano !== undefined && (
+            <Badge variant="outline">Piano {opportunita.piano}</Badge>
+          )}
+          {opportunita.classeEnergetica && (
+            <Badge variant="outline">Classe {opportunita.classeEnergetica}</Badge>
+          )}
+        </div>
+
+        {features.length > 0 && (
+          <div className="flex items-center gap-1 mt-2 flex-wrap">
+            {features.map((f) => (
+              <Badge key={f} variant="outline" className="text-xs">
+                {f}
+              </Badge>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-4 flex items-center justify-between gap-2">
+          <Badge variant={opportunita.attivo ? "default" : "secondary"}>
+            {opportunita.attivo ? "Attivo" : "Inattivo"}
+          </Badge>
+          <div className="flex items-center gap-2">
+            {opportunita.urlAnnuncio && (
+              <a 
+                href={opportunita.urlAnnuncio} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                data-testid={`link-opportunita-external-${opportunita.id}`}
+              >
+                <Button size="sm" variant="outline">
+                  <ExternalLink className="h-4 w-4 mr-1" />
+                  Annuncio
+                </Button>
+              </a>
+            )}
+            <Link href={`/mercato/${opportunita.id}`}>
+              <Button size="sm" variant="outline" data-testid={`button-view-opportunita-${opportunita.id}`}>
+                Dettagli
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
-function OpportunitaCard({ opportunita }: { opportunita: OpportunitaMercato }) {
+function OpportunitaCardSkeleton() {
   return (
-    <Link href={`/mercato/${opportunita.id}`}>
-      <Card className="hover-elevate cursor-pointer transition-all">
-        <CardContent className="p-4">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1 min-w-0 space-y-2">
-              <div className="flex items-center gap-2">
-                <StatoBadge stato={opportunita.stato as OpportunitaStato} />
-                {opportunita.richiestaOrigineId && (
-                  <Badge variant="outline" className="gap-1 text-xs">
-                    <Link2 className="h-3 w-3" />
-                    Collegato
-                  </Badge>
-                )}
-              </div>
-              
-              <h3 className="font-semibold truncate">
-                {opportunita.titolo || "Opportunità senza titolo"}
-              </h3>
-              
-              <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-                {opportunita.zona && (
-                  <span className="flex items-center gap-1">
-                    <MapPin className="h-3.5 w-3.5" />
-                    {opportunita.zona}
-                  </span>
-                )}
-                {opportunita.mq && (
-                  <span className="flex items-center gap-1">
-                    <Home className="h-3.5 w-3.5" />
-                    {opportunita.mq} mq
-                  </span>
-                )}
-                {opportunita.prezzo && (
-                  <span className="flex items-center gap-1">
-                    <Euro className="h-3.5 w-3.5" />
-                    {Number(opportunita.prezzo).toLocaleString("it-IT")}
-                  </span>
-                )}
-              </div>
-
-              <div className="pt-1">
-                <MatchIndicator 
-                  matchCount={opportunita.matchCount} 
-                  matchAlti={opportunita.matchAlti}
-                  matchMedi={opportunita.matchMedi}
-                />
-              </div>
-            </div>
-
-            <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
-          </div>
-        </CardContent>
-      </Card>
-    </Link>
+    <Card className="overflow-hidden">
+      <Skeleton className="aspect-video w-full" />
+      <CardContent className="p-4">
+        <Skeleton className="h-5 w-3/4 mb-2" />
+        <Skeleton className="h-4 w-1/2 mb-3" />
+        <Skeleton className="h-8 w-32 mb-3" />
+        <Skeleton className="h-4 w-full" />
+      </CardContent>
+    </Card>
   );
 }
 
@@ -313,18 +384,31 @@ export default function MercatoPage() {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [statoFilter, setStatoFilter] = useState<string>("tutti");
-  const [zonaFilter, setZonaFilter] = useState<string>("");
   const [showNewDialog, setShowNewDialog] = useState(false);
+  const [deletingOpportunita, setDeletingOpportunita] = useState<OpportunitaMercato | null>(null);
 
   const { data: opportunita, isLoading, refetch } = useQuery<OpportunitaMercato[]>({
-    queryKey: ["/api/mercato", statoFilter, zonaFilter],
+    queryKey: ["/api/mercato", statoFilter],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (statoFilter && statoFilter !== "tutti") params.append("stato", statoFilter);
-      if (zonaFilter) params.append("zona", zonaFilter);
       const res = await fetch(`/api/mercato?${params.toString()}`);
       if (!res.ok) throw new Error("Failed to fetch");
       return res.json();
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/mercato/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/mercato"] });
+      toast({ title: "Opportunità eliminata" });
+      setDeletingOpportunita(null);
+    },
+    onError: () => {
+      toast({ title: "Errore", description: "Impossibile eliminare", variant: "destructive" });
     },
   });
 
@@ -334,7 +418,8 @@ export default function MercatoPage() {
     return (
       o.titolo?.toLowerCase().includes(q) ||
       o.zona?.toLowerCase().includes(q) ||
-      o.indirizzo?.toLowerCase().includes(q)
+      o.indirizzo?.toLowerCase().includes(q) ||
+      o.citta?.toLowerCase().includes(q)
     );
   });
 
@@ -347,24 +432,22 @@ export default function MercatoPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between gap-4">
+    <div className="space-y-6 p-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Opportunità di Mercato</h1>
-          <p className="text-muted-foreground">
-            Gestisci immobili multi-agenzia e traccia il percorso di acquisizione
-          </p>
+          <h1 className="text-2xl font-semibold" data-testid="text-mercato-title">Opportunità di Mercato</h1>
+          <p className="text-muted-foreground">Gestisci immobili multi-agenzia e traccia il percorso di acquisizione</p>
         </div>
         <Button onClick={() => setShowNewDialog(true)} data-testid="button-new-opportunita">
           <Plus className="h-4 w-4 mr-2" />
-          Nuova opportunità
+          Nuova Opportunità
         </Button>
       </div>
 
       <div className="grid grid-cols-5 gap-4">
         <Card className="hover-elevate cursor-pointer" onClick={() => setStatoFilter("tutti")}>
           <CardContent className="p-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <span className="text-sm text-muted-foreground">Totale</span>
               <Building2 className="h-4 w-4 text-muted-foreground" />
             </div>
@@ -373,7 +456,7 @@ export default function MercatoPage() {
         </Card>
         <Card className="hover-elevate cursor-pointer" onClick={() => setStatoFilter("in_valutazione")}>
           <CardContent className="p-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <span className="text-sm text-muted-foreground">In valutazione</span>
               <Clock className="h-4 w-4 text-amber-500" />
             </div>
@@ -382,7 +465,7 @@ export default function MercatoPage() {
         </Card>
         <Card className="hover-elevate cursor-pointer" onClick={() => setStatoFilter("iter_proprietario")}>
           <CardContent className="p-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <span className="text-sm text-muted-foreground">Iter proprietario</span>
               <TrendingUp className="h-4 w-4 text-blue-500" />
             </div>
@@ -391,7 +474,7 @@ export default function MercatoPage() {
         </Card>
         <Card className="hover-elevate cursor-pointer" onClick={() => setStatoFilter("acquisito")}>
           <CardContent className="p-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <span className="text-sm text-muted-foreground">Acquisiti</span>
               <CheckCircle2 className="h-4 w-4 text-green-500" />
             </div>
@@ -400,7 +483,7 @@ export default function MercatoPage() {
         </Card>
         <Card className="hover-elevate cursor-pointer" onClick={() => setStatoFilter("scartato")}>
           <CardContent className="p-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <span className="text-sm text-muted-foreground">Scartati</span>
               <XCircle className="h-4 w-4 text-red-500" />
             </div>
@@ -409,21 +492,21 @@ export default function MercatoPage() {
         </Card>
       </div>
 
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+      <div className="flex flex-col gap-4 sm:flex-row">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Cerca per titolo, zona, indirizzo..."
+            placeholder="Cerca per titolo, zona o indirizzo..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
+            className="pl-10"
             data-testid="input-search"
           />
         </div>
-        
         <Select value={statoFilter} onValueChange={setStatoFilter}>
-          <SelectTrigger className="w-48" data-testid="select-stato">
-            <SelectValue placeholder="Filtra per stato" />
+          <SelectTrigger className="w-full sm:w-48" data-testid="select-filter-stato">
+            <Filter className="h-4 w-4 mr-2" />
+            <SelectValue placeholder="Stato" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="tutti">Tutti gli stati</SelectItem>
@@ -433,51 +516,42 @@ export default function MercatoPage() {
             <SelectItem value="scartato">Scartato</SelectItem>
           </SelectContent>
         </Select>
-
-        <Input
-          placeholder="Filtra per zona..."
-          value={zonaFilter}
-          onChange={(e) => setZonaFilter(e.target.value)}
-          className="w-40"
-          data-testid="input-zona-filter"
-        />
       </div>
 
       {isLoading ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {[1, 2, 3, 4, 5, 6].map((i) => (
-            <Card key={i}>
-              <CardContent className="p-4 space-y-3">
-                <Skeleton className="h-5 w-24" />
-                <Skeleton className="h-6 w-full" />
-                <Skeleton className="h-4 w-3/4" />
-                <Skeleton className="h-4 w-1/2" />
-              </CardContent>
-            </Card>
+            <OpportunitaCardSkeleton key={i} />
           ))}
         </div>
       ) : filteredOpportunita.length === 0 ? (
         <Card>
-          <CardContent className="p-12 text-center">
-            <Building2 className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
-            <h3 className="font-semibold text-lg mb-2">Nessuna opportunità trovata</h3>
-            <p className="text-muted-foreground mb-4">
-              {searchQuery || statoFilter !== "tutti" || zonaFilter
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <div className="rounded-full bg-muted p-4 mb-4">
+              <Building2 className="h-8 w-8 text-muted-foreground" />
+            </div>
+            <h3 className="text-lg font-medium">Nessuna opportunità trovata</h3>
+            <p className="text-muted-foreground text-center mt-1">
+              {searchQuery || statoFilter !== "tutti"
                 ? "Prova a modificare i filtri di ricerca"
                 : "Inizia aggiungendo una nuova opportunità di mercato"}
             </p>
-            {!searchQuery && statoFilter === "tutti" && !zonaFilter && (
-              <Button onClick={() => setShowNewDialog(true)} data-testid="button-add-first">
+            {!searchQuery && statoFilter === "tutti" && (
+              <Button className="mt-4" onClick={() => setShowNewDialog(true)} data-testid="button-add-first">
                 <Plus className="h-4 w-4 mr-2" />
-                Aggiungi prima opportunità
+                Aggiungi Opportunità
               </Button>
             )}
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filteredOpportunita.map((opp) => (
-            <OpportunitaCard key={opp.id} opportunita={opp} />
+            <OpportunitaCard 
+              key={opp.id} 
+              opportunita={opp} 
+              onDelete={() => setDeletingOpportunita(opp)}
+            />
           ))}
         </div>
       )}
@@ -490,6 +564,33 @@ export default function MercatoPage() {
           refetch();
         }}
       />
+
+      {deletingOpportunita && (
+        <Dialog open={!!deletingOpportunita} onOpenChange={() => setDeletingOpportunita(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Eliminare questa opportunità?</DialogTitle>
+            </DialogHeader>
+            <p className="text-muted-foreground">
+              Questa azione eliminerà permanentemente l'opportunità 
+              <strong> {deletingOpportunita.titolo}</strong>.
+            </p>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeletingOpportunita(null)}>
+                Annulla
+              </Button>
+              <Button 
+                variant="destructive" 
+                onClick={() => deleteMutation.mutate(deletingOpportunita.id)}
+                disabled={deleteMutation.isPending}
+              >
+                {deleteMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Elimina
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
