@@ -1139,6 +1139,25 @@ function ImmobileEsternoCard({
   const [expanded, setExpanded] = useState(false);
   const [formMessageGenerated, setFormMessageGenerated] = useState<string | null>(null);
 
+  // Funzione clipboard con fallback
+  const copyToClipboardFallback = (text: string): boolean => {
+    try {
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      textArea.style.position = "fixed";
+      textArea.style.left = "-999999px";
+      textArea.style.top = "-999999px";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      const success = document.execCommand('copy');
+      document.body.removeChild(textArea);
+      return success;
+    } catch {
+      return false;
+    }
+  };
+
   const generateFormMessageMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("POST", "/api/ai/generate-form-message", {
@@ -1153,8 +1172,14 @@ function ImmobileEsternoCard({
     },
     onSuccess: (data) => {
       setFormMessageGenerated(data.message);
-      navigator.clipboard.writeText(data.message);
-      toast({ title: "Messaggio copiato negli appunti" });
+      // Usa fallback per clipboard (più affidabile in contesti async)
+      const copied = copyToClipboardFallback(data.message);
+      if (copied) {
+        toast({ title: "Messaggio copiato negli appunti" });
+      } else {
+        toast({ title: "Messaggio generato", description: "Copia manualmente dalla scheda" });
+      }
+      // Apri sempre l'URL dell'annuncio
       if (immobile.urlAnnuncio) {
         window.open(immobile.urlAnnuncio, "_blank");
       }
@@ -1193,7 +1218,16 @@ function ImmobileEsternoCard({
 
   const copyPhone = () => {
     if (immobile.contattoTelefono) {
-      navigator.clipboard.writeText(immobile.contattoTelefono);
+      // Fallback clipboard per compatibilità
+      const textArea = document.createElement("textarea");
+      textArea.value = immobile.contattoTelefono;
+      textArea.style.position = "fixed";
+      textArea.style.left = "-999999px";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
       toast({ title: "Telefono copiato" });
@@ -1573,7 +1607,16 @@ export default function AcquisizionePage() {
   };
 
   const copyMessage = () => {
-    navigator.clipboard.writeText(generatedMessage);
+    // Fallback clipboard per compatibilità
+    const textArea = document.createElement("textarea");
+    textArea.value = generatedMessage;
+    textArea.style.position = "fixed";
+    textArea.style.left = "-999999px";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textArea);
     setMessageCopied(true);
     setTimeout(() => setMessageCopied(false), 2000);
     toast({ title: "Messaggio copiato" });
