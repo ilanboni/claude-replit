@@ -690,6 +690,39 @@ Un cordiale saluto,
 Paolo
 Assistente del Dott. Ilan Boni`;
 
+// ==================== VERSIONE CORTA PER IDEALISTA (max 400 caratteri) ====================
+
+// Prompt per mirroring corto - genera solo 1 elemento chiave
+export const SHORT_MIRRORING_PROMPT = `Genera UN SOLO elemento di mirroring brevissimo per un messaggio a un proprietario privato.
+
+REGOLE:
+- MAX 30-40 caratteri
+- Solo 1 caratteristica chiave dell'immobile (es: "la doppia esposizione", "la recente ristrutturazione", "il terrazzo")
+- Tono sobrio e naturale
+- NO indirizzo, NO zona, NO prezzo
+
+OUTPUT: solo il testo del mirroring, senza virgolette.
+
+ESEMPI:
+"la doppia esposizione"
+"la recente ristrutturazione"
+"i locali ampi e luminosi"`;
+
+// Template corto per Idealista (max 400 caratteri totali)
+export const SHORT_ACQUISITION_MESSAGE = `Buongiorno,
+sono Paolo, assistente del Dott. Boni, agente immobiliare a Milano da oltre 30 anni.
+
+Ho notato il suo immobile{{mirroring_short}}. Alcuni investitori che seguiamo potrebbero essere interessati.
+
+Il Dott. Boni è disponibile per un breve incontro in appartamento, senza impegno.
+
+Può rispondermi qui o chiamare 02 35981509.
+
+Cordiali saluti,
+Paolo`;
+
+// ==================== FINE VERSIONE CORTA ====================
+
 // Configurazione completa conversazione WhatsApp Bot
 export const CONVERSATION_CONFIG = {
   identity: {

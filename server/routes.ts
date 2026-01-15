@@ -3838,15 +3838,22 @@ Assistente del Dott. Ilan Boni`;
   });
 
   // Generate initial message with AI mirroring for simulation
+  // Supports "format" parameter: "standard" (default, for Immobiliare.it) or "idealista" (short, max 400 chars)
   app.post("/api/bot/generate-initial-message", async (req, res) => {
     try {
-      const { testoAnnuncio, titolo } = req.body;
+      const { testoAnnuncio, titolo, format = "standard" } = req.body;
       
       if (!testoAnnuncio) {
         return res.status(400).json({ error: "Testo annuncio richiesto" });
       }
 
-      const { MIRRORING_PROMPT, MIRRORING_CONFIG, DEFAULT_ACQUISITION_MESSAGE } = await import("./bot-config");
+      const { 
+        MIRRORING_PROMPT, 
+        MIRRORING_CONFIG, 
+        DEFAULT_ACQUISITION_MESSAGE,
+        SHORT_MIRRORING_PROMPT,
+        SHORT_ACQUISITION_MESSAGE
+      } = await import("./bot-config");
       
       // Build context for mirroring
       let context = `Testo annuncio:\n"${testoAnnuncio}"`;
@@ -3860,15 +3867,21 @@ Assistente del Dott. Ilan Boni`;
         baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
       });
       
+      // Choose prompt and template based on format
+      const isShort = format === "idealista";
+      const mirroringPrompt = isShort ? SHORT_MIRRORING_PROMPT : MIRRORING_PROMPT;
+      const messageTemplate = isShort ? SHORT_ACQUISITION_MESSAGE : DEFAULT_ACQUISITION_MESSAGE;
+      const maxTokens = isShort ? 50 : MIRRORING_CONFIG.max_tokens;
+      
       // Generate mirroring phrases with JSON response format
       const mirroringResponse = await openaiClient.chat.completions.create({
         model: "gpt-4o",
         messages: [
-          { role: "system", content: MIRRORING_PROMPT + '\n\nRispondi SOLO con JSON: {"mirroring": "testo"}' },
+          { role: "system", content: mirroringPrompt + '\n\nRispondi SOLO con JSON: {"mirroring": "testo"}' },
           { role: "user", content: context }
         ],
         temperature: MIRRORING_CONFIG.temperature,
-        max_tokens: MIRRORING_CONFIG.max_tokens,
+        max_tokens: maxTokens,
         response_format: { type: "json_object" }
       });
 
@@ -3884,10 +3897,17 @@ Assistente del Dott. Ilan Boni`;
         }
       }
 
-      // Build the complete message using the unified template
-      const message = DEFAULT_ACQUISITION_MESSAGE.replace(/\{\{mirroring\}\}/g, mirroringText);
+      // Build the complete message using the appropriate template
+      let message: string;
+      if (isShort) {
+        // For Idealista: add mirroring as ", in particolare [mirroring]" if present
+        const mirroringShort = mirroringText ? `, in particolare ${mirroringText}` : "";
+        message = messageTemplate.replace(/\{\{mirroring_short\}\}/g, mirroringShort);
+      } else {
+        message = messageTemplate.replace(/\{\{mirroring\}\}/g, mirroringText);
+      }
 
-      res.json({ message });
+      res.json({ message, format, charCount: message.length });
     } catch (error) {
       console.error("Generate initial message error:", error);
       res.status(500).json({ error: "Errore nella generazione del messaggio" });
