@@ -690,12 +690,12 @@ Un cordiale saluto,
 Paolo
 Assistente del Dott. Ilan Boni`;
 
-// ==================== MESSAGGIO IDEALISTA (max 400 caratteri) ====================
+// ==================== MESSAGGIO IDEALISTA (max 550 caratteri) ====================
 
 // Per Idealista usiamo lo stesso MIRRORING_PROMPT di qualità
 // Il prompt SHORT_MIRRORING_PROMPT non serve più
 
-// Template Idealista compatto (max 400 caratteri totali)
+// Template Idealista compatto (max 550 caratteri totali)
 // Usa lo stesso mirroring di qualità di Immobiliare ma in formato ridotto
 export const SHORT_ACQUISITION_MESSAGE = `Buongiorno,
 sono Paolo, assistente del Dott. Boni, agente immobiliare da oltre 30 anni e Vice Presidente della Comunità ebraica di Milano.
