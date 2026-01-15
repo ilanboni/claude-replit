@@ -2141,34 +2141,44 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         contattoTipo.toLowerCase() === "professional"
       );
       
-      // Agency keywords in contact name
-      const agencyKeywords = [
+      // Agency keywords in contact name only (more reliable)
+      const agencyKeywordsNome = [
         "immobiliare", "agenzia", "real estate", "realty", "agency", 
         "s.r.l.", "srl", "s.p.a.", "spa", "s.n.c.", "snc", "s.a.s.", "sas",
         "group", "properties", "consulting", "servizi", "mediazione"
       ];
       const nomeAgenzia = typeof contattoNome === "string" && 
-        agencyKeywords.some(kw => contattoNome.toLowerCase().includes(kw));
+        agencyKeywordsNome.some(kw => contattoNome.toLowerCase().includes(kw));
       
-      // Check for agency keywords in the listing text (bottom of immobiliare.it pages)
-      const testoHasAgencyKeywords = agencyKeywords.some(kw => testoCompleto.includes(kw));
+      // Check if explicitly marked as private (should NOT be agency)
+      const esplicitamentePrivato = 
+        testoCompleto.includes("no agenzia") ||
+        testoCompleto.includes("no agenzie") ||
+        testoCompleto.includes("vendita diretta") ||
+        testoCompleto.includes("privato\n") ||
+        testoCompleto.includes("\nprivato") ||
+        (typeof contattoTipo === "string" && contattoTipo.toLowerCase() === "privato");
       
-      // Check for phrases in text that indicate agency listing
-      const testoIndicaAgenzia = testoCompleto.includes("proponiamo in vendita") ||
+      // Check for phrases in text that indicate agency listing (first-person agency voice)
+      const testoIndicaAgenzia = !esplicitamentePrivato && (
+        testoCompleto.includes("proponiamo in vendita") ||
         testoCompleto.includes("proponiamo in stabile") ||
         testoCompleto.includes("proponiamo splendido") ||
         testoCompleto.includes("proponiamo questo") ||
+        testoCompleto.includes("proponiamo un") ||
         testoCompleto.includes("la nostra agenzia") ||
         testoCompleto.includes("l'agenzia propone") ||
         testoCompleto.includes("propone in vendita") ||
-        testoCompleto.includes("l'immobiliare") ||
         testoCompleto.includes("la nostra società") ||
-        testoCompleto.includes("contatta l'inserzionista") ||
-        testoHasAgencyKeywords;
+        // Look for agency name patterns at end of listing (contact section)
+        /\n[a-z]+ (immobiliare|real estate|realty)\n/i.test(testoCompleto) ||
+        /\nimmobiliare [a-z]+\n/i.test(testoCompleto)
+      );
       
-      const isAgenzia = tipoAgenzia || nomeAgenzia || testoIndicaAgenzia;
+      // Final agency detection: explicitly private overrides everything
+      const isAgenzia = !esplicitamentePrivato && (tipoAgenzia || nomeAgenzia || testoIndicaAgenzia);
       
-      console.log(`[Extension Import] Contact type: "${contattoTipo}", Contact name: "${contattoNome.substring(0,50)}", isAgenzia: ${isAgenzia}`);
+      console.log(`[Extension Import] Contact type: "${contattoTipo}", Contact name: "${contattoNome.substring(0,50)}", esplicitamentePrivato: ${esplicitamentePrivato}, tipoAgenzia: ${tipoAgenzia}, nomeAgenzia: ${nomeAgenzia}, testoIndicaAgenzia: ${testoIndicaAgenzia}, isAgenzia: ${isAgenzia}`);
       
       if (isAgenzia) {
         // Save to Mercato (opportunita_mercato) for agency listings
