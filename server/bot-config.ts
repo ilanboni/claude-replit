@@ -698,7 +698,7 @@ Assistente del Dott. Ilan Boni`;
 // Template Idealista compatto (max 400 caratteri totali)
 // Usa lo stesso mirroring di qualità di Immobiliare ma in formato ridotto
 export const SHORT_ACQUISITION_MESSAGE = `Buongiorno,
-sono Paolo, assistente del Dott. Boni, agente immobiliare a Milano da 30 anni.
+sono Paolo, assistente del Dott. Boni, agente immobiliare da oltre 30 anni e Vice Presidente della Comunità ebraica di Milano.
 
 {{mirroring}}
 
