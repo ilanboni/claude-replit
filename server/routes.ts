@@ -1500,10 +1500,10 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
       
       console.log(`[Generate Form Message] ID: ${immobileId}, fonte: ${fonte}, isIdealista: ${isIdealista}`);
 
-      // Import appropriate templates based on format
+      // Import templates - usa stesso MIRRORING_PROMPT di qualità per tutti
       const { 
         MIRRORING_PROMPT, MIRRORING_CONFIG, DEFAULT_ACQUISITION_MESSAGE,
-        SHORT_MIRRORING_PROMPT, SHORT_ACQUISITION_MESSAGE 
+        SHORT_ACQUISITION_MESSAGE 
       } = await import("./bot-config");
       
       const testoAnnuncio = immobile.descrizione || immobile.titolo || 'Nessun testo disponibile';
@@ -1529,18 +1529,15 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
       });
       
-      // Use short or standard prompt based on portal
-      const mirroringPrompt = isIdealista ? SHORT_MIRRORING_PROMPT : MIRRORING_PROMPT;
-      const maxTokens = isIdealista ? 50 : MIRRORING_CONFIG.max_tokens;
-      
+      // Usa SEMPRE lo stesso prompt di qualità per il mirroring
       const mirroringResponse = await openaiClient.chat.completions.create({
         model: "gpt-4o",
         messages: [
-          { role: "system", content: mirroringPrompt + '\n\nRispondi SOLO con JSON: {"mirroring": "testo"}' },
+          { role: "system", content: MIRRORING_PROMPT + '\n\nRispondi SOLO con JSON: {"mirroring": "testo"}' },
           { role: "user", content: context }
         ],
         temperature: MIRRORING_CONFIG.temperature,
-        max_tokens: maxTokens,
+        max_tokens: MIRRORING_CONFIG.max_tokens,
         response_format: { type: "json_object" }
       });
       
@@ -1558,9 +1555,8 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
       // Build the final message using appropriate template
       let finalMessage: string;
       if (isIdealista) {
-        // For Idealista: short format with mirroring as ", in particolare X"
-        const mirroringShort = mirroringText ? `, in particolare ${mirroringText}` : "";
-        finalMessage = SHORT_ACQUISITION_MESSAGE.replace('{{mirroring_short}}', mirroringShort);
+        // Per Idealista: template compatto con stesso mirroring di qualità
+        finalMessage = SHORT_ACQUISITION_MESSAGE.replace('{{mirroring}}', mirroringText);
       } else {
         finalMessage = DEFAULT_ACQUISITION_MESSAGE.replace('{{mirroring}}', mirroringText);
       }
@@ -2628,12 +2624,11 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
       
       console.log(`[Generate Message] ID: ${id}, fonte: ${immobile.fonte}, format: ${format}, isShort: ${isShort}`);
 
-      // First, generate mirroring phrases from the listing
+      // Import templates - usa SEMPRE lo stesso MIRRORING_PROMPT di qualità per tutti
       const { 
         MIRRORING_PROMPT, 
         MIRRORING_CONFIG, 
         DEFAULT_ACQUISITION_MESSAGE,
-        SHORT_MIRRORING_PROMPT,
         SHORT_ACQUISITION_MESSAGE
       } = await import("./bot-config");
       
@@ -2689,19 +2684,17 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
       });
       
-      // Choose prompt and template based on format
-      const mirroringPrompt = isShort ? SHORT_MIRRORING_PROMPT : MIRRORING_PROMPT;
+      // Usa SEMPRE lo stesso prompt di qualità, cambia solo il template
       const messageTemplate = isShort ? SHORT_ACQUISITION_MESSAGE : DEFAULT_ACQUISITION_MESSAGE;
-      const maxTokens = isShort ? 50 : MIRRORING_CONFIG.max_tokens;
       
       const mirroringResponse = await openaiClient.chat.completions.create({
         model: "gpt-4o",
         messages: [
-          { role: "system", content: mirroringPrompt + '\n\nRispondi SOLO con JSON: {"mirroring": "testo"}' },
+          { role: "system", content: MIRRORING_PROMPT + '\n\nRispondi SOLO con JSON: {"mirroring": "testo"}' },
           { role: "user", content: context }
         ],
         temperature: MIRRORING_CONFIG.temperature,
-        max_tokens: maxTokens,
+        max_tokens: MIRRORING_CONFIG.max_tokens,
         response_format: { type: "json_object" }
       });
 
@@ -2717,15 +2710,8 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         }
       }
 
-      // Build the complete message using the appropriate template
-      let message: string;
-      if (isShort) {
-        // For Idealista: add mirroring as ", in particolare [mirroring]" if present
-        const mirroringShort = mirroringText ? `, in particolare ${mirroringText}` : "";
-        message = messageTemplate.replace(/\{\{mirroring_short\}\}/g, mirroringShort);
-      } else {
-        message = messageTemplate.replace(/\{\{mirroring\}\}/g, mirroringText);
-      }
+      // Build the complete message using the appropriate template (stesso placeholder per entrambi)
+      const message = messageTemplate.replace(/\{\{mirroring\}\}/g, mirroringText);
       
       console.log(`[Generate Message] Generated ${message.length} chars (format: ${format})`);
       res.json({ message, format, charCount: message.length });
@@ -3940,11 +3926,11 @@ Assistente del Dott. Ilan Boni`;
         return res.status(400).json({ error: "Testo annuncio richiesto" });
       }
 
+      // Import templates - usa SEMPRE lo stesso MIRRORING_PROMPT di qualità per tutti
       const { 
         MIRRORING_PROMPT, 
         MIRRORING_CONFIG, 
         DEFAULT_ACQUISITION_MESSAGE,
-        SHORT_MIRRORING_PROMPT,
         SHORT_ACQUISITION_MESSAGE
       } = await import("./bot-config");
       
@@ -3960,21 +3946,19 @@ Assistente del Dott. Ilan Boni`;
         baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
       });
       
-      // Choose prompt and template based on format
+      // Usa SEMPRE lo stesso prompt di qualità, cambia solo il template
       const isShort = format === "idealista";
-      const mirroringPrompt = isShort ? SHORT_MIRRORING_PROMPT : MIRRORING_PROMPT;
       const messageTemplate = isShort ? SHORT_ACQUISITION_MESSAGE : DEFAULT_ACQUISITION_MESSAGE;
-      const maxTokens = isShort ? 50 : MIRRORING_CONFIG.max_tokens;
       
       // Generate mirroring phrases with JSON response format
       const mirroringResponse = await openaiClient.chat.completions.create({
         model: "gpt-4o",
         messages: [
-          { role: "system", content: mirroringPrompt + '\n\nRispondi SOLO con JSON: {"mirroring": "testo"}' },
+          { role: "system", content: MIRRORING_PROMPT + '\n\nRispondi SOLO con JSON: {"mirroring": "testo"}' },
           { role: "user", content: context }
         ],
         temperature: MIRRORING_CONFIG.temperature,
-        max_tokens: maxTokens,
+        max_tokens: MIRRORING_CONFIG.max_tokens,
         response_format: { type: "json_object" }
       });
 
@@ -3990,15 +3974,8 @@ Assistente del Dott. Ilan Boni`;
         }
       }
 
-      // Build the complete message using the appropriate template
-      let message: string;
-      if (isShort) {
-        // For Idealista: add mirroring as ", in particolare [mirroring]" if present
-        const mirroringShort = mirroringText ? `, in particolare ${mirroringText}` : "";
-        message = messageTemplate.replace(/\{\{mirroring_short\}\}/g, mirroringShort);
-      } else {
-        message = messageTemplate.replace(/\{\{mirroring\}\}/g, mirroringText);
-      }
+      // Build the complete message using the appropriate template (stesso placeholder per entrambi)
+      const message = messageTemplate.replace(/\{\{mirroring\}\}/g, mirroringText);
 
       res.json({ message, format, charCount: message.length });
     } catch (error) {

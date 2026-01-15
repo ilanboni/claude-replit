@@ -692,30 +692,17 @@ Assistente del Dott. Ilan Boni`;
 
 // ==================== MESSAGGIO IDEALISTA (max 400 caratteri) ====================
 
-// Prompt per mirroring Idealista - genera 1 elemento chiave brevissimo
-export const SHORT_MIRRORING_PROMPT = `Genera UN SOLO elemento di mirroring brevissimo (max 25 caratteri) per un messaggio a un proprietario.
+// Per Idealista usiamo lo stesso MIRRORING_PROMPT di qualità
+// Il prompt SHORT_MIRRORING_PROMPT non serve più
 
-REGOLE:
-- MAX 25 caratteri
-- Solo 1 caratteristica (es: "la ristrutturazione", "il terrazzo", "l'esposizione")
-- Tono naturale
-- NO indirizzo, NO zona, NO prezzo
-
-ESEMPI:
-"la ristrutturazione"
-"l'ampia luminosità"
-"il balcone"`;
-
-// Template Idealista (max 400 caratteri totali)
-// Base senza mirroring: ~340 caratteri, con mirroring ~380 caratteri
+// Template Idealista compatto (max 400 caratteri totali)
+// Usa lo stesso mirroring di qualità di Immobiliare ma in formato ridotto
 export const SHORT_ACQUISITION_MESSAGE = `Buongiorno,
 sono Paolo, assistente del Dott. Boni, agente immobiliare a Milano da 30 anni.
 
-Ho notato il suo immobile{{mirroring_short}}. Alcuni investitori potrebbero essere interessati.
+{{mirroring}}
 
-Il Dott. Boni è disponibile per un breve incontro presso l'immobile, senza impegno.
-
-Può rispondermi qui o chiamare 02 35981509.
+Il Dott. Boni è disponibile per un incontro presso l'immobile, senza impegno. Può rispondermi qui o al 02 35981509.
 
 Paolo`;
 
