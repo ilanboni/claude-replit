@@ -34,6 +34,7 @@ import {
   Circle,
   Send,
   Loader2,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -303,7 +304,7 @@ function TabDettagli({ immobile }: { immobile: Immobile }) {
 
 function TabMatching({ immobileId, immobile }: { immobileId: number; immobile: Immobile }) {
   const { toast } = useToast();
-  const { data: matchingList = [], isLoading } = useQuery<Matching[]>({
+  const { data: matchingList = [], isLoading, refetch } = useQuery<any[]>({
     queryKey: ["/api/immobili", immobileId, "matching"],
     queryFn: async () => {
       const res = await fetch(`/api/immobili/${immobileId}/matching`);
@@ -312,79 +313,19 @@ function TabMatching({ immobileId, immobile }: { immobileId: number; immobile: I
     },
   });
 
-  const { data: richieste = [] } = useQuery<Richiesta[]>({
-    queryKey: ["/api/richieste"],
-  });
-
-  const { data: clienti = [] } = useQuery<Cliente[]>({
-    queryKey: ["/api/clienti"],
-  });
-
-  const createComunicazioneMutation = useMutation({
-    mutationFn: async (data: { clienteId: number; immobileId: number; testo: string }) => {
-      const res = await apiRequest("POST", "/api/comunicazioni", {
-        clienteId: data.clienteId,
-        immobileId: data.immobileId,
-        tipo: "proposta",
-        testo: data.testo,
-        canale: "whatsapp",
-        creatoDA: "agente",
-        esito: "in_attesa",
-      });
+  const generateMatchingMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/matching/generate", { richiestaId: undefined });
       return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/immobili", immobileId, "comunicazioni"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/comunicazioni"] });
-      toast({ title: "Proposta inviata", description: "Comunicazione registrata nel sistema" });
+    onSuccess: (data) => {
+      refetch();
+      toast({ title: "Matching generati", description: `Trovati ${data.count} matching totali` });
     },
     onError: () => {
-      toast({ title: "Errore", description: "Impossibile registrare la comunicazione", variant: "destructive" });
+      toast({ title: "Errore", description: "Impossibile generare i matching", variant: "destructive" });
     },
   });
-
-  const getRichiesta = (richiestaId: number) => richieste.find((r) => r.id === richiestaId);
-  const getCliente = (clienteId: number) => clienti.find((c) => c.id === clienteId);
-
-  const handleProponiImmobile = (cliente: Cliente) => {
-    let telefono = (cliente.telefono || "").trim();
-    if (!telefono) {
-      toast({ title: "Errore", description: "Il cliente non ha un numero di telefono", variant: "destructive" });
-      return;
-    }
-    
-    telefono = telefono.replace(/\D/g, "");
-    if (!telefono.startsWith("39") && telefono.length === 10) {
-      telefono = "39" + telefono;
-    }
-    
-    if (telefono.length < 10) {
-      toast({ title: "Errore", description: "Numero di telefono non valido", variant: "destructive" });
-      return;
-    }
-
-    const indirizzo = `${immobile.indirizzo || immobile.zona || ""}, ${immobile.citta || ""}`.trim();
-    const prezzo = immobile.prezzo ? `€${Number(immobile.prezzo).toLocaleString("it-IT")}` : "";
-    const mq = immobile.mq ? `${immobile.mq} mq` : "";
-    const camere = immobile.camere ? `${immobile.camere} camere` : "";
-    
-    const messaggio = `Buongiorno ${cliente.nome}, le propongo un immobile che potrebbe interessarle:\n\n${indirizzo}\n${prezzo}\n${mq}\n${camere}\n\nLe interessa organizzare una visita?`;
-    
-    const testo = `Proposto immobile in ${indirizzo} - ${prezzo}`;
-    
-    const whatsappUrl = `https://wa.me/${telefono}?text=${encodeURIComponent(messaggio)}`;
-    const opened = window.open(whatsappUrl, "_blank");
-    
-    if (opened) {
-      createComunicazioneMutation.mutate({
-        clienteId: cliente.id,
-        immobileId: immobile.id,
-        testo,
-      });
-    } else {
-      toast({ title: "Attenzione", description: "Popup bloccato. Abilita i popup per WhatsApp.", variant: "destructive" });
-    }
-  };
 
   if (isLoading) {
     return (
@@ -396,76 +337,86 @@ function TabMatching({ immobileId, immobile }: { immobileId: number; immobile: I
     );
   }
 
-  if (matchingList.length === 0) {
-    return (
-      <Card>
-        <CardContent className="flex flex-col items-center justify-center py-12">
-          <Users className="h-12 w-12 text-muted-foreground/30 mb-4" />
-          <h3 className="text-lg font-medium">Nessun matching trovato</h3>
-          <p className="text-muted-foreground text-sm">
-            Non ci sono richieste compatibili con questo immobile
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
     <div className="space-y-4">
-      {matchingList.map((match) => {
-        const richiesta = getRichiesta(match.richiestaId);
-        const cliente = richiesta ? getCliente(richiesta.clienteId) : null;
-        const punteggio = match.punteggio || 0;
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h3 className="text-lg font-semibold">Clienti interessati</h3>
+          <p className="text-sm text-muted-foreground">Clienti con richieste compatibili con questo immobile</p>
+        </div>
+        <Button 
+          onClick={() => generateMatchingMutation.mutate()}
+          disabled={generateMatchingMutation.isPending}
+          data-testid="button-genera-matching"
+        >
+          {generateMatchingMutation.isPending ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <TrendingUp className="h-4 w-4 mr-2" />
+          )}
+          Calcola Matching
+        </Button>
+      </div>
 
-        return (
-          <Card key={match.id} className="hover-elevate">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h4 className="font-medium truncate">
-                      {cliente?.nome || "Cliente sconosciuto"}
-                    </h4>
-                    {match.proposto && (
-                      <Badge variant="outline" className="bg-blue-500/10 text-blue-600">
-                        Proposto
-                      </Badge>
-                    )}
-                    {match.accettato && (
-                      <Badge className="bg-green-500/10 text-green-600">Accettato</Badge>
-                    )}
+      {matchingList.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <Users className="h-12 w-12 text-muted-foreground/30 mb-4" />
+            <h3 className="text-lg font-medium">Nessun matching trovato</h3>
+            <p className="text-muted-foreground text-sm text-center">
+              Clicca "Calcola Matching" per trovare clienti con richieste compatibili
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {matchingList.map((match: any) => {
+            const punteggio = match.punteggio || 0;
+
+            return (
+              <Card key={match.id} className="hover-elevate">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="font-medium truncate">
+                          {match.cliente?.nome || "Cliente"} {match.cliente?.cognome || ""}
+                        </h4>
+                        <Badge variant="outline">Score: {punteggio}%</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-1 truncate">
+                        {match.richiesta?.zona && `Zona: ${match.richiesta.zona}`}
+                        {match.richiesta?.budgetMassimo && ` - Budget max: €${Number(match.richiesta.budgetMassimo).toLocaleString("it-IT")}`}
+                      </p>
+                      {match.richiesta?.mqMinimi && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Mq minimi: {match.richiesta.mqMinimi} - Camere: {match.richiesta.camereMinime || "N/D"}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {match.cliente?.telefono && (
+                        <Button size="sm" variant="outline" asChild data-testid={`button-call-${match.id}`}>
+                          <a href={`tel:${match.cliente.telefono}`}>
+                            <Phone className="h-4 w-4" />
+                          </a>
+                        </Button>
+                      )}
+                      {match.cliente && (
+                        <Link href={`/clienti/${match.cliente.id}`}>
+                          <Button size="sm" variant="outline" data-testid={`button-view-client-${match.id}`}>
+                            <ChevronRight className="h-4 w-4" />
+                          </Button>
+                        </Link>
+                      )}
+                    </div>
                   </div>
-                  <p className="text-sm text-muted-foreground mt-1 truncate">
-                    Budget max: €{richiesta?.budgetMassimo ? Number(richiesta.budgetMassimo).toLocaleString("it-IT") : "N/D"} |{" "}
-                    mq min: {richiesta?.mqMinimi || "N/D"} | camere min: {richiesta?.camereMinime || "N/D"}
-                  </p>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="text-right">
-                    <p className="text-2xl font-bold">{punteggio}%</p>
-                    <Progress value={punteggio} className="w-20 h-2" />
-                  </div>
-                  <div className="flex gap-2">
-                    <Button 
-                      size="sm" 
-                      variant="default"
-                      onClick={() => cliente && handleProponiImmobile(cliente)}
-                      disabled={!cliente || createComunicazioneMutation.isPending}
-                      data-testid={`button-proponi-${match.id}`}
-                    >
-                      <MessageSquare className="h-4 w-4 mr-1" />
-                      Proponi
-                    </Button>
-                    <Button size="sm" variant="outline" data-testid={`button-schedule-match-${match.id}`}>
-                      <Calendar className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        );
-      })}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

@@ -20,10 +20,15 @@ import {
   Circle,
   MessageCircle,
   Loader2,
+  TrendingUp,
+  Home,
+  MapPin,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -1058,6 +1063,233 @@ function TabAttivita({ clienteId, cliente }: { clienteId: number; cliente?: Clie
   );
 }
 
+function TabMatching({ clienteId }: { clienteId: number }) {
+  const { toast } = useToast();
+  
+  const { data: matchingData, isLoading: isLoadingMatching, refetch: refetchMatching } = useQuery<{
+    immobili: Array<{
+      matchingId: number;
+      score: number;
+      richiestaId: number;
+      richiestaTipologia: string;
+      richiestaZona: string | null;
+      immobile: Immobile;
+    }>;
+    mercato: Array<{
+      matchingId: number;
+      score: number;
+      richiestaId: number;
+      richiestaTipologia: string;
+      richiestaZona: string | null;
+      opportunity: ImmobileEsterno;
+    }>;
+  }>({
+    queryKey: ["/api/clienti", clienteId, "matching"],
+    enabled: clienteId > 0,
+  });
+
+  const generateMatchingMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("POST", `/api/clienti/${clienteId}/matching`);
+    },
+    onSuccess: () => {
+      refetchMatching();
+      toast({ title: "Matching calcolato con successo" });
+    },
+    onError: () => {
+      toast({
+        title: "Errore",
+        description: "Impossibile calcolare il matching",
+        variant: "destructive"
+      });
+    }
+  });
+
+  const getScoreColor = (score: number) => {
+    if (score >= 70) return "text-green-600 dark:text-green-400";
+    if (score >= 50) return "text-yellow-600 dark:text-yellow-400";
+    return "text-orange-600 dark:text-orange-400";
+  };
+
+  const getScoreBadgeVariant = (score: number): "default" | "secondary" | "outline" => {
+    if (score >= 70) return "default";
+    if (score >= 50) return "secondary";
+    return "outline";
+  };
+
+  if (isLoadingMatching) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-8 w-48" />
+        <div className="grid gap-4 md:grid-cols-2">
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-32" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const hasImmobili = matchingData?.immobili && matchingData.immobili.length > 0;
+  const hasMercato = matchingData?.mercato && matchingData.mercato.length > 0;
+  const hasAnyMatching = hasImmobili || hasMercato;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            <TrendingUp className="h-5 w-5 text-primary" />
+            Immobili di Interesse
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            Immobili compatibili con le richieste del cliente
+          </p>
+        </div>
+        <Button 
+          onClick={() => generateMatchingMutation.mutate()}
+          disabled={generateMatchingMutation.isPending}
+          data-testid="button-generate-matching"
+        >
+          {generateMatchingMutation.isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+          ) : (
+            <TrendingUp className="h-4 w-4 mr-2" />
+          )}
+          Calcola Matching
+        </Button>
+      </div>
+
+      {!hasAnyMatching ? (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <TrendingUp className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-lg font-medium mb-2">Nessun matching trovato</h3>
+            <p className="text-muted-foreground mb-4">
+              Clicca "Calcola Matching" per trovare immobili compatibili con le richieste del cliente
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-6">
+          {hasImmobili && (
+            <div className="space-y-4">
+              <h4 className="text-md font-medium flex items-center gap-2">
+                <Building2 className="h-4 w-4" />
+                Dal nostro portfolio ({matchingData?.immobili.length || 0})
+              </h4>
+              <div className="grid gap-4 md:grid-cols-2">
+                {matchingData?.immobili.map((match) => (
+                  <Card key={match.matchingId} className="hover-elevate">
+                    <CardHeader className="pb-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Home className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          <CardTitle className="text-sm truncate">
+                            {match.immobile.titolo || match.immobile.tipologia}
+                          </CardTitle>
+                        </div>
+                        <Badge variant={getScoreBadgeVariant(match.score)} className={getScoreColor(match.score)}>
+                          {match.score}%
+                        </Badge>
+                      </div>
+                      <CardDescription className="text-xs">
+                        Per richiesta: {match.richiestaTipologia} {match.richiestaZona && `- ${match.richiestaZona}`}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="pt-2">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <MapPin className="h-3 w-3" />
+                          <span className="truncate">{match.immobile.zona || match.immobile.indirizzo || "N/A"}</span>
+                        </div>
+                        <div className="flex items-center gap-4 text-sm">
+                          <span className="font-medium">
+                            €{match.immobile.prezzo?.toLocaleString("it-IT") || "N/A"}
+                          </span>
+                          <span className="text-muted-foreground">
+                            {match.immobile.mq ? `${match.immobile.mq} mq` : ""}
+                          </span>
+                        </div>
+                        <Progress value={match.score} className="h-1.5" />
+                        <Link href={`/immobili/${match.immobile.id}`}>
+                          <Button variant="ghost" size="sm" className="w-full mt-2" data-testid={`button-view-immobile-${match.immobile.id}`}>
+                            Visualizza Immobile
+                            <ChevronRight className="h-4 w-4 ml-1" />
+                          </Button>
+                        </Link>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {hasMercato && (
+            <div className="space-y-4">
+              <h4 className="text-md font-medium flex items-center gap-2">
+                <Star className="h-4 w-4" />
+                Opportunità di Mercato ({matchingData?.mercato.length || 0})
+              </h4>
+              <div className="grid gap-4 md:grid-cols-2">
+                {matchingData?.mercato.map((match) => (
+                  <Card key={match.matchingId} className="hover-elevate border-dashed">
+                    <CardHeader className="pb-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Building2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          <CardTitle className="text-sm truncate">
+                            {match.opportunity.titolo || match.opportunity.tipologia}
+                          </CardTitle>
+                        </div>
+                        <Badge variant={getScoreBadgeVariant(match.score)} className={getScoreColor(match.score)}>
+                          {match.score}%
+                        </Badge>
+                      </div>
+                      <CardDescription className="text-xs">
+                        Per richiesta: {match.richiestaTipologia} {match.richiestaZona && `- ${match.richiestaZona}`}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="pt-2">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <MapPin className="h-3 w-3" />
+                          <span className="truncate">{match.opportunity.zona || match.opportunity.indirizzo || "N/A"}</span>
+                        </div>
+                        <div className="flex items-center gap-4 text-sm">
+                          <span className="font-medium">
+                            €{match.opportunity.prezzo?.toLocaleString("it-IT") || "N/A"}
+                          </span>
+                          <span className="text-muted-foreground">
+                            {match.opportunity.mq ? `${match.opportunity.mq} mq` : ""}
+                          </span>
+                          {match.opportunity.agenzia && (
+                            <Badge variant="outline" className="text-xs">
+                              {match.opportunity.agenzia}
+                            </Badge>
+                          )}
+                        </div>
+                        <Progress value={match.score} className="h-1.5" />
+                        <Link href={`/mercato/${match.opportunity.id}`}>
+                          <Button variant="ghost" size="sm" className="w-full mt-2" data-testid={`button-view-mercato-${match.opportunity.id}`}>
+                            Visualizza Opportunità
+                            <ChevronRight className="h-4 w-4 ml-1" />
+                          </Button>
+                        </Link>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ClienteDetailPage() {
   const params = useParams<{ id: string }>();
   const [, navigate] = useLocation();
@@ -1191,6 +1423,13 @@ export default function ClienteDetailPage() {
           >
             Attività
           </TabsTrigger>
+          <TabsTrigger 
+            value="matching"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+            data-testid="tab-matching"
+          >
+            Matching
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="panoramica" className="mt-6">
@@ -1210,6 +1449,9 @@ export default function ClienteDetailPage() {
         </TabsContent>
         <TabsContent value="attivita" className="mt-6">
           <TabAttivita clienteId={clienteId} cliente={cliente} />
+        </TabsContent>
+        <TabsContent value="matching" className="mt-6">
+          <TabMatching clienteId={clienteId} />
         </TabsContent>
       </Tabs>
 

@@ -205,6 +205,101 @@ export function calculateMatchScore(richiesta: Richiesta, immobile: Immobile): n
   return Math.min(100, Math.max(0, percentage));
 }
 
+// Match score for OpportunitaMercato (properties from other agencies)
+export function calculateMatchScoreMercato(richiesta: Richiesta, opportunita: any): number {
+  let score = 0;
+  let totalWeight = 0;
+
+  // Budget check (weight: 25)
+  if (richiesta.budgetMassimo && opportunita.prezzo) {
+    totalWeight += 25;
+    const budget = Number(richiesta.budgetMassimo);
+    const prezzo = Number(opportunita.prezzo);
+    if (prezzo <= budget) {
+      score += 25;
+    } else if (prezzo <= budget * 1.1) {
+      score += 15;
+    } else if (prezzo <= budget * 1.2) {
+      score += 5;
+    }
+  }
+
+  // Mq check (weight: 20)
+  if (richiesta.mqMinimi && opportunita.mq) {
+    totalWeight += 20;
+    if (opportunita.mq >= richiesta.mqMinimi) {
+      score += 20;
+    } else if (opportunita.mq >= richiesta.mqMinimi * 0.9) {
+      score += 10;
+    }
+  }
+
+  // Zona check (weight: 15)
+  if (richiesta.zona && opportunita.zona) {
+    totalWeight += 15;
+    const zonaRichiesta = richiesta.zona.toLowerCase().trim();
+    const zonaOpportunita = opportunita.zona.toLowerCase().trim();
+    if (zonaOpportunita.includes(zonaRichiesta) || zonaRichiesta.includes(zonaOpportunita)) {
+      score += 15;
+    }
+  }
+
+  // Camere check (weight: 15)
+  if (richiesta.camereMinime && opportunita.camere) {
+    totalWeight += 15;
+    if (opportunita.camere >= richiesta.camereMinime) {
+      score += 15;
+    } else if (opportunita.camere === richiesta.camereMinime - 1) {
+      score += 7;
+    }
+  }
+
+  // Bagni check (weight: 10)
+  if (richiesta.bagniMinimi && opportunita.bagni) {
+    totalWeight += 10;
+    if (opportunita.bagni >= richiesta.bagniMinimi) {
+      score += 10;
+    }
+  }
+
+  // Features (weight: 2.5 each = 10 total)
+  const features = [
+    { req: richiesta.balcone, opp: opportunita.balcone },
+    { req: richiesta.terrazzo, opp: opportunita.terrazzo },
+    { req: richiesta.ascensore, opp: opportunita.ascensore },
+    { req: richiesta.box, opp: opportunita.box },
+  ];
+
+  for (const feature of features) {
+    if (feature.req) {
+      totalWeight += 2.5;
+      if (feature.opp) {
+        score += 2.5;
+      }
+    }
+  }
+
+  // Stato check
+  const statoMatch = (
+    (richiesta.statoNuovo && opportunita.statoNuovo) ||
+    (richiesta.statoRistrutturato && opportunita.statoRistrutturato) ||
+    (richiesta.statoBuono && opportunita.statoBuono) ||
+    (richiesta.statoDaRistrutturare && opportunita.statoDaRistrutturare)
+  );
+
+  if (richiesta.statoNuovo || richiesta.statoRistrutturato || richiesta.statoBuono || richiesta.statoDaRistrutturare) {
+    totalWeight += 10;
+    if (statoMatch) {
+      score += 10;
+    }
+  }
+
+  if (totalWeight === 0) return 50;
+  
+  const percentage = Math.round((score / totalWeight) * 100);
+  return Math.min(100, Math.max(0, percentage));
+}
+
 export async function generateAICoachMessage(stats: {
   appuntamentiOggi: number;
   clientiNuovi: number;

@@ -1067,134 +1067,96 @@ function TabMatching({ opportunita, onRefresh }: { opportunita: OpportunitaDetai
   const { toast } = useToast();
   const matching = opportunita.matching || [];
 
-  const updateMatchingMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: number; data: any }) => {
-      const res = await apiRequest("PATCH", `/api/mercato/matching/${id}`, data);
+  const generateMatchingMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/mercato/matching/generate", { opportunitaId: opportunita.id });
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       onRefresh();
-      toast({ title: "Matching aggiornato" });
+      toast({ title: "Matching generati", description: `Trovati ${data.count} clienti compatibili` });
     },
     onError: () => {
-      toast({ title: "Errore", description: "Impossibile aggiornare il matching", variant: "destructive" });
+      toast({ title: "Errore", description: "Impossibile generare i matching", variant: "destructive" });
     },
   });
 
-  const handleProponiCliente = (match: any) => {
-    const cliente = match.cliente;
-    if (!cliente) {
-      toast({ title: "Errore", description: "Dati cliente non disponibili", variant: "destructive" });
-      return;
-    }
-
-    let telefono = (cliente.telefono || "").trim();
-    if (!telefono) {
-      toast({ title: "Errore", description: "Il cliente non ha un numero di telefono", variant: "destructive" });
-      return;
-    }
-
-    telefono = telefono.replace(/\D/g, "");
-    if (!telefono.startsWith("39") && telefono.length === 10) {
-      telefono = "39" + telefono;
-    }
-
-    const indirizzo = `${opportunita.indirizzo || opportunita.zona || ""}, ${opportunita.citta || ""}`.trim();
-    const prezzo = opportunita.prezzo ? `€${Number(opportunita.prezzo).toLocaleString("it-IT")}` : "";
-    const mq = opportunita.mq ? `${opportunita.mq} mq` : "";
-
-    const messaggio = `Buongiorno ${cliente.nome}, le propongo un immobile che potrebbe interessarle:\n\n${indirizzo}\n${prezzo}\n${mq}\n\nLe interessa organizzare una visita?`;
-
-    const whatsappUrl = `https://wa.me/${telefono}?text=${encodeURIComponent(messaggio)}`;
-    const opened = window.open(whatsappUrl, "_blank");
-
-    if (opened) {
-      updateMatchingMutation.mutate({ id: match.id, data: { messaggioInviato: true } });
-    } else {
-      toast({ title: "Attenzione", description: "Popup bloccato. Abilita i popup per WhatsApp.", variant: "destructive" });
-    }
-  };
-
-  if (matching.length === 0) {
-    return (
-      <Card>
-        <CardContent className="flex flex-col items-center justify-center py-12">
-          <Users className="h-12 w-12 text-muted-foreground/30 mb-4" />
-          <h3 className="text-lg font-medium">Nessun matching trovato</h3>
-          <p className="text-muted-foreground text-sm">
-            Non ci sono richieste compatibili con questa opportunità
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
     <div className="space-y-4">
-      <div>
-        <h3 className="text-lg font-semibold">Clienti interessati</h3>
-        <p className="text-sm text-muted-foreground">Clienti con richieste compatibili con questa opportunità</p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h3 className="text-lg font-semibold">Clienti interessati</h3>
+          <p className="text-sm text-muted-foreground">Clienti con richieste compatibili con questa opportunità</p>
+        </div>
+        <Button 
+          onClick={() => generateMatchingMutation.mutate()}
+          disabled={generateMatchingMutation.isPending}
+          data-testid="button-genera-matching"
+        >
+          {generateMatchingMutation.isPending ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <TrendingUp className="h-4 w-4 mr-2" />
+          )}
+          Calcola Matching
+        </Button>
       </div>
 
-      <div className="space-y-3">
-        {matching.map((match: any) => (
-          <Card key={match.id} className="hover-elevate">
-            <CardContent className="p-4">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h4 className="font-medium">
-                      {match.cliente?.nome} {match.cliente?.cognome || ""}
-                    </h4>
-                    <Badge variant="outline">Score: {match.punteggio}%</Badge>
-                    {match.messaggioInviato && (
-                      <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                        <CheckCircle2 className="h-3 w-3 mr-1" />
-                        Contattato
-                      </Badge>
+      {matching.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <Users className="h-12 w-12 text-muted-foreground/30 mb-4" />
+            <h3 className="text-lg font-medium">Nessun matching trovato</h3>
+            <p className="text-muted-foreground text-sm text-center">
+              Clicca "Calcola Matching" per trovare clienti con richieste compatibili
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {matching.map((match: any) => (
+            <Card key={match.id} className="hover-elevate">
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h4 className="font-medium">
+                        {match.cliente?.nome} {match.cliente?.cognome || ""}
+                      </h4>
+                      <Badge variant="outline">Score: {match.punteggio}%</Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {match.richiesta?.zona && `Zona: ${match.richiesta.zona}`}
+                      {match.richiesta?.budgetMassimo && ` - Budget max: €${Number(match.richiesta.budgetMassimo).toLocaleString('it-IT')}`}
+                    </p>
+                    {match.richiesta?.mqMinimi && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Mq minimi: {match.richiesta.mqMinimi} - Camere: {match.richiesta.camereMinime || "N/D"}
+                      </p>
                     )}
                   </div>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {match.richiesta?.tipoRichiesta} - Budget: €{match.richiesta?.budgetMin?.toLocaleString('it-IT')} - €{match.richiesta?.budgetMax?.toLocaleString('it-IT')}
-                  </p>
-                  {match.richiesta?.zone && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Zone: {Array.isArray(match.richiesta.zone) ? match.richiesta.zone.join(", ") : match.richiesta.zone}
-                    </p>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  {!match.messaggioInviato && match.cliente?.telefono && (
-                    <Button 
-                      size="sm" 
-                      onClick={() => handleProponiCliente(match)}
-                      disabled={updateMatchingMutation.isPending}
-                      data-testid={`button-proponi-${match.id}`}
-                    >
-                      <Send className="h-4 w-4 mr-1" />
-                      Proponi
-                    </Button>
-                  )}
-                  {match.cliente?.telefono && (
-                    <Button size="sm" variant="outline" asChild data-testid={`button-call-${match.id}`}>
-                      <a href={`tel:${match.cliente.telefono}`}>
-                        <Phone className="h-4 w-4" />
-                      </a>
-                    </Button>
-                  )}
-                  {match.cliente && (
-                    <Link href={`/clienti/${match.cliente.id}`}>
-                      <Button size="sm" variant="outline" data-testid={`button-view-client-${match.id}`}>
-                        <ChevronRight className="h-4 w-4" />
+                  <div className="flex items-center gap-2">
+                    {match.cliente?.telefono && (
+                      <Button size="sm" variant="outline" asChild data-testid={`button-call-${match.id}`}>
+                        <a href={`tel:${match.cliente.telefono}`}>
+                          <Phone className="h-4 w-4" />
+                        </a>
                       </Button>
-                    </Link>
-                  )}
+                    )}
+                    {match.cliente && (
+                      <Link href={`/clienti/${match.cliente.id}`}>
+                        <Button size="sm" variant="outline" data-testid={`button-view-client-${match.id}`}>
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      </Link>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
