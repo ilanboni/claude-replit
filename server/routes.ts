@@ -1506,7 +1506,8 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         SHORT_ACQUISITION_MESSAGE 
       } = await import("./bot-config");
       
-      const testoAnnuncio = immobile.descrizione || immobile.titolo || 'Nessun testo disponibile';
+      // Usa testoOriginale che contiene la descrizione completa dell'annuncio
+      const testoAnnuncio = immobile.testoOriginale || immobile.descrizione || immobile.titolo || 'Nessun testo disponibile';
       
       let tipoUnita: string | null = null;
       if (immobile.camere) {
