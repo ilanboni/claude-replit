@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useRoute, Link, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
@@ -13,14 +13,16 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
+import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
+import { useUpload } from "@/hooks/use-upload";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { OpportunitaMercato, AttivitaOpportunita, PubblicizzatoDa, MatchingOpportunita } from "@shared/schema";
 import { 
   ArrowLeft, MapPin, Home, Euro, ExternalLink, Building2, Users, Clock,
   CheckCircle2, XCircle, TrendingUp, Link2, Loader2, Plus, Trash2, Phone,
   Mail, MessageSquare, FileText, Calendar, ChevronRight, Send, Edit, 
-  Briefcase, Star, ArrowUpRight, Building, Ruler, Bath, Share2
+  Briefcase, Star, ArrowUpRight, Building, Ruler, Bath, Share2, Upload, File
 } from "lucide-react";
 import { format } from "date-fns";
 import { it } from "date-fns/locale";
@@ -753,6 +755,15 @@ function TabDocumenti({ opportunita, onRefresh }: { opportunita: OpportunitaDeta
   const { toast } = useToast();
   const [showForm, setShowForm] = useState(false);
   const [newDoc, setNewDoc] = useState({ nome: "", tipo: "altro", url: "" });
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploadingFiles, setUploadingFiles] = useState<{ name: string; progress: number }[]>([]);
+  
+  const { uploadFile, isUploading } = useUpload({
+    onSuccess: () => {},
+    onError: (error) => {
+      toast({ title: "Errore upload", description: error.message, variant: "destructive" });
+    },
+  });
 
   const documenti = opportunita.documenti || [];
 
@@ -784,34 +795,167 @@ function TabDocumenti({ opportunita, onRefresh }: { opportunita: OpportunitaDeta
     },
   });
 
+  const detectDocumentType = (filename: string): string => {
+    const lowerName = filename.toLowerCase();
+    if (lowerName.includes("ape") || lowerName.includes("energetic")) return "ape";
+    if (lowerName.includes("planimetria") || lowerName.includes("pianta")) return "planimetria";
+    if (lowerName.includes("visura")) return "visura";
+    if (lowerName.includes("contratto")) return "contratto";
+    if (/\.(jpg|jpeg|png|gif|webp)$/i.test(filename)) return "foto";
+    return "altro";
+  };
+
+  const handleFileUpload = useCallback(async (files: FileList | File[]) => {
+    const fileArray = Array.from(files);
+    
+    for (const file of fileArray) {
+      const fileName = file.name;
+      setUploadingFiles(prev => [...prev, { name: fileName, progress: 0 }]);
+      
+      try {
+        setUploadingFiles(prev => prev.map(f => f.name === fileName ? { ...f, progress: 30 } : f));
+        
+        const response = await uploadFile(file);
+        
+        if (response) {
+          setUploadingFiles(prev => prev.map(f => f.name === fileName ? { ...f, progress: 70 } : f));
+          
+          const docType = detectDocumentType(fileName);
+          const docName = fileName.replace(/\.[^/.]+$/, "");
+          
+          await apiRequest("POST", `/api/mercato/${opportunita.id}/documenti`, {
+            nome: docName,
+            tipo: docType,
+            url: response.objectPath,
+          });
+          
+          setUploadingFiles(prev => prev.map(f => f.name === fileName ? { ...f, progress: 100 } : f));
+          
+          setTimeout(() => {
+            setUploadingFiles(prev => prev.filter(f => f.name !== fileName));
+          }, 1000);
+          
+          onRefresh();
+          toast({ title: "Documento caricato", description: fileName });
+        }
+      } catch (error) {
+        setUploadingFiles(prev => prev.filter(f => f.name !== fileName));
+        toast({ title: "Errore", description: `Impossibile caricare ${fileName}`, variant: "destructive" });
+      }
+    }
+  }, [uploadFile, opportunita.id, onRefresh, toast]);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      handleFileUpload(files);
+    }
+  }, [handleFileUpload]);
+
+  const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      handleFileUpload(files);
+    }
+    e.target.value = "";
+  }, [handleFileUpload]);
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h3 className="text-lg font-semibold">Documenti</h3>
           <p className="text-sm text-muted-foreground">Documenti relativi a questa opportunità</p>
         </div>
-        <Button onClick={() => setShowForm(true)} data-testid="button-add-documento">
-          <Plus className="h-4 w-4 mr-2" />
-          Aggiungi Documento
-        </Button>
+        <div className="flex gap-2">
+          <label htmlFor="file-upload-input">
+            <Button asChild data-testid="button-upload-documento">
+              <span>
+                <Upload className="h-4 w-4 mr-2" />
+                Carica File
+              </span>
+            </Button>
+          </label>
+          <input
+            id="file-upload-input"
+            type="file"
+            multiple
+            className="hidden"
+            onChange={handleFileInput}
+            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.webp"
+            data-testid="input-file-upload"
+          />
+          <Button variant="outline" onClick={() => setShowForm(true)} data-testid="button-add-documento">
+            <Plus className="h-4 w-4 mr-2" />
+            Aggiungi URL
+          </Button>
+        </div>
       </div>
 
-      {documenti.length === 0 ? (
+      <div
+        className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+          isDragging 
+            ? "border-primary bg-primary/5" 
+            : "border-muted-foreground/25 hover:border-muted-foreground/50"
+        }`}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        data-testid="dropzone-documenti"
+      >
+        <Upload className={`h-10 w-10 mx-auto mb-3 ${isDragging ? "text-primary" : "text-muted-foreground/50"}`} />
+        <p className={`text-sm ${isDragging ? "text-primary font-medium" : "text-muted-foreground"}`}>
+          {isDragging ? "Rilascia i file qui" : "Trascina i file qui oppure clicca su 'Carica File'"}
+        </p>
+        <p className="text-xs text-muted-foreground mt-1">
+          PDF, DOC, immagini (max 10MB)
+        </p>
+      </div>
+
+      {uploadingFiles.length > 0 && (
+        <div className="space-y-2">
+          {uploadingFiles.map((file) => (
+            <Card key={file.name} className="p-3">
+              <div className="flex items-center gap-3">
+                <File className="h-5 w-5 text-muted-foreground" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{file.name}</p>
+                  <Progress value={file.progress} className="h-1 mt-1" />
+                </div>
+                <span className="text-xs text-muted-foreground">{file.progress}%</span>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {documenti.length === 0 && uploadingFiles.length === 0 ? (
         <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <FileText className="h-12 w-12 text-muted-foreground/30 mb-4" />
-            <h3 className="text-lg font-medium">Nessun documento</h3>
-            <p className="text-muted-foreground text-sm">
-              Carica documenti relativi a questa opportunità
+          <CardContent className="flex flex-col items-center justify-center py-8">
+            <FileText className="h-10 w-10 text-muted-foreground/30 mb-3" />
+            <h3 className="text-base font-medium">Nessun documento</h3>
+            <p className="text-muted-foreground text-sm text-center">
+              Trascina i file nell'area sopra o usa i pulsanti per aggiungere documenti
             </p>
-            <Button className="mt-4" onClick={() => setShowForm(true)} data-testid="button-add-first-documento">
-              <Plus className="h-4 w-4 mr-2" />
-              Aggiungi primo documento
-            </Button>
           </CardContent>
         </Card>
-      ) : (
+      ) : documenti.length > 0 && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {documenti.map((doc: any) => (
             <Card key={doc.id} className="hover-elevate">
@@ -830,7 +974,11 @@ function TabDocumenti({ opportunita, onRefresh }: { opportunita: OpportunitaDeta
                   </div>
                   <div className="flex gap-1">
                     {doc.url && (
-                      <a href={doc.url} target="_blank" rel="noopener noreferrer">
+                      <a 
+                        href={doc.url.startsWith("/objects/") ? doc.url : doc.url} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                      >
                         <Button variant="ghost" size="icon" data-testid={`button-doc-link-${doc.id}`}>
                           <ExternalLink className="h-4 w-4" />
                         </Button>
@@ -857,7 +1005,7 @@ function TabDocumenti({ opportunita, onRefresh }: { opportunita: OpportunitaDeta
       <Dialog open={showForm} onOpenChange={setShowForm}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Nuovo Documento</DialogTitle>
+            <DialogTitle>Aggiungi Documento (URL)</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
@@ -889,7 +1037,7 @@ function TabDocumenti({ opportunita, onRefresh }: { opportunita: OpportunitaDeta
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>URL (opzionale)</Label>
+              <Label>URL *</Label>
               <Input
                 value={newDoc.url}
                 onChange={(e) => setNewDoc({ ...newDoc, url: e.target.value })}

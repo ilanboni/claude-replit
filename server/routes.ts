@@ -12,6 +12,7 @@ import { whatsappWS } from "./websocket";
 import { sendWhatsAppMessage, isUltraMsgConfigured, normalizeItalianPhone } from "./ultramsg";
 import { getUnreadEmails, searchPortalEmails, parsePortalEmail, markAsRead, EmailMessage, sendEmail, isGmailConfigured, getEmailsByQuery } from "./gmail-service";
 import { processChatbotMessage } from "./services/chatbotService";
+import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { exec } from "child_process";
 import { promisify } from "util";
 import * as fs from "fs";
@@ -151,6 +152,9 @@ function getItalyTimezoneOffset(date: Date): number {
 }
 
 export async function registerRoutes(server: Server, app: Express): Promise<void> {
+  // ==================== OBJECT STORAGE ROUTES ====================
+  registerObjectStorageRoutes(app);
+
   // ==================== RICERCA GLOBALE ====================
   app.get("/api/search", async (req, res) => {
     try {
