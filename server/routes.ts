@@ -20,6 +20,129 @@ import * as path from "path";
 import * as os from "os";
 const execAsync = promisify(exec);
 
+// Minimum matching score threshold (30%)
+const MIN_MATCHING_SCORE = 30;
+
+// Helper function to generate matching for a single richiesta against all immobili and mercato opportunities
+async function generateMatchingForRichiesta(richiestaId: number): Promise<{immobiliMatches: number, mercatoMatches: number}> {
+  const richiesta = await storage.getRichiesta(richiestaId);
+  if (!richiesta || !richiesta.attiva) return { immobiliMatches: 0, mercatoMatches: 0 };
+  
+  const [allImmobili, allOpportunita, existingMatches, existingMercatoMatches] = await Promise.all([
+    storage.getImmobili(),
+    storage.getOpportunitaMercato(),
+    storage.getMatching(richiestaId),
+    storage.getMatchingOpportunitaByRichiesta(richiestaId),
+  ]);
+  
+  const activeImmobili = allImmobili.filter(i => i.attivo);
+  const activeOpportunita = allOpportunita.filter(o => o.stato !== "scartato");
+  
+  // Track existing matches to avoid duplicates
+  const existingImmobiliIds = new Set(existingMatches.map(m => m.immobileId));
+  const existingOpportunitaIds = new Set(existingMercatoMatches.map(m => m.opportunitaId));
+  
+  let immobiliMatches = 0;
+  let mercatoMatches = 0;
+  
+  // Match against immobili
+  for (const immobile of activeImmobili) {
+    if (existingImmobiliIds.has(immobile.id)) continue;
+    const score = calculateMatchScore(richiesta, immobile);
+    if (score >= MIN_MATCHING_SCORE) {
+      await storage.createMatching({
+        richiestaId: richiesta.id,
+        immobileId: immobile.id,
+        punteggio: score,
+      });
+      immobiliMatches++;
+    }
+  }
+  
+  // Match against mercato opportunities
+  for (const opp of activeOpportunita) {
+    if (existingOpportunitaIds.has(opp.id)) continue;
+    const score = calculateMatchScoreMercato(richiesta, opp);
+    if (score >= MIN_MATCHING_SCORE) {
+      await storage.createMatchingOpportunita({
+        opportunitaId: opp.id,
+        richiestaId: richiesta.id,
+        punteggio: score,
+      });
+      mercatoMatches++;
+    }
+  }
+  
+  console.log(`[Auto-Matching] Richiesta ${richiestaId}: ${immobiliMatches} immobili, ${mercatoMatches} mercato`);
+  return { immobiliMatches, mercatoMatches };
+}
+
+// Helper function to generate matching for a new immobile against all richieste
+async function generateMatchingForImmobile(immobileId: number): Promise<number> {
+  const immobile = await storage.getImmobile(immobileId);
+  if (!immobile || !immobile.attivo) return 0;
+  
+  const [allRichieste, existingMatches] = await Promise.all([
+    storage.getRichieste(),
+    storage.getMatching(),
+  ]);
+  
+  const activeRichieste = allRichieste.filter(r => r.attiva);
+  const existingRichiestaIds = new Set(
+    existingMatches.filter(m => m.immobileId === immobileId).map(m => m.richiestaId)
+  );
+  
+  let matchCount = 0;
+  
+  for (const richiesta of activeRichieste) {
+    if (existingRichiestaIds.has(richiesta.id)) continue;
+    const score = calculateMatchScore(richiesta, immobile);
+    if (score >= MIN_MATCHING_SCORE) {
+      await storage.createMatching({
+        richiestaId: richiesta.id,
+        immobileId: immobile.id,
+        punteggio: score,
+      });
+      matchCount++;
+    }
+  }
+  
+  console.log(`[Auto-Matching] Immobile ${immobileId}: ${matchCount} richieste interessate`);
+  return matchCount;
+}
+
+// Helper function to generate matching for a new mercato opportunity against all richieste
+async function generateMatchingForOpportunita(opportunitaId: number): Promise<number> {
+  const opportunita = await storage.getOpportunitaMercatoById(opportunitaId);
+  if (!opportunita || opportunita.stato === "scartato") return 0;
+  
+  const [allRichieste, existingMatches] = await Promise.all([
+    storage.getRichieste(),
+    storage.getMatchingOpportunita(opportunitaId),
+  ]);
+  
+  const activeRichieste = allRichieste.filter(r => r.attiva);
+  const existingRichiestaIds = new Set(existingMatches.map(m => m.richiestaId));
+  
+  let matchCount = 0;
+  
+  for (const richiesta of activeRichieste) {
+    if (existingRichiestaIds.has(richiesta.id)) continue;
+    const score = calculateMatchScoreMercato(richiesta, opportunita);
+    if (score >= MIN_MATCHING_SCORE) {
+      await storage.createMatchingOpportunita({
+        opportunitaId: opportunita.id,
+        richiestaId: richiesta.id,
+        punteggio: score,
+      });
+      matchCount++;
+    }
+  }
+  
+  console.log(`[Auto-Matching] Opportunità ${opportunitaId}: ${matchCount} richieste interessate`);
+  return matchCount;
+}
+
 // Normalizza numeri di telefono italiani in formato internazionale: 3xx → +393xx
 function normalizeItalianPhoneNumber(phone: string): string {
   let cleaned = phone.replace(/[\s\-]/g, '');
@@ -676,6 +799,12 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         zonaNormalizzata: normalizeZona(parsed.data.zona),
       };
       const richiesta = await storage.createRichiesta(dataWithNormalizedZona);
+      
+      // Auto-generate matching in background (non-blocking)
+      generateMatchingForRichiesta(richiesta.id).catch(e => 
+        console.error("[Auto-Matching] Error for richiesta:", e)
+      );
+      
       res.status(201).json(richiesta);
     } catch (error) {
       console.error("Create richiesta error:", error);
@@ -835,6 +964,12 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         return res.status(400).json({ error: "Dati non validi", details: parsed.error });
       }
       const immobile = await storage.createImmobile(parsed.data);
+      
+      // Auto-generate matching in background (non-blocking)
+      generateMatchingForImmobile(immobile.id).catch(e => 
+        console.error("[Auto-Matching] Error for immobile:", e)
+      );
+      
       res.status(201).json(immobile);
     } catch (error) {
       console.error("Create immobile error:", error);
@@ -2043,6 +2178,12 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         });
         
         console.log(`[Extension] Agency listing saved to Mercato: ${opportunita.id} - ${nomeAgenzia}`);
+        
+        // Auto-generate matching in background
+        generateMatchingForOpportunita(opportunita.id).catch(e => 
+          console.error("[Auto-Matching] Error for extension mercato:", e)
+        );
+        
         return res.status(201).json({ 
           success: true, 
           id: opportunita.id, 
@@ -5956,9 +6097,8 @@ FORMATO RISPOSTE:
     try {
       const opportunita = await storage.createOpportunitaMercato(req.body);
       
-      // Se c'è richiestaOrigineId, calcola matching
+      // Se c'è richiestaOrigineId, calcola matching specifico
       if (req.body.richiestaOrigineId) {
-        // Crea matching con la richiesta origine
         const richiesta = await storage.getRichiesta(req.body.richiestaOrigineId);
         if (richiesta) {
           await storage.createMatchingOpportunita({
@@ -5968,6 +6108,11 @@ FORMATO RISPOSTE:
           });
         }
       }
+      
+      // Auto-generate matching for all other richieste in background
+      generateMatchingForOpportunita(opportunita.id).catch(e => 
+        console.error("[Auto-Matching] Error for opportunita:", e)
+      );
       
       res.json(opportunita);
     } catch (error: any) {
