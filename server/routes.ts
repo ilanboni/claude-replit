@@ -1479,7 +1479,7 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
     }
   });
 
-  // Generate message for portal form contact - redirect to WhatsApp message endpoint
+  // Generate message for portal form contact - with Idealista short format support
   app.post("/api/ai/generate-form-message", async (req, res) => {
     try {
       const { immobileId } = req.body;
@@ -1488,18 +1488,23 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         return res.status(400).json({ error: "immobileId richiesto" });
       }
       
-      // Redirect to the WhatsApp message generation endpoint (same exact logic)
-      req.params = { id: String(immobileId) };
-      req.body = {}; // No custom template
-      
-      // Call the generate-message endpoint handler directly by making internal request
       const immobile = await storage.getImmobileEsterno(immobileId);
       if (!immobile) {
         return res.status(404).json({ error: "Immobile non trovato" });
       }
 
-      // Use the exact same logic as /api/acquisizione/:id/generate-message
-      const { MIRRORING_PROMPT, MIRRORING_CONFIG, DEFAULT_ACQUISITION_MESSAGE } = await import("./bot-config");
+      // Detect if it's Idealista (use short format)
+      const fonte = (immobile.fonte || "").toLowerCase();
+      const urlAnnuncio = (immobile.urlAnnuncio || "").toLowerCase();
+      const isIdealista = fonte.includes("idealista") || urlAnnuncio.includes("idealista");
+      
+      console.log(`[Generate Form Message] ID: ${immobileId}, fonte: ${fonte}, isIdealista: ${isIdealista}`);
+
+      // Import appropriate templates based on format
+      const { 
+        MIRRORING_PROMPT, MIRRORING_CONFIG, DEFAULT_ACQUISITION_MESSAGE,
+        SHORT_MIRRORING_PROMPT, SHORT_ACQUISITION_MESSAGE 
+      } = await import("./bot-config");
       
       const testoAnnuncio = immobile.descrizione || immobile.titolo || 'Nessun testo disponibile';
       
@@ -1524,14 +1529,18 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
       });
       
+      // Use short or standard prompt based on portal
+      const mirroringPrompt = isIdealista ? SHORT_MIRRORING_PROMPT : MIRRORING_PROMPT;
+      const maxTokens = isIdealista ? 50 : MIRRORING_CONFIG.max_tokens;
+      
       const mirroringResponse = await openaiClient.chat.completions.create({
         model: "gpt-4o",
         messages: [
-          { role: "system", content: MIRRORING_PROMPT + '\n\nRispondi SOLO con JSON: {"mirroring": "testo"}' },
+          { role: "system", content: mirroringPrompt + '\n\nRispondi SOLO con JSON: {"mirroring": "testo"}' },
           { role: "user", content: context }
         ],
         temperature: MIRRORING_CONFIG.temperature,
-        max_tokens: MIRRORING_CONFIG.max_tokens,
+        max_tokens: maxTokens,
         response_format: { type: "json_object" }
       });
       
@@ -1546,10 +1555,18 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         }
       }
       
-      // Build the final message using the template
-      let finalMessage = DEFAULT_ACQUISITION_MESSAGE.replace('{{mirroring}}', mirroringText);
+      // Build the final message using appropriate template
+      let finalMessage: string;
+      if (isIdealista) {
+        // For Idealista: short format with mirroring as ", in particolare X"
+        const mirroringShort = mirroringText ? `, in particolare ${mirroringText}` : "";
+        finalMessage = SHORT_ACQUISITION_MESSAGE.replace('{{mirroring_short}}', mirroringShort);
+      } else {
+        finalMessage = DEFAULT_ACQUISITION_MESSAGE.replace('{{mirroring}}', mirroringText);
+      }
       
-      res.json({ message: finalMessage });
+      console.log(`[Generate Form Message] Generated ${finalMessage.length} chars (isIdealista: ${isIdealista})`);
+      res.json({ message: finalMessage, charCount: finalMessage.length });
     } catch (error) {
       console.error("Generate form message error:", error);
       res.status(500).json({ error: "Errore nella generazione del messaggio" });
