@@ -6036,6 +6036,51 @@ FORMATO RISPOSTE:
     }
   });
 
+  // Comunicazioni relative a un'opportunità mercato
+  app.get("/api/mercato/:id/comunicazioni", async (req, res) => {
+    try {
+      const opportunitaId = Number(req.params.id);
+      const opportunita = await storage.getOpportunitaMercatoById(opportunitaId);
+      if (!opportunita) {
+        return res.status(404).json({ error: "Opportunità non trovata" });
+      }
+
+      // Cerca le comunicazioni legate all'opportunità tramite matching
+      const matching = await storage.getMatchingOpportunita(opportunitaId);
+      const richiestaIds = matching.map(m => m.richiestaId);
+      
+      // Recupera i clienti da ciascuna richiesta
+      const clienteIds: number[] = [];
+      for (const richiestaId of richiestaIds) {
+        const richiesta = await storage.getRichiesta(richiestaId);
+        if (richiesta) {
+          clienteIds.push(richiesta.clienteId);
+        }
+      }
+
+      // Recupera comunicazioni di questi clienti
+      const comunicazioni = [];
+      for (const clienteId of clienteIds) {
+        const cliente = await storage.getCliente(clienteId);
+        const comms = await storage.getComunicazioni(clienteId);
+        for (const com of comms) {
+          comunicazioni.push({
+            ...com,
+            clienteNome: cliente ? `${cliente.nome} ${cliente.cognome || ""}`.trim() : "Cliente",
+          });
+        }
+      }
+
+      // Ordina per data
+      comunicazioni.sort((a, b) => new Date(b.dataOra).getTime() - new Date(a.dataOra).getTime());
+      
+      res.json(comunicazioni);
+    } catch (error: any) {
+      console.error("Get comunicazioni opportunita error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Converti opportunità in immobile portafoglio
   app.post("/api/mercato/:id/converti-portafoglio", async (req, res) => {
     try {

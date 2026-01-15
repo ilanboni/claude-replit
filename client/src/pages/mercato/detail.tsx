@@ -749,25 +749,232 @@ function TabAttivita({ opportunita, onRefresh }: { opportunita: OpportunitaDetai
   );
 }
 
-function TabClienti({ opportunita }: { opportunita: OpportunitaDetail }) {
-  const { data: proponiClienti } = useQuery<any[]>({
-    queryKey: ["/api/mercato", opportunita.id, "proponi-clienti"],
-    queryFn: async () => {
-      const res = await fetch(`/api/mercato/${opportunita.id}/proponi-clienti`);
-      if (!res.ok) throw new Error("Failed to fetch");
-      return res.json();
+function TabDocumenti({ opportunita, onRefresh }: { opportunita: OpportunitaDetail; onRefresh: () => void }) {
+  const { toast } = useToast();
+  const [showForm, setShowForm] = useState(false);
+  const [newDoc, setNewDoc] = useState({ nome: "", tipo: "altro", url: "" });
+
+  const documenti = opportunita.documenti || [];
+
+  const createMutation = useMutation({
+    mutationFn: async (data: typeof newDoc) => {
+      return apiRequest("POST", `/api/mercato/${opportunita.id}/documenti`, data);
     },
-    enabled: opportunita.stato === "acquisito",
+    onSuccess: () => {
+      onRefresh();
+      toast({ title: "Documento aggiunto" });
+      setShowForm(false);
+      setNewDoc({ nome: "", tipo: "altro", url: "" });
+    },
+    onError: () => {
+      toast({ title: "Errore", description: "Impossibile aggiungere il documento", variant: "destructive" });
+    },
   });
 
-  if (!proponiClienti?.length) {
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return apiRequest("DELETE", `/api/mercato/documenti/${id}`);
+    },
+    onSuccess: () => {
+      onRefresh();
+      toast({ title: "Documento eliminato" });
+    },
+    onError: () => {
+      toast({ title: "Errore", description: "Impossibile eliminare il documento", variant: "destructive" });
+    },
+  });
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-semibold">Documenti</h3>
+          <p className="text-sm text-muted-foreground">Documenti relativi a questa opportunità</p>
+        </div>
+        <Button onClick={() => setShowForm(true)} data-testid="button-add-documento">
+          <Plus className="h-4 w-4 mr-2" />
+          Aggiungi Documento
+        </Button>
+      </div>
+
+      {documenti.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <FileText className="h-12 w-12 text-muted-foreground/30 mb-4" />
+            <h3 className="text-lg font-medium">Nessun documento</h3>
+            <p className="text-muted-foreground text-sm">
+              Carica documenti relativi a questa opportunità
+            </p>
+            <Button className="mt-4" onClick={() => setShowForm(true)} data-testid="button-add-first-documento">
+              <Plus className="h-4 w-4 mr-2" />
+              Aggiungi primo documento
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {documenti.map((doc: any) => (
+            <Card key={doc.id} className="hover-elevate">
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-muted rounded-md">
+                      <FileText className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-medium truncate">{doc.nome}</p>
+                      <Badge variant="outline" className="mt-1">
+                        {doc.tipo}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="flex gap-1">
+                    {doc.url && (
+                      <a href={doc.url} target="_blank" rel="noopener noreferrer">
+                        <Button variant="ghost" size="icon" data-testid={`button-doc-link-${doc.id}`}>
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                      </a>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-destructive hover:text-destructive"
+                      onClick={() => deleteMutation.mutate(doc.id)}
+                      disabled={deleteMutation.isPending}
+                      data-testid={`button-delete-doc-${doc.id}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <Dialog open={showForm} onOpenChange={setShowForm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nuovo Documento</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Nome *</Label>
+              <Input
+                value={newDoc.nome}
+                onChange={(e) => setNewDoc({ ...newDoc, nome: e.target.value })}
+                placeholder="Nome documento"
+                data-testid="input-doc-nome"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Tipo</Label>
+              <Select
+                value={newDoc.tipo}
+                onValueChange={(v) => setNewDoc({ ...newDoc, tipo: v })}
+              >
+                <SelectTrigger data-testid="select-doc-tipo">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ape">APE</SelectItem>
+                  <SelectItem value="planimetria">Planimetria</SelectItem>
+                  <SelectItem value="visura">Visura</SelectItem>
+                  <SelectItem value="foto">Foto</SelectItem>
+                  <SelectItem value="contratto">Contratto</SelectItem>
+                  <SelectItem value="altro">Altro</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>URL (opzionale)</Label>
+              <Input
+                value={newDoc.url}
+                onChange={(e) => setNewDoc({ ...newDoc, url: e.target.value })}
+                placeholder="https://..."
+                data-testid="input-doc-url"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowForm(false)} data-testid="button-cancel-doc">Annulla</Button>
+            <Button
+              onClick={() => createMutation.mutate(newDoc)}
+              disabled={createMutation.isPending || !newDoc.nome}
+              data-testid="button-save-doc"
+            >
+              {createMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Aggiungi
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function TabMatching({ opportunita, onRefresh }: { opportunita: OpportunitaDetail; onRefresh: () => void }) {
+  const { toast } = useToast();
+  const matching = opportunita.matching || [];
+
+  const updateMatchingMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: any }) => {
+      const res = await apiRequest("PATCH", `/api/mercato/matching/${id}`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      onRefresh();
+      toast({ title: "Matching aggiornato" });
+    },
+    onError: () => {
+      toast({ title: "Errore", description: "Impossibile aggiornare il matching", variant: "destructive" });
+    },
+  });
+
+  const handleProponiCliente = (match: any) => {
+    const cliente = match.cliente;
+    if (!cliente) {
+      toast({ title: "Errore", description: "Dati cliente non disponibili", variant: "destructive" });
+      return;
+    }
+
+    let telefono = (cliente.telefono || "").trim();
+    if (!telefono) {
+      toast({ title: "Errore", description: "Il cliente non ha un numero di telefono", variant: "destructive" });
+      return;
+    }
+
+    telefono = telefono.replace(/\D/g, "");
+    if (!telefono.startsWith("39") && telefono.length === 10) {
+      telefono = "39" + telefono;
+    }
+
+    const indirizzo = `${opportunita.indirizzo || opportunita.zona || ""}, ${opportunita.citta || ""}`.trim();
+    const prezzo = opportunita.prezzo ? `€${Number(opportunita.prezzo).toLocaleString("it-IT")}` : "";
+    const mq = opportunita.mq ? `${opportunita.mq} mq` : "";
+
+    const messaggio = `Buongiorno ${cliente.nome}, le propongo un immobile che potrebbe interessarle:\n\n${indirizzo}\n${prezzo}\n${mq}\n\nLe interessa organizzare una visita?`;
+
+    const whatsappUrl = `https://wa.me/${telefono}?text=${encodeURIComponent(messaggio)}`;
+    const opened = window.open(whatsappUrl, "_blank");
+
+    if (opened) {
+      updateMatchingMutation.mutate({ id: match.id, data: { messaggioInviato: true } });
+    } else {
+      toast({ title: "Attenzione", description: "Popup bloccato. Abilita i popup per WhatsApp.", variant: "destructive" });
+    }
+  };
+
+  if (matching.length === 0) {
     return (
       <Card>
         <CardContent className="flex flex-col items-center justify-center py-12">
           <Users className="h-12 w-12 text-muted-foreground/30 mb-4" />
-          <h3 className="text-lg font-medium">Nessun cliente matchato</h3>
+          <h3 className="text-lg font-medium">Nessun matching trovato</h3>
           <p className="text-muted-foreground text-sm">
-            Non ci sono clienti con richieste compatibili
+            Non ci sono richieste compatibili con questa opportunità
           </p>
         </CardContent>
       </Card>
@@ -782,46 +989,194 @@ function TabClienti({ opportunita }: { opportunita: OpportunitaDetail }) {
       </div>
 
       <div className="space-y-3">
-        {proponiClienti.map((pc: any) => (
-          <Card key={pc.matchingId} className="hover-elevate">
+        {matching.map((match: any) => (
+          <Card key={match.id} className="hover-elevate">
             <CardContent className="p-4">
               <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="font-medium">
-                      {pc.cliente?.nome} {pc.cliente?.cognome}
-                    </p>
-                    <Badge variant="outline">Score: {pc.punteggio}%</Badge>
-                    {pc.messaggioInviato && (
-                      <Badge variant="secondary" className="bg-green-100 text-green-800">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h4 className="font-medium">
+                      {match.cliente?.nome} {match.cliente?.cognome || ""}
+                    </h4>
+                    <Badge variant="outline">Score: {match.punteggio}%</Badge>
+                    {match.messaggioInviato && (
+                      <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
                         <CheckCircle2 className="h-3 w-3 mr-1" />
                         Contattato
                       </Badge>
                     )}
                   </div>
                   <p className="text-sm text-muted-foreground mt-1">
-                    {pc.richiesta?.tipoRichiesta} - Budget: €{pc.richiesta?.budgetMin?.toLocaleString('it-IT')} - €{pc.richiesta?.budgetMax?.toLocaleString('it-IT')}
+                    {match.richiesta?.tipoRichiesta} - Budget: €{match.richiesta?.budgetMin?.toLocaleString('it-IT')} - €{match.richiesta?.budgetMax?.toLocaleString('it-IT')}
                   </p>
+                  {match.richiesta?.zone && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Zone: {Array.isArray(match.richiesta.zone) ? match.richiesta.zone.join(", ") : match.richiesta.zone}
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
-                  {pc.cliente?.telefono && (
-                    <Button size="sm" variant="outline" asChild>
-                      <a href={`tel:${pc.cliente.telefono}`}>
+                  {!match.messaggioInviato && match.cliente?.telefono && (
+                    <Button 
+                      size="sm" 
+                      onClick={() => handleProponiCliente(match)}
+                      disabled={updateMatchingMutation.isPending}
+                      data-testid={`button-proponi-${match.id}`}
+                    >
+                      <Send className="h-4 w-4 mr-1" />
+                      Proponi
+                    </Button>
+                  )}
+                  {match.cliente?.telefono && (
+                    <Button size="sm" variant="outline" asChild data-testid={`button-call-${match.id}`}>
+                      <a href={`tel:${match.cliente.telefono}`}>
                         <Phone className="h-4 w-4" />
                       </a>
                     </Button>
                   )}
-                  <Link href={`/clienti/${pc.cliente?.id}`}>
-                    <Button size="sm" variant="outline">
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </Link>
+                  {match.cliente && (
+                    <Link href={`/clienti/${match.cliente.id}`}>
+                      <Button size="sm" variant="outline" data-testid={`button-view-client-${match.id}`}>
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </Link>
+                  )}
                 </div>
               </div>
             </CardContent>
           </Card>
         ))}
       </div>
+    </div>
+  );
+}
+
+function TabComunicazioni({ opportunitaId }: { opportunitaId: number }) {
+  const { toast } = useToast();
+  const { data: comunicazioni = [], isLoading } = useQuery<any[]>({
+    queryKey: ["/api/mercato", opportunitaId, "comunicazioni"],
+    queryFn: async () => {
+      const res = await fetch(`/api/mercato/${opportunitaId}/comunicazioni`);
+      if (!res.ok) {
+        if (res.status === 404) return [];
+        throw new Error("Failed to fetch");
+      }
+      return res.json();
+    },
+  });
+
+  const updateEsitoMutation = useMutation({
+    mutationFn: async ({ id, esito }: { id: number; esito: string }) => {
+      const res = await apiRequest("PATCH", `/api/comunicazioni/${id}`, { esito });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/mercato", opportunitaId, "comunicazioni"] });
+      toast({ title: "Esito aggiornato" });
+    },
+    onError: () => {
+      toast({ title: "Errore", description: "Impossibile aggiornare l'esito", variant: "destructive" });
+    },
+  });
+
+  const getCanaleIcon = (canale: string | null) => {
+    switch (canale) {
+      case "telefono":
+        return <Phone className="h-4 w-4" />;
+      case "email":
+        return <Mail className="h-4 w-4" />;
+      case "whatsapp":
+        return <MessageSquare className="h-4 w-4" />;
+      default:
+        return <MessageSquare className="h-4 w-4" />;
+    }
+  };
+
+  const getEsitoBadge = (esito: string | null) => {
+    switch (esito) {
+      case "interessato":
+        return <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">Interessato</Badge>;
+      case "non_interessato":
+        return <Badge className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">Non interessato</Badge>;
+      case "da_richiamare":
+        return <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-600">Da richiamare</Badge>;
+      case "in_attesa":
+        return <Badge variant="outline">In attesa</Badge>;
+      default:
+        return null;
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        {[1, 2, 3].map((i) => (
+          <Skeleton key={i} className="h-20 w-full" />
+        ))}
+      </div>
+    );
+  }
+
+  if (comunicazioni.length === 0) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center py-12">
+          <MessageSquare className="h-12 w-12 text-muted-foreground/30 mb-4" />
+          <h3 className="text-lg font-medium">Nessuna comunicazione</h3>
+          <p className="text-muted-foreground text-sm">
+            Non ci sono comunicazioni relative a questa opportunità
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-lg font-semibold">Storico comunicazioni</h3>
+        <p className="text-sm text-muted-foreground">Tutte le comunicazioni relative a questa opportunità</p>
+      </div>
+
+      {comunicazioni.map((com: any) => (
+        <Card key={com.id}>
+          <CardContent className="p-4">
+            <div className="flex items-start gap-4">
+              <div className="p-2 bg-muted rounded-full">{getCanaleIcon(com.canale)}</div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h4 className="font-medium">{com.clienteNome || "Cliente"}</h4>
+                  <Badge variant="outline">{com.canale || "sistema"}</Badge>
+                  <Badge variant="secondary">{com.tipo}</Badge>
+                  {getEsitoBadge(com.esito)}
+                </div>
+                <p className="text-sm mt-1">{com.testo}</p>
+                <div className="flex items-center justify-between mt-2">
+                  <p className="text-xs text-muted-foreground">
+                    {com.dataOra && format(new Date(com.dataOra), "dd MMM yyyy HH:mm", { locale: it })}
+                  </p>
+                  {com.tipo === "proposta" && (
+                    <Select
+                      value={com.esito || "in_attesa"}
+                      onValueChange={(value) => updateEsitoMutation.mutate({ id: com.id, esito: value })}
+                    >
+                      <SelectTrigger className="w-40" data-testid={`select-esito-${com.id}`}>
+                        <SelectValue placeholder="Esito" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="in_attesa">In attesa</SelectItem>
+                        <SelectItem value="interessato">Interessato</SelectItem>
+                        <SelectItem value="non_interessato">Non interessato</SelectItem>
+                        <SelectItem value="da_richiamare">Da richiamare</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ))}
     </div>
   );
 }
@@ -1073,21 +1428,31 @@ export default function MercatoDetailPage() {
 
       <div className="p-6">
         <Tabs defaultValue="dettagli">
-          <TabsList>
+          <TabsList className="flex-wrap h-auto gap-1">
             <TabsTrigger value="dettagli" data-testid="tab-dettagli">
+              <Home className="h-4 w-4 mr-2" />
               Dettagli
             </TabsTrigger>
             <TabsTrigger value="agenzie" data-testid="tab-agenzie">
+              <Briefcase className="h-4 w-4 mr-2" />
               Agenzie ({opportunita.pubblicizzatoDa?.length || 0})
             </TabsTrigger>
+            <TabsTrigger value="matching" data-testid="tab-matching">
+              <Users className="h-4 w-4 mr-2" />
+              Matching ({opportunita.matching?.length || 0})
+            </TabsTrigger>
+            <TabsTrigger value="comunicazioni" data-testid="tab-comunicazioni">
+              <MessageSquare className="h-4 w-4 mr-2" />
+              Comunicazioni
+            </TabsTrigger>
             <TabsTrigger value="attivita" data-testid="tab-attivita">
+              <Clock className="h-4 w-4 mr-2" />
               Attività ({opportunita.attivita?.length || 0})
             </TabsTrigger>
-            {opportunita.stato === "acquisito" && (
-              <TabsTrigger value="clienti" data-testid="tab-clienti">
-                Matching
-              </TabsTrigger>
-            )}
+            <TabsTrigger value="documenti" data-testid="tab-documenti">
+              <FileText className="h-4 w-4 mr-2" />
+              Documenti ({opportunita.documenti?.length || 0})
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="dettagli" className="mt-6">
@@ -1098,15 +1463,21 @@ export default function MercatoDetailPage() {
             <TabAgenzie opportunita={opportunita} onRefresh={() => refetch()} />
           </TabsContent>
 
+          <TabsContent value="matching" className="mt-6">
+            <TabMatching opportunita={opportunita} onRefresh={() => refetch()} />
+          </TabsContent>
+
+          <TabsContent value="comunicazioni" className="mt-6">
+            <TabComunicazioni opportunitaId={opportunita.id} />
+          </TabsContent>
+
           <TabsContent value="attivita" className="mt-6">
             <TabAttivita opportunita={opportunita} onRefresh={() => refetch()} />
           </TabsContent>
 
-          {opportunita.stato === "acquisito" && (
-            <TabsContent value="clienti" className="mt-6">
-              <TabClienti opportunita={opportunita} />
-            </TabsContent>
-          )}
+          <TabsContent value="documenti" className="mt-6">
+            <TabDocumenti opportunita={opportunita} onRefresh={() => refetch()} />
+          </TabsContent>
         </Tabs>
       </div>
 
