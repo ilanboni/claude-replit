@@ -6079,12 +6079,25 @@ FORMATO RISPOSTE:
         storage.getMatchingOpportunita(id),
       ]);
       
+      // Enrich matching with cliente and richiesta data
+      const enrichedMatching = await Promise.all(
+        matchingList.map(async (match) => {
+          const richiesta = await storage.getRichiesta(match.richiestaId);
+          const cliente = richiesta ? await storage.getCliente(richiesta.clienteId) : null;
+          return {
+            ...match,
+            richiesta,
+            cliente,
+          };
+        })
+      );
+      
       res.json({
         ...opportunita,
         pubblicizzatoDa,
         attivita,
         documenti,
-        matching: matchingList,
+        matching: enrichedMatching,
       });
     } catch (error: any) {
       console.error("Get opportunita mercato detail error:", error);
