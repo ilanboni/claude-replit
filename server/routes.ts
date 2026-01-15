@@ -2127,11 +2127,41 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         portale: parsedData.portale ? String(parsedData.portale).substring(0, 100) : undefined,
       };
       
-      // Check if it's an agency listing
-      const contattoTipo = data.contatto?.tipo || parsedData.contattoTipo;
-      const isAgenzia = contattoTipo === "Agenzia" || 
-                        contattoTipo === "agency" ||
-                        (typeof contattoTipo === "string" && contattoTipo.toLowerCase().includes("agenz"));
+      // Check if it's an agency listing - multiple detection methods
+      const contattoTipo = data.contatto?.tipo || parsedData.contattoTipo || "";
+      const contattoNome = data.contatto?.nome || parsedData.contattoNome || "";
+      const testoCompleto = (parsedData.testoCompleto || parsedData.descrizione || "").toLowerCase();
+      
+      // Explicit agency type from extension
+      const tipoAgenzia = typeof contattoTipo === "string" && (
+        contattoTipo.toLowerCase() === "agenzia" ||
+        contattoTipo.toLowerCase() === "agency" ||
+        contattoTipo.toLowerCase().includes("agenz") ||
+        contattoTipo.toLowerCase() === "professionale" ||
+        contattoTipo.toLowerCase() === "professional"
+      );
+      
+      // Agency keywords in contact name
+      const agencyKeywords = [
+        "immobiliare", "agenzia", "real estate", "realty", "agency", 
+        "s.r.l.", "srl", "s.p.a.", "spa", "s.n.c.", "snc", "s.a.s.", "sas",
+        "group", "properties", "consulting", "servizi", "mediazione",
+        "casa", "home", "house", "abitare"
+      ];
+      const nomeAgenzia = typeof contattoNome === "string" && 
+        agencyKeywords.some(kw => contattoNome.toLowerCase().includes(kw));
+      
+      // Check for phrases in text that indicate agency listing
+      const testoIndicaAgenzia = testoCompleto.includes("proponiamo in vendita") ||
+        testoCompleto.includes("la nostra agenzia") ||
+        testoCompleto.includes("l'agenzia propone") ||
+        testoCompleto.includes("propone in vendita") ||
+        testoCompleto.includes("l'immobiliare") ||
+        testoCompleto.includes("la nostra società");
+      
+      const isAgenzia = tipoAgenzia || nomeAgenzia || testoIndicaAgenzia;
+      
+      console.log(`[Extension Import] Contact type: "${contattoTipo}", Contact name: "${contattoNome.substring(0,50)}", isAgenzia: ${isAgenzia}`);
       
       if (isAgenzia) {
         // Save to Mercato (opportunita_mercato) for agency listings
