@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -1138,6 +1138,7 @@ function ImmobileEsternoCard({
   const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [formMessageGenerated, setFormMessageGenerated] = useState<string | null>(null);
+  const [showMessageDialog, setShowMessageDialog] = useState(false);
 
   // Funzione clipboard con fallback
   const copyToClipboardFallback = (text: string): boolean => {
@@ -1172,13 +1173,9 @@ function ImmobileEsternoCard({
     },
     onSuccess: (data) => {
       setFormMessageGenerated(data.message);
-      // Usa fallback per clipboard (più affidabile in contesti async)
-      const copied = copyToClipboardFallback(data.message);
-      if (copied) {
-        toast({ title: "Messaggio copiato negli appunti", description: "Incolla nel form del portale" });
-      } else {
-        toast({ title: "Messaggio generato", description: "Clicca per copiare manualmente" });
-      }
+      // Mostra dialog con messaggio per copia manuale
+      setShowMessageDialog(true);
+      toast({ title: "Messaggio generato!", description: "Copia dal dialog e incolla nel form" });
       // URL già aperto nel click handler (sincrono)
     },
     onError: () => {
@@ -1551,6 +1548,56 @@ function ImmobileEsternoCard({
           <Trash2 className="h-4 w-4 text-destructive" />
         </Button>
       </CardFooter>
+
+      {/* Dialog per mostrare e copiare il messaggio generato */}
+      <Dialog open={showMessageDialog} onOpenChange={setShowMessageDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Messaggio Generato</DialogTitle>
+            <DialogDescription>
+              Seleziona tutto il testo e copialo (Ctrl+C), poi incollalo nel form del portale
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-4">
+            <textarea
+              readOnly
+              value={formMessageGenerated || ""}
+              className="w-full h-48 p-3 text-sm border rounded-md bg-muted font-mono"
+              onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+              data-testid="textarea-generated-message"
+            />
+            <p className="text-xs text-muted-foreground mt-2">
+              {formMessageGenerated?.length || 0} caratteri
+            </p>
+          </div>
+          <DialogFooter className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (formMessageGenerated) {
+                  const textArea = document.createElement("textarea");
+                  textArea.value = formMessageGenerated;
+                  textArea.style.position = "fixed";
+                  textArea.style.left = "-999999px";
+                  document.body.appendChild(textArea);
+                  textArea.focus();
+                  textArea.select();
+                  document.execCommand('copy');
+                  document.body.removeChild(textArea);
+                  toast({ title: "Copiato!" });
+                }
+              }}
+              data-testid="button-copy-message-dialog"
+            >
+              <Copy className="h-4 w-4 mr-2" />
+              Copia
+            </Button>
+            <Button onClick={() => setShowMessageDialog(false)} data-testid="button-close-message-dialog">
+              Chiudi
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
