@@ -2592,18 +2592,33 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
   });
 
   // Generate personalized acquisition message with automatic mirroring
+  // Automatically uses short format (max 400 chars) for Idealista listings
   app.post("/api/acquisizione/:id/generate-message", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const { template } = req.body;
+      const { template, format: requestedFormat } = req.body;
       
       const immobile = await storage.getImmobileEsterno(id);
       if (!immobile) {
         return res.status(404).json({ error: "Immobile non trovato" });
       }
 
+      // Determine format based on fonte/portale - Idealista needs short messages (max 400 chars)
+      const isIdealista = (immobile.fonte || "").toLowerCase().includes("idealista") || 
+                          (immobile.portale || "").toLowerCase().includes("idealista");
+      const format = requestedFormat || (isIdealista ? "idealista" : "standard");
+      const isShort = format === "idealista";
+      
+      console.log(`[Generate Message] ID: ${id}, fonte: ${immobile.fonte}, format: ${format}, isShort: ${isShort}`);
+
       // First, generate mirroring phrases from the listing
-      const { MIRRORING_PROMPT, MIRRORING_CONFIG, DEFAULT_ACQUISITION_MESSAGE } = await import("./bot-config");
+      const { 
+        MIRRORING_PROMPT, 
+        MIRRORING_CONFIG, 
+        DEFAULT_ACQUISITION_MESSAGE,
+        SHORT_MIRRORING_PROMPT,
+        SHORT_ACQUISITION_MESSAGE
+      } = await import("./bot-config");
       
       // Build mirroring context using the new schema
       const testoAnnuncio = immobile.descrizione || immobile.titolo || 'Nessun testo disponibile';
@@ -2657,14 +2672,19 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
       });
       
+      // Choose prompt and template based on format
+      const mirroringPrompt = isShort ? SHORT_MIRRORING_PROMPT : MIRRORING_PROMPT;
+      const messageTemplate = isShort ? SHORT_ACQUISITION_MESSAGE : DEFAULT_ACQUISITION_MESSAGE;
+      const maxTokens = isShort ? 50 : MIRRORING_CONFIG.max_tokens;
+      
       const mirroringResponse = await openaiClient.chat.completions.create({
         model: "gpt-4o",
         messages: [
-          { role: "system", content: MIRRORING_PROMPT + '\n\nRispondi SOLO con JSON: {"mirroring": "testo"}' },
+          { role: "system", content: mirroringPrompt + '\n\nRispondi SOLO con JSON: {"mirroring": "testo"}' },
           { role: "user", content: context }
         ],
         temperature: MIRRORING_CONFIG.temperature,
-        max_tokens: MIRRORING_CONFIG.max_tokens,
+        max_tokens: maxTokens,
         response_format: { type: "json_object" }
       });
 
@@ -2680,9 +2700,18 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         }
       }
 
-      // Build the complete message using the unified template
-      const message = DEFAULT_ACQUISITION_MESSAGE.replace(/\{\{mirroring\}\}/g, mirroringText);
-      res.json({ message });
+      // Build the complete message using the appropriate template
+      let message: string;
+      if (isShort) {
+        // For Idealista: add mirroring as ", in particolare [mirroring]" if present
+        const mirroringShort = mirroringText ? `, in particolare ${mirroringText}` : "";
+        message = messageTemplate.replace(/\{\{mirroring_short\}\}/g, mirroringShort);
+      } else {
+        message = messageTemplate.replace(/\{\{mirroring\}\}/g, mirroringText);
+      }
+      
+      console.log(`[Generate Message] Generated ${message.length} chars (format: ${format})`);
+      res.json({ message, format, charCount: message.length });
     } catch (error) {
       console.error("Generate message error:", error);
       res.status(500).json({ error: "Errore nella generazione del messaggio" });
