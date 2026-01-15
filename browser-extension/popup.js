@@ -97,7 +97,8 @@ async function sendToImmoGest() {
 
     if (response.ok) {
       const result = await response.json();
-      setStatus('Annuncio importato in ImmoGest!', 'success');
+      const destination = result.destination === 'mercato' ? 'Mercato (Agenzia)' : 'Acquisizione (Privato)';
+      setStatus(`Importato in ${destination}!`, 'success');
       localStorage.setItem('immogest_server_url', serverUrl);
     } else {
       const error = await response.text();

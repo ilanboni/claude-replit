@@ -1973,7 +1973,66 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         portale: parsedData.portale ? String(parsedData.portale).substring(0, 100) : undefined,
       };
       
-      // Validate with schema
+      // Check if it's an agency listing
+      const contattoTipo = data.contatto?.tipo || parsedData.contattoTipo;
+      const isAgenzia = contattoTipo === "Agenzia" || 
+                        contattoTipo === "agency" ||
+                        (typeof contattoTipo === "string" && contattoTipo.toLowerCase().includes("agenz"));
+      
+      if (isAgenzia) {
+        // Save to Mercato (opportunita_mercato) for agency listings
+        const opportunitaData = {
+          titolo: String(parsedData.titolo || "Annuncio importato").substring(0, 500),
+          descrizione: parsedData.descrizione ? String(parsedData.descrizione).substring(0, 10000) : undefined,
+          indirizzo: parsedData.indirizzo ? String(parsedData.indirizzo).substring(0, 300) : undefined,
+          prezzo: typeof parsedData.prezzo === "number" ? String(parsedData.prezzo) : undefined,
+          zona: parsedData.zona ? String(parsedData.zona).substring(0, 200) : undefined,
+          citta: parsedData.citta ? String(parsedData.citta).substring(0, 100) : undefined,
+          mq: typeof (parsedData.mq ?? parsedData.superficie) === "number" ? (parsedData.mq ?? parsedData.superficie) : undefined,
+          piano: typeof parsedData.piano === "number" ? parsedData.piano : undefined,
+          pianiEdificio: typeof parsedData.pianiEdificio === "number" ? parsedData.pianiEdificio : undefined,
+          camere: typeof (parsedData.camere ?? parsedData.locali) === "number" ? (parsedData.camere ?? parsedData.locali) : undefined,
+          bagni: typeof parsedData.bagni === "number" ? parsedData.bagni : undefined,
+          ascensore: parsedData.ascensore === true,
+          balcone: parsedData.balcone === true,
+          terrazzo: parsedData.terrazzo === true,
+          box: parsedData.box === true,
+          cantina: parsedData.cantina === true,
+          giardino: parsedData.giardino === true,
+          arredato: parsedData.arredato === true,
+          classeEnergetica: parsedData.classeEnergetica ? String(parsedData.classeEnergetica).substring(0, 10) : undefined,
+          speseCondominiali: typeof parsedData.speseCondominiali === "number" ? String(parsedData.speseCondominiali) : undefined,
+          riscaldamento: parsedData.riscaldamento ? String(parsedData.riscaldamento).substring(0, 100) : undefined,
+          stato: "in_valutazione" as const,
+          note: `Importato da estensione - Fonte: ${parsedData.fonte || "portale"}`,
+        };
+        
+        const opportunita = await storage.createOpportunitaMercato(opportunitaData);
+        
+        // Add the agency to pubblicizzato_da
+        const nomeAgenzia = data.contatto?.nome || parsedData.contattoNome || "Agenzia";
+        const portale = parsedData.fonte || (parsedData.url ? new URL(String(parsedData.url)).hostname.replace("www.", "") : undefined);
+        
+        await storage.createPubblicizzatoDa({
+          opportunitaId: opportunita.id,
+          nomeAgenzia: String(nomeAgenzia).substring(0, 200),
+          portale: portale ? String(portale).substring(0, 100) : undefined,
+          urlAnnuncio: parsedData.url ? String(parsedData.url).substring(0, 1000) : undefined,
+          prezzo: typeof parsedData.prezzo === "number" ? String(parsedData.prezzo) : undefined,
+          telefono: parsedData.contattoTelefono ? normalizeItalianPhoneNumber(String(parsedData.contattoTelefono)) : undefined,
+          email: parsedData.contattoEmail ? String(parsedData.contattoEmail).substring(0, 200) : undefined,
+        });
+        
+        console.log(`[Extension] Agency listing saved to Mercato: ${opportunita.id} - ${nomeAgenzia}`);
+        return res.status(201).json({ 
+          success: true, 
+          id: opportunita.id, 
+          destination: "mercato",
+          message: "Annuncio agenzia importato in Mercato" 
+        });
+      }
+      
+      // Save to Acquisizione (immobili_esterni) for private listings
       const validated = insertImmobileEsternoSchema.safeParse(immobileData);
       if (!validated.success) {
         console.error("Extension data validation failed:", validated.error);
@@ -1981,7 +2040,8 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
       }
       
       const immobile = await storage.createImmobileEsterno(validated.data);
-      res.status(201).json({ success: true, id: immobile.id, message: "Annuncio importato con successo" });
+      console.log(`[Extension] Private listing saved to Acquisizione: ${immobile.id}`);
+      res.status(201).json({ success: true, id: immobile.id, destination: "acquisizione", message: "Annuncio importato con successo" });
     } catch (error) {
       console.error("Extension import error:", error);
       res.status(500).json({ error: "Errore nell'importazione dell'annuncio" });
