@@ -4672,6 +4672,10 @@ FORMATO RISPOSTE:
         // Solo per messaggi IN ENTRATA (non outbound)
         if (!isOutbound && body) {
           try {
+            // Check if bot is disabled for this conversation (manual management mode)
+            if (conversation.botDisattivato) {
+              console.log(`[Bot IA] Bot disabled for conversation ${conversation.id}, skipping automatic response`);
+            } else {
             // Cerca se esiste un campaign_message attivo per questo numero
             const normalizedPhone = normalizeItalianPhone(phoneNumber);
             const campaignMessages = await storage.getCampaignMessagesByPhone(normalizedPhone);
@@ -4703,6 +4707,7 @@ FORMATO RISPOSTE:
             } else {
               console.log(`[Bot IA] No active campaign message for ${normalizedPhone}, skipping bot response`);
             }
+            } // close else block for botDisattivato check
           } catch (botError) {
             console.error("[Bot IA] Error scheduling bot response:", botError);
             // Non blocchiamo il webhook se il bot fallisce
@@ -4792,6 +4797,27 @@ FORMATO RISPOSTE:
       res.json({ success: true });
     } catch (error) {
       console.error("Mark conversation read error:", error);
+      res.status(500).json({ error: "Errore" });
+    }
+  });
+
+  // Toggle bot on/off for a conversation (manual management mode)
+  app.post("/api/whatsapp/conversations/:id/toggle-bot", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const conversation = await storage.getWhatsappConversation(id);
+      if (!conversation) {
+        return res.status(404).json({ error: "Conversazione non trovata" });
+      }
+      const newBotDisattivato = !conversation.botDisattivato;
+      await storage.updateWhatsappConversation(id, { botDisattivato: newBotDisattivato });
+      res.json({ 
+        success: true, 
+        botDisattivato: newBotDisattivato,
+        message: newBotDisattivato ? "Bot disattivato - gestione manuale" : "Bot attivato - risposte automatiche"
+      });
+    } catch (error) {
+      console.error("Toggle bot error:", error);
       res.status(500).json({ error: "Errore" });
     }
   });

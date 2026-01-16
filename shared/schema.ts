@@ -153,6 +153,7 @@ export const whatsappConversations = pgTable("whatsapp_conversations", {
   ultimoMessaggioData: timestamp("ultimo_messaggio_data").default(sql`CURRENT_TIMESTAMP`),
   nonLetti: integer("non_letti").default(0),
   stato: text("stato").default("attivo"), // attivo, archiviato, bloccato
+  botDisattivato: boolean("bot_disattivato").default(false), // true = gestione manuale, no risposte automatiche
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
