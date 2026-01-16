@@ -3525,10 +3525,29 @@ Assistente del Dott. Ilan Boni`;
       // Send messages with rate limiting
       let sentCount = 0;
       let failedCount = 0;
-      const results: { phoneNumber: string; indirizzo: string; success: boolean; error?: string; mirroring?: string }[] = [];
+      let skippedCount = 0;
+      const results: { phoneNumber: string; indirizzo: string; success: boolean; error?: string; mirroring?: string; skipped?: boolean }[] = [];
+      
+      // Track phones sent during this batch to avoid duplicate sends within same batch
+      const phonesSentInThisBatch = new Set<string>();
 
       for (const property of uniquePropertiesToContact) {
         try {
+          const normalizedPhone = property.contattoTelefono!.replace(/\D/g, '');
+          
+          // Double-check: skip if this phone was already sent in this batch
+          if (phonesSentInThisBatch.has(normalizedPhone)) {
+            skippedCount++;
+            results.push({ 
+              phoneNumber: property.contattoTelefono!, 
+              indirizzo: property.indirizzo || "", 
+              success: false, 
+              skipped: true,
+              error: "Numero già contattato in questa sessione" 
+            });
+            continue;
+          }
+          
           // Generate AI mirroring from the property listing text
           let mirroringText = "";
           if (property.descrizione) {
@@ -3568,6 +3587,9 @@ Assistente del Dott. Ilan Boni`;
           const result = await sendWhatsAppMessage(property.contattoTelefono!, personalizedMessage);
           
           if (result.success) {
+            // Mark phone as sent in this batch
+            phonesSentInThisBatch.add(normalizedPhone);
+            
             // Update property status to contacted
             await storage.updateImmobileEsterno(property.id, { 
               statoContatto: "contattato",
@@ -3595,6 +3617,7 @@ Assistente del Dott. Ilan Boni`;
         success: true,
         sent: sentCount,
         failed: failedCount,
+        skippedInBatch: skippedCount,
         total: uniquePropertiesToContact.length,
         skippedDuplicates: duplicateProperties.length,
         duplicates: duplicateProperties.map(p => ({ titolo: p.titolo, telefono: p.contattoTelefono, indirizzo: p.indirizzo })),
@@ -6147,6 +6170,35 @@ FORMATO RISPOSTE:
       
       if (!data.urlAnnuncio) {
         return res.status(400).json({ error: "Dati immobile mancanti" });
+      }
+
+      // Check if phone number was already contacted for another property
+      if (data.contattoTelefono) {
+        const normalizedPhone = data.contattoTelefono.replace(/\D/g, '');
+        const allProperties = await storage.getImmobiliEsterni();
+        const existingWithSamePhone = allProperties.find(p => 
+          p.contattoTelefono && 
+          p.contattoTelefono.replace(/\D/g, '') === normalizedPhone &&
+          p.statoContatto === "contattato"
+        );
+        
+        if (existingWithSamePhone) {
+          return res.status(400).json({ 
+            error: `Questo numero di telefono è già stato contattato per l'immobile: ${existingWithSamePhone.indirizzo || existingWithSamePhone.titolo}`,
+            alreadyContacted: true,
+            existingPropertyId: existingWithSamePhone.id
+          });
+        }
+        
+        // Also check for exact URL duplicate
+        const existingByUrl = await storage.getImmobileEsternoByUrl(data.urlAnnuncio);
+        if (existingByUrl) {
+          return res.status(400).json({ 
+            error: "Questo annuncio è già stato importato",
+            isDuplicate: true,
+            existingPropertyId: existingByUrl.id
+          });
+        }
       }
 
       // Crea cliente proprietario
