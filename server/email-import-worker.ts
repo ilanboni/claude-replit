@@ -52,6 +52,8 @@ async function importPortalEmails(): Promise<{ imported: number; errors: string[
         }
 
         let immobile: Awaited<ReturnType<typeof storage.getImmobileByIdPortale>> | undefined;
+        let immobileEsterno: any = undefined;
+        
         if (parsed.riferimentoImmobile) {
           immobile = await storage.getImmobileByIdPortale(parsed.riferimentoImmobile);
         }
@@ -64,11 +66,30 @@ async function importPortalEmails(): Promise<{ imported: number; errors: string[
             i.zona?.toLowerCase().includes(parsed.riferimentoImmobile!.toLowerCase())
           );
         }
+        
+        // Search by address in external properties (immobili_esterni) if no internal match
+        if (!immobile && parsed.indirizzoImmobile) {
+          const allImmobiliEsterni = await storage.getImmobiliEsterni();
+          const addressNorm = parsed.indirizzoImmobile.toLowerCase().replace(/[,.\s]+/g, ' ').trim();
+          
+          immobileEsterno = allImmobiliEsterni.find(ie => {
+            const titolo = (ie.titolo || '').toLowerCase();
+            const indirizzo = (ie.indirizzo || '').toLowerCase();
+            // Extract street name for matching (e.g., "via seprio" from "Via Seprio, Milano")
+            const streetWords = addressNorm.split(' ').filter(w => w.length > 2);
+            return streetWords.some(word => titolo.includes(word) || indirizzo.includes(word));
+          });
+          
+          if (immobileEsterno) {
+            console.log(`[EmailImportWorker] Found external property by address: ${immobileEsterno.titolo}`);
+          }
+        }
 
         if (cliente) {
           await storage.createComunicazione({
             clienteId: cliente.id,
             immobileId: immobile?.id || null,
+            immobileEsternoId: immobileEsterno?.id || null,
             canale: "email",
             tipo: "richiesta",
             testo: parsed.testoRichiesta || "Richiesta informazioni via email",

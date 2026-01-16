@@ -242,6 +242,7 @@ export interface ParsedPortalEmail {
   portale: string;
   testoRichiesta: string;
   riferimentoImmobile?: string;
+  indirizzoImmobile?: string;
   dataRichiesta: Date;
 }
 
@@ -360,6 +361,44 @@ export function parsePortalEmail(email: EmailMessage): ParsedPortalEmail {
     testoRichiesta = body.slice(0, 2000);
   }
 
+  // Extract property address from email footer (immobiliare.it format)
+  // Pattern: "Via Xxx, Milano" or "Via Xxx Yyy, Milano" after "vendita" or "affitto"
+  let indirizzoImmobile: string | undefined;
+  
+  // Pattern 1: "Via/Viale/Corso/Piazza [Nome], Milano/Roma/etc"
+  const addressPatterns = [
+    // After "vendita" or "affitto" - look for street name
+    /(?:vendita|affitto)\s*\n\s*((?:Via|Viale|Corso|Piazza|Piazzale|Largo|Vicolo)[^,\n]+,\s*Milano)/i,
+    // Immobiliare.it footer format: street on its own line before price
+    /\n\s*((?:Via|Viale|Corso|Piazza|Piazzale|Largo|Vicolo)[^,\n]+,\s*Milano)\s*\n\s*€/i,
+    // Generic address pattern with city
+    /((?:Via|Viale|Corso|Piazza|Piazzale|Largo|Vicolo)\s+[A-Za-zÀ-ÿ\s']+(?:\s+\d+)?)\s*,\s*(Milano|Roma|Torino|Napoli|Firenze|Bologna)/i,
+  ];
+  
+  for (const pattern of addressPatterns) {
+    const match = body.match(pattern);
+    if (match) {
+      indirizzoImmobile = match[1].trim();
+      break;
+    }
+  }
+  
+  // Pattern 2: Look for address in "Messaggio ricevuto per l'annuncio:" section
+  if (!indirizzoImmobile) {
+    const annuncioMatch = body.match(/(?:annuncio|immobile)[:\s]*\n[\s\S]*?((?:Via|Viale|Corso|Piazza|Piazzale|Largo|Vicolo)[^,\n]+)/i);
+    if (annuncioMatch) {
+      indirizzoImmobile = annuncioMatch[1].trim();
+    }
+  }
+  
+  // Pattern 3: Extract from subject line if contains address
+  if (!indirizzoImmobile && email.subject) {
+    const subjectMatch = email.subject.match(/((?:Via|Viale|Corso|Piazza|Piazzale|Largo|Vicolo)\s+[A-Za-zÀ-ÿ\s']+)/i);
+    if (subjectMatch) {
+      indirizzoImmobile = subjectMatch[1].trim();
+    }
+  }
+
   return {
     nomeCliente,
     emailCliente: clientEmail,
@@ -367,6 +406,7 @@ export function parsePortalEmail(email: EmailMessage): ParsedPortalEmail {
     portale,
     testoRichiesta,
     riferimentoImmobile,
+    indirizzoImmobile,
     dataRichiesta: email.date
   };
 }
