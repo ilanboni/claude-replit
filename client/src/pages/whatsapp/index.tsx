@@ -25,7 +25,9 @@ import {
   WifiOff,
   Plus,
   X,
-  RefreshCw
+  RefreshCw,
+  Bot,
+  BotOff
 } from "lucide-react";
 import {
   Dialog,
@@ -218,6 +220,32 @@ export default function WhatsAppPage() {
       toast({
         title: "Errore",
         description: "Impossibile sincronizzare i messaggi",
+        variant: "destructive"
+      });
+    }
+  });
+
+  const toggleBotMutation = useMutation({
+    mutationFn: async (conversationId: number) => {
+      const res = await apiRequest("POST", `/api/whatsapp/conversations/${conversationId}/toggle-bot`, {});
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/conversations"] });
+      if (selectedConversationId) {
+        queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/conversations", selectedConversationId] });
+      }
+      toast({
+        title: data.botDisattivato ? "Bot disattivato" : "Bot attivato",
+        description: data.botDisattivato 
+          ? "Gestione manuale attiva - nessuna risposta automatica" 
+          : "Risposte automatiche riattivate"
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Errore",
+        description: "Impossibile modificare lo stato del bot",
         variant: "destructive"
       });
     }
@@ -532,6 +560,20 @@ export default function WhatsAppPage() {
                   )}
                 </div>
               </div>
+              <Button 
+                size="icon" 
+                variant={conversationData.conversation.botDisattivato ? "destructive" : "default"}
+                onClick={() => toggleBotMutation.mutate(selectedConversationId)}
+                disabled={toggleBotMutation.isPending}
+                title={conversationData.conversation.botDisattivato ? "Bot disattivato - clicca per riattivare" : "Bot attivo - clicca per disattivare"}
+                data-testid="button-toggle-bot"
+              >
+                {conversationData.conversation.botDisattivato ? (
+                  <BotOff className="h-4 w-4" />
+                ) : (
+                  <Bot className="h-4 w-4" />
+                )}
+              </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button size="icon" variant="ghost" data-testid="button-conversation-menu">
