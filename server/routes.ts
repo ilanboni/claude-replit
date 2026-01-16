@@ -621,7 +621,7 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
     }
   });
 
-  // Analyze client personality based on WhatsApp conversations
+  // Analyze client personality based on WhatsApp and Email conversations
   app.post("/api/clienti/:id/analizza-personalita", async (req, res) => {
     try {
       const clienteId = parseInt(req.params.id);
@@ -631,28 +631,51 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
         return res.status(404).json({ error: "Cliente non trovato" });
       }
       
-      // Get WhatsApp conversation for this client
+      const allMessages: Array<{ role: string; content: string; timestamp?: Date; source: string }> = [];
+      
+      // Get WhatsApp messages
       const conversation = await storage.getWhatsappConversationByClienteId(clienteId);
-      
-      if (!conversation) {
-        return res.status(400).json({ 
-          error: "Nessuna conversazione WhatsApp trovata per questo cliente" 
+      if (conversation) {
+        const whatsappMessages = await storage.getWhatsappMessages(conversation.id);
+        whatsappMessages.forEach(m => {
+          allMessages.push({
+            role: m.direction === 'incoming' ? 'cliente' : 'agente',
+            content: m.content,
+            timestamp: m.timestamp || m.createdAt,
+            source: 'WhatsApp'
+          });
         });
       }
       
-      // Get messages from the conversation
-      const messages = await storage.getWhatsappMessages(conversation.id);
+      // Get Email communications
+      const comunicazioni = await storage.getComunicazioniByCliente(clienteId);
+      const emailMessages = comunicazioni.filter(c => c.canale === 'email');
+      emailMessages.forEach(c => {
+        allMessages.push({
+          role: c.tipo === 'richiesta' ? 'cliente' : 'agente',
+          content: c.testo || '',
+          timestamp: c.dataOra,
+          source: 'Email'
+        });
+      });
       
-      if (messages.length === 0) {
+      if (allMessages.length === 0) {
         return res.status(400).json({ 
-          error: "Nessun messaggio nella conversazione. Avvia una conversazione per analizzare la personalità." 
+          error: "Nessuna conversazione trovata. Avvia una conversazione WhatsApp o email per analizzare la personalità." 
         });
       }
       
-      // Format messages for AI analysis
-      const formattedMessages = messages.map(m => ({
-        role: m.direction === 'incoming' ? 'cliente' : 'agente',
-        content: m.content,
+      // Sort messages by timestamp
+      allMessages.sort((a, b) => {
+        const dateA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+        const dateB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+        return dateA - dateB;
+      });
+      
+      // Format messages for AI analysis (include source info)
+      const formattedMessages = allMessages.map(m => ({
+        role: m.role,
+        content: `[${m.source}] ${m.content}`,
         timestamp: m.timestamp
       }));
       
@@ -661,8 +684,17 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
       // Analyze personality with AI
       const analysis = await analyzeClientPersonality(clientName, formattedMessages);
       
+      // Count sources for the header
+      const whatsappCount = allMessages.filter(m => m.source === 'WhatsApp').length;
+      const emailCount = allMessages.filter(m => m.source === 'Email').length;
+      const sourceSummary = [
+        whatsappCount > 0 ? `${whatsappCount} WhatsApp` : null,
+        emailCount > 0 ? `${emailCount} Email` : null
+      ].filter(Boolean).join(', ');
+      
       // Format the personality text for storage
       const personalityText = `📊 PROFILO PERSONALITÀ
+(Basato su ${allMessages.length} messaggi: ${sourceSummary})
 
 ${analysis.personalita}
 
