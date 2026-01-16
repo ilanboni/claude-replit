@@ -85,6 +85,7 @@ export interface IStorage {
   getImmobileEsternoByUrl(url: string): Promise<ImmobileEsterno | undefined>;
   getImmobiliEsterniByCliente(clienteId: number): Promise<ImmobileEsterno[]>;
   getImmobiliEsterniByRichiesta(richiestaId: number): Promise<ImmobileEsterno[]>;
+  findSimilarImmobiliEsterni(indirizzo: string | null, mq: number | null, prezzo: number | null): Promise<ImmobileEsterno[]>;
   createImmobileEsterno(data: InsertImmobileEsterno): Promise<ImmobileEsterno>;
   updateImmobileEsterno(id: number, data: Partial<InsertImmobileEsterno>): Promise<ImmobileEsterno | undefined>;
   deleteImmobileEsterno(id: number): Promise<boolean>;
@@ -417,6 +418,93 @@ export class DatabaseStorage implements IStorage {
       )
     );
     return immobile;
+  }
+
+  async findSimilarImmobiliEsterni(indirizzo: string | null, mq: number | null, prezzo: number | null): Promise<ImmobileEsterno[]> {
+    // Get all immobili esterni and filter in-memory for fuzzy matching
+    const allImmobili = await db.select().from(immobiliEsterni);
+    
+    if (!indirizzo && !mq && !prezzo) {
+      return [];
+    }
+    
+    // Normalize address for comparison
+    const normalizeAddress = (addr: string | null): string => {
+      if (!addr) return "";
+      return addr
+        .toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Remove accents
+        .replace(/[,.']/g, " ") // Replace punctuation with spaces
+        .replace(/\s+/g, " ") // Collapse multiple spaces
+        .trim();
+    };
+    
+    // Extract street name and number
+    const extractStreetParts = (addr: string): { street: string, number: string } => {
+      const normalized = normalizeAddress(addr);
+      // Match patterns like "via salasco 30" or "via salasco n 30" or "via salasco n. 30"
+      const match = normalized.match(/^(via|viale|piazza|corso|largo|vicolo|piazzale)\s+(.+?)\s*(?:n\.?\s*)?(\d+[a-z]?)?\s*$/i);
+      if (match) {
+        return { street: `${match[1]} ${match[2]}`.trim(), number: match[3] || "" };
+      }
+      // Fallback: just return normalized
+      return { street: normalized, number: "" };
+    };
+    
+    const inputParts = extractStreetParts(indirizzo || "");
+    const inputNormalized = normalizeAddress(indirizzo);
+    
+    // Calculate similarity threshold
+    const mqTolerance = 0.15; // ±15%
+    const prezzoTolerance = 0.10; // ±10%
+    
+    const similar = allImmobili.filter(imm => {
+      // Check address similarity
+      let addressMatch = false;
+      if (indirizzo && (imm.indirizzo || imm.titolo || imm.zona)) {
+        const immAddr = imm.indirizzo || imm.titolo || imm.zona || "";
+        const immNormalized = normalizeAddress(immAddr);
+        const immParts = extractStreetParts(immAddr);
+        
+        // Match if street names are similar (ignoring case, accents, punctuation)
+        if (inputParts.street && immParts.street) {
+          // Check if street names contain each other or are very similar
+          const streetMatch = immParts.street.includes(inputParts.street) || 
+                              inputParts.street.includes(immParts.street) ||
+                              immNormalized.includes(inputNormalized) ||
+                              inputNormalized.includes(immNormalized);
+          // Also check if civic numbers match (if both have numbers)
+          const numberMatch = !inputParts.number || !immParts.number || inputParts.number === immParts.number;
+          addressMatch = streetMatch && numberMatch;
+        }
+      }
+      
+      // Check mq similarity
+      let mqMatch = false;
+      if (mq && imm.mq) {
+        const mqDiff = Math.abs(mq - imm.mq) / mq;
+        mqMatch = mqDiff <= mqTolerance;
+      }
+      
+      // Check prezzo similarity
+      let prezzoMatch = false;
+      if (prezzo && imm.prezzo) {
+        const immPrezzo = Number(imm.prezzo);
+        const prezzoDiff = Math.abs(prezzo - immPrezzo) / prezzo;
+        prezzoMatch = prezzoDiff <= prezzoTolerance;
+      }
+      
+      // Consider similar if address matches AND (mq or prezzo matches)
+      // Or if address matches strongly (exact street + number)
+      if (addressMatch) {
+        // Strong address match requires similar characteristics
+        return mqMatch || prezzoMatch || (!mq && !prezzo);
+      }
+      
+      return false;
+    });
+    
+    return similar;
   }
 
   async getImmobiliEsterniByCliente(clienteId: number): Promise<ImmobileEsterno[]> {

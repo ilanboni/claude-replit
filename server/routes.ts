@@ -6069,6 +6069,52 @@ FORMATO RISPOSTE:
     }
   });
 
+  // Check for duplicate/similar properties before saving
+  app.post("/api/scrape/check-duplicate", async (req, res) => {
+    try {
+      const { indirizzo, titolo, zona, mq, prezzo, urlAnnuncio } = req.body;
+      
+      // First check exact URL match
+      if (urlAnnuncio) {
+        const existingByUrl = await storage.getImmobileEsternoByUrl(urlAnnuncio);
+        if (existingByUrl) {
+          return res.json({
+            isDuplicate: true,
+            exactMatch: true,
+            existing: existingByUrl,
+            message: "Immobile già presente con lo stesso URL"
+          });
+        }
+      }
+      
+      // Then check for similar properties by address/characteristics
+      const addressToCheck = indirizzo || titolo || zona || null;
+      const similarProperties = await storage.findSimilarImmobiliEsterni(
+        addressToCheck,
+        mq || null,
+        prezzo || null
+      );
+      
+      if (similarProperties.length > 0) {
+        return res.json({
+          isDuplicate: false,
+          hasSimilar: true,
+          similar: similarProperties.slice(0, 5), // Max 5 similar
+          message: `Trovati ${similarProperties.length} immobili simili`
+        });
+      }
+      
+      res.json({
+        isDuplicate: false,
+        hasSimilar: false,
+        message: "Nessun duplicato trovato"
+      });
+    } catch (error: any) {
+      console.error("Check duplicate error:", error);
+      res.status(500).json({ error: error.message || "Errore durante il controllo duplicati" });
+    }
+  });
+
   app.post("/api/scrape/save", async (req, res) => {
     try {
       const data = req.body;

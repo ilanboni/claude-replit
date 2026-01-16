@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { 
@@ -24,9 +25,23 @@ import {
   AlertCircle,
   ArrowLeft,
   Camera,
-  Phone
+  Phone,
+  AlertTriangle,
+  ExternalLink
 } from "lucide-react";
 import { Link } from "wouter";
+
+interface SimilarProperty {
+  id: number;
+  titolo: string | null;
+  indirizzo: string | null;
+  zona: string | null;
+  mq: number | null;
+  prezzo: string | null;
+  statoContatto: string | null;
+  urlAnnuncio: string | null;
+  fonte: string | null;
+}
 
 interface ScrapedData {
   titolo: string;
@@ -60,6 +75,9 @@ export default function AcquisisciUrl() {
   const [url, setUrl] = useState("");
   const [scrapedData, setScrapedData] = useState<ScrapedData | null>(null);
   const [isOcrLoading, setIsOcrLoading] = useState(false);
+  const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
+  const [similarProperties, setSimilarProperties] = useState<SimilarProperty[]>([]);
+  const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false);
   const { toast } = useToast();
 
   const scrapeMutation = useMutation({
@@ -117,10 +135,69 @@ export default function AcquisisciUrl() {
     scrapeMutation.mutate(url.trim());
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (!scrapedData) return;
+    
+    setIsCheckingDuplicate(true);
+    try {
+      // Check for duplicates first
+      const res = await apiRequest("POST", "/api/scrape/check-duplicate", {
+        indirizzo: scrapedData.indirizzo,
+        titolo: scrapedData.titolo,
+        zona: scrapedData.zona,
+        mq: scrapedData.mq,
+        prezzo: scrapedData.prezzo,
+        urlAnnuncio: scrapedData.urlAnnuncio
+      });
+      const result = await res.json();
+      
+      if (result.isDuplicate && result.exactMatch) {
+        // Exact URL match - block save
+        toast({
+          title: "Duplicato trovato",
+          description: "Questo annuncio è già presente nel sistema",
+          variant: "destructive",
+        });
+        setIsCheckingDuplicate(false);
+        return;
+      }
+      
+      if (result.hasSimilar && result.similar?.length > 0) {
+        // Similar properties found - ask for confirmation
+        setSimilarProperties(result.similar);
+        setShowDuplicateDialog(true);
+        setIsCheckingDuplicate(false);
+        return;
+      }
+      
+      // No duplicates - proceed with save
+      saveMutation.mutate(scrapedData);
+    } catch (error: any) {
+      toast({
+        title: "Errore",
+        description: error.message || "Errore durante il controllo duplicati",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCheckingDuplicate(false);
+    }
+  };
+  
+  const handleConfirmSave = () => {
     if (scrapedData) {
+      setShowDuplicateDialog(false);
+      setSimilarProperties([]);
       saveMutation.mutate(scrapedData);
     }
+  };
+  
+  const handleCancelSave = () => {
+    setShowDuplicateDialog(false);
+    setSimilarProperties([]);
+    toast({
+      title: "Scartato",
+      description: "Immobile non salvato per evitare duplicati",
+    });
   };
 
   const handleOcrScreenshot = async (file: File) => {
@@ -401,16 +478,16 @@ export default function AcquisisciUrl() {
             <div className="flex gap-2 pt-2">
               <Button
                 onClick={handleSave}
-                disabled={saveMutation.isPending}
+                disabled={saveMutation.isPending || isCheckingDuplicate}
                 className="flex-1"
                 data-testid="button-save"
               >
-                {saveMutation.isPending ? (
+                {(saveMutation.isPending || isCheckingDuplicate) ? (
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
                 ) : (
                   <Save className="h-4 w-4 mr-2" />
                 )}
-                Salva in Acquisizione
+                {isCheckingDuplicate ? "Controllo duplicati..." : "Salva in Acquisizione"}
               </Button>
               <Button
                 variant="outline"
@@ -435,6 +512,123 @@ export default function AcquisisciUrl() {
           </CardContent>
         </Card>
       )}
+
+      {/* Dialog conferma duplicato */}
+      <Dialog open={showDuplicateDialog} onOpenChange={setShowDuplicateDialog}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              Possibile duplicato trovato
+            </DialogTitle>
+            <DialogDescription>
+              Abbiamo trovato {similarProperties.length} immobil{similarProperties.length === 1 ? 'e' : 'i'} simil{similarProperties.length === 1 ? 'e' : 'i'} nel sistema. Vuoi procedere comunque?
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-4">
+            {/* Nuovo immobile */}
+            <div className="border rounded-lg p-4 bg-green-50 dark:bg-green-950" data-testid="card-new-property">
+              <Badge className="mb-2 bg-green-600">NUOVO</Badge>
+              <h4 className="font-medium text-sm truncate" data-testid="text-new-title">{scrapedData?.titolo || scrapedData?.indirizzo || "Immobile"}</h4>
+              <div className="text-sm text-muted-foreground mt-2 space-y-1">
+                {scrapedData?.indirizzo && (
+                  <div className="flex items-center gap-1">
+                    <MapPin className="h-3 w-3" />
+                    <span className="truncate" data-testid="text-new-address">{scrapedData.indirizzo}</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-3">
+                  {scrapedData?.mq && (
+                    <span className="flex items-center gap-1" data-testid="text-new-mq">
+                      <Ruler className="h-3 w-3" />
+                      {scrapedData.mq} mq
+                    </span>
+                  )}
+                  {scrapedData?.prezzo && (
+                    <span className="flex items-center gap-1" data-testid="text-new-price">
+                      <Euro className="h-3 w-3" />
+                      {formatPrice(scrapedData.prezzo)}
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs text-muted-foreground" data-testid="text-new-portal">
+                  {scrapedData?.portale}
+                </div>
+              </div>
+            </div>
+            
+            {/* Immobili esistenti simili */}
+            {similarProperties.map((prop) => (
+              <div key={prop.id} className="border rounded-lg p-4 bg-amber-50 dark:bg-amber-950" data-testid={`card-similar-property-${prop.id}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <Badge variant="outline" className="border-amber-500 text-amber-700 dark:text-amber-300">ESISTENTE</Badge>
+                  {prop.statoContatto === "contattato" && (
+                    <Badge variant="secondary" className="bg-blue-100 text-blue-700 text-xs">
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                      Contattato
+                    </Badge>
+                  )}
+                </div>
+                <h4 className="font-medium text-sm truncate" data-testid={`text-similar-title-${prop.id}`}>{prop.titolo || prop.indirizzo || prop.zona || "Immobile"}</h4>
+                <div className="text-sm text-muted-foreground mt-2 space-y-1">
+                  {(prop.indirizzo || prop.zona) && (
+                    <div className="flex items-center gap-1">
+                      <MapPin className="h-3 w-3" />
+                      <span className="truncate" data-testid={`text-similar-address-${prop.id}`}>{prop.indirizzo || prop.zona}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-3">
+                    {prop.mq && (
+                      <span className="flex items-center gap-1" data-testid={`text-similar-mq-${prop.id}`}>
+                        <Ruler className="h-3 w-3" />
+                        {prop.mq} mq
+                      </span>
+                    )}
+                    {prop.prezzo && (
+                      <span className="flex items-center gap-1" data-testid={`text-similar-price-${prop.id}`}>
+                        <Euro className="h-3 w-3" />
+                        {formatPrice(Number(prop.prezzo))}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="text-muted-foreground">{prop.fonte}</span>
+                    {prop.urlAnnuncio && (
+                      <a 
+                        href={prop.urlAnnuncio} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-blue-500 hover:underline flex items-center gap-1"
+                        data-testid={`link-similar-url-${prop.id}`}
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        Apri
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          <DialogFooter className="flex gap-2 sm:gap-0">
+            <Button 
+              variant="outline" 
+              onClick={handleCancelSave}
+              data-testid="button-cancel-duplicate"
+            >
+              Scarta (duplicato)
+            </Button>
+            <Button 
+              onClick={handleConfirmSave}
+              data-testid="button-confirm-save"
+            >
+              Conferma nuovo immobile
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
