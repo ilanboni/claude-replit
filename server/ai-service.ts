@@ -1277,3 +1277,88 @@ export async function generateChatCompletion(
     throw error;
   }
 }
+
+// Analyze client personality based on WhatsApp conversations
+export interface PersonalityAnalysis {
+  personalita: string;
+  suggerimentiComunicazione: string;
+  puntiForza: string[];
+  areeSensibili: string[];
+}
+
+export async function analyzeClientPersonality(
+  clientName: string,
+  conversationMessages: Array<{ role: string; content: string; timestamp?: Date }>
+): Promise<PersonalityAnalysis> {
+  try {
+    if (conversationMessages.length === 0) {
+      return {
+        personalita: "Nessuna conversazione disponibile per l'analisi.",
+        suggerimentiComunicazione: "Inizia una conversazione per ottenere insight sulla personalità del cliente.",
+        puntiForza: [],
+        areeSensibili: []
+      };
+    }
+
+    // Format conversation for analysis
+    const conversationText = conversationMessages
+      .map(msg => `${msg.role === 'user' || msg.role === 'cliente' ? clientName : 'Agente'}: ${msg.content}`)
+      .join('\n\n');
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      temperature: 0.5,
+      messages: [
+        {
+          role: "system",
+          content: `Sei un esperto analista comportamentale specializzato in comunicazione commerciale immobiliare.
+
+Analizza la conversazione WhatsApp tra un agente immobiliare e un cliente, e fornisci un profilo dettagliato della personalità del cliente.
+
+Rispondi ESATTAMENTE in questo formato JSON:
+{
+  "personalita": "Descrizione della personalità in 2-3 frasi. Includi: tratti dominanti, stile comunicativo, livello di formalità preferito, eventuali pattern comportamentali osservati.",
+  "suggerimentiComunicazione": "3-4 suggerimenti concreti su COME parlare con questo cliente per massimizzare le probabilità di successo. Includi: tono da usare, argomenti da enfatizzare, cosa evitare.",
+  "puntiForza": ["punto1", "punto2", "punto3"],
+  "areeSensibili": ["area1", "area2"]
+}
+
+PUNTI FORZA: leve motivazionali del cliente (es. "sensibile al prestigio", "orientato al prezzo", "famiglia-centrico")
+AREE SENSIBILI: argomenti delicati o trigger negativi da evitare (es. "impaziente con i ritardi", "diffidente verso le commissioni")
+
+Se la conversazione è breve o poco informativa, indica comunque cosa si può dedurre e suggerisci domande per approfondire.
+
+IMPORTANTE: Rispondi SOLO con il JSON, senza altro testo.`
+        },
+        {
+          role: "user",
+          content: `Analizza questa conversazione con il cliente "${clientName}":\n\n${conversationText}`
+        }
+      ]
+    });
+
+    const result = response.choices[0]?.message?.content?.trim();
+    if (!result) {
+      throw new Error("No response from AI");
+    }
+
+    // Parse JSON response
+    const cleanedResult = result.replace(/```json\n?|\n?```/g, '').trim();
+    const parsed = JSON.parse(cleanedResult);
+
+    return {
+      personalita: parsed.personalita || "Analisi non disponibile",
+      suggerimentiComunicazione: parsed.suggerimentiComunicazione || "Suggerimenti non disponibili",
+      puntiForza: Array.isArray(parsed.puntiForza) ? parsed.puntiForza : [],
+      areeSensibili: Array.isArray(parsed.areeSensibili) ? parsed.areeSensibili : []
+    };
+  } catch (error) {
+    console.error("Personality analysis error:", error);
+    return {
+      personalita: "Errore durante l'analisi della personalità.",
+      suggerimentiComunicazione: "Impossibile generare suggerimenti. Riprova più tardi.",
+      puntiForza: [],
+      areeSensibili: []
+    };
+  }
+}

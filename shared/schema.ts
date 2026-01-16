@@ -33,6 +33,8 @@ export const clienti = pgTable("clienti", {
   ratingCliente: integer("rating_cliente").default(3), // 1-5
   clienteAmico: boolean("cliente_amico").default(false), // Per tono messaggi: amico = informale, non amico = formale
   linkImmobile: text("link_immobile"), // Link all'annuncio immobile per proprietari
+  personalitaAi: text("personalita_ai"), // AI-generated personality profile based on WhatsApp conversations
+  personalitaAiUpdatedAt: timestamp("personalita_ai_updated_at"), // Last update of AI personality analysis
   attivo: boolean("attivo").default(true),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),

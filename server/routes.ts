@@ -7,7 +7,7 @@ import {
   insertImmobileEsternoSchema, insertWhatsappCampaignSchema, insertCampaignMessageSchema,
   insertAttivitaClienteSchema, sendCommunicationSchema
 } from "@shared/schema";
-import { parseRequestWithAI, calculateMatchScore, calculateMatchScoreMercato, generateAICoachMessage, parsePropertyListingWithAI, parsePropertyImageWithAI, generateAcquisitionMessage, generateMirroring, extractPropertyFacts, generateFormContactMessage, extractPhoneFromImage, generateChatCompletion } from "./ai-service";
+import { parseRequestWithAI, calculateMatchScore, calculateMatchScoreMercato, generateAICoachMessage, parsePropertyListingWithAI, parsePropertyImageWithAI, generateAcquisitionMessage, generateMirroring, extractPropertyFacts, generateFormContactMessage, extractPhoneFromImage, generateChatCompletion, analyzeClientPersonality } from "./ai-service";
 import { whatsappWS } from "./websocket";
 import { sendWhatsAppMessage, isUltraMsgConfigured, normalizeItalianPhone } from "./ultramsg";
 import { getUnreadEmails, searchPortalEmails, parsePortalEmail, markAsRead, EmailMessage, sendEmail, isGmailConfigured, getEmailsByQuery } from "./gmail-service";
@@ -618,6 +618,77 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
     } catch (error) {
       console.error("Delete cliente error:", error);
       res.status(500).json({ error: "Errore nell'eliminazione del cliente" });
+    }
+  });
+
+  // Analyze client personality based on WhatsApp conversations
+  app.post("/api/clienti/:id/analizza-personalita", async (req, res) => {
+    try {
+      const clienteId = parseInt(req.params.id);
+      const cliente = await storage.getCliente(clienteId);
+      
+      if (!cliente) {
+        return res.status(404).json({ error: "Cliente non trovato" });
+      }
+      
+      // Get WhatsApp conversation for this client
+      const conversation = await storage.getWhatsappConversationByClienteId(clienteId);
+      
+      if (!conversation) {
+        return res.status(400).json({ 
+          error: "Nessuna conversazione WhatsApp trovata per questo cliente" 
+        });
+      }
+      
+      // Get messages from the conversation
+      const messages = await storage.getWhatsappMessages(conversation.id);
+      
+      if (messages.length === 0) {
+        return res.status(400).json({ 
+          error: "Nessun messaggio nella conversazione. Avvia una conversazione per analizzare la personalità." 
+        });
+      }
+      
+      // Format messages for AI analysis
+      const formattedMessages = messages.map(m => ({
+        role: m.direction === 'incoming' ? 'cliente' : 'agente',
+        content: m.content,
+        timestamp: m.timestamp
+      }));
+      
+      const clientName = [cliente.nome, cliente.cognome].filter(Boolean).join(' ') || 'Cliente';
+      
+      // Analyze personality with AI
+      const analysis = await analyzeClientPersonality(clientName, formattedMessages);
+      
+      // Format the personality text for storage
+      const personalityText = `📊 PROFILO PERSONALITÀ
+
+${analysis.personalita}
+
+💬 COME COMUNICARE
+${analysis.suggerimentiComunicazione}
+
+✅ LEVE MOTIVAZIONALI
+${analysis.puntiForza.length > 0 ? analysis.puntiForza.map(p => `• ${p}`).join('\n') : '• Nessuna identificata'}
+
+⚠️ AREE SENSIBILI
+${analysis.areeSensibili.length > 0 ? analysis.areeSensibili.map(a => `• ${a}`).join('\n') : '• Nessuna identificata'}`;
+      
+      // Update client with personality analysis
+      const updatedCliente = await storage.updateCliente(clienteId, {
+        personalitaAi: personalityText,
+        personalitaAiUpdatedAt: new Date()
+      });
+      
+      res.json({
+        success: true,
+        cliente: updatedCliente,
+        analysis
+      });
+    } catch (error) {
+      console.error("Personality analysis error:", error);
+      res.status(500).json({ error: "Errore nell'analisi della personalità" });
     }
   });
 
