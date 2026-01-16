@@ -648,7 +648,7 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
       }
       
       // Get Email communications
-      const comunicazioni = await storage.getComunicazioniByCliente(clienteId);
+      const comunicazioni = await storage.getComunicazioni(clienteId);
       const emailMessages = comunicazioni.filter(c => c.canale === 'email');
       emailMessages.forEach(c => {
         allMessages.push({
