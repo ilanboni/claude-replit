@@ -21,6 +21,8 @@ import {
   XCircle,
   Link2,
   ChevronRight,
+  Brain,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -182,6 +184,28 @@ export default function RichiestaDetailPage() {
       toast({
         title: "Errore",
         description: "Impossibile eliminare la richiesta",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const analyzePersonalityMutation = useMutation({
+    mutationFn: async () => {
+      if (!richiesta?.clienteId) throw new Error("Cliente non associato");
+      const res = await apiRequest("POST", `/api/clienti/${richiesta.clienteId}/analizza-personalita`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clienti", richiesta?.clienteId] });
+      toast({ 
+        title: "Analisi completata", 
+        description: "Il profilo personalità è stato aggiornato" 
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Errore",
+        description: error.message || "Impossibile analizzare la personalità",
         variant: "destructive",
       });
     },
@@ -408,6 +432,70 @@ export default function RichiestaDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Personalità AI del Cliente */}
+      {cliente && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2">
+                <Brain className="h-5 w-5 text-primary" />
+                <CardTitle>Personalità AI del Cliente</CardTitle>
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => analyzePersonalityMutation.mutate()}
+                disabled={analyzePersonalityMutation.isPending}
+                data-testid="button-analyze-personality"
+              >
+                {analyzePersonalityMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Analisi...
+                  </>
+                ) : cliente.personalitaAi ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Aggiorna
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Analizza
+                  </>
+                )}
+              </Button>
+            </div>
+            {cliente.personalitaAiUpdatedAt && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Ultimo aggiornamento: {new Date(cliente.personalitaAiUpdatedAt).toLocaleDateString('it-IT', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}
+              </p>
+            )}
+          </CardHeader>
+          <CardContent>
+            {cliente.personalitaAi ? (
+              <div className="whitespace-pre-wrap text-sm" data-testid="text-personality-analysis">
+                {cliente.personalitaAi}
+              </div>
+            ) : (
+              <div className="text-center py-6 text-muted-foreground">
+                <Brain className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                <p>Nessuna analisi della personalità disponibile.</p>
+                <p className="text-sm mt-1">
+                  Clicca "Analizza" per generare un profilo basato sulle conversazioni WhatsApp e Email.
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Dialog open={showEditForm} onOpenChange={setShowEditForm}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
