@@ -1,6 +1,6 @@
 import { 
   clienti, richieste, immobili, comunicazioni, appuntamenti, matching, immobiliEsterni,
-  attivitaImmobile, attivitaCliente, documentiImmobile, portaliImmobile, storicoPrezzo,
+  attivitaImmobile, attivitaCliente, attivitaImmobileEsterno, documentiImmobile, portaliImmobile, storicoPrezzo,
   whatsappCampaigns, campaignMessages, botConversationLogs, scheduledBotMessages,
   whatsappConversations, whatsappMessages, annunciImmobile,
   oauthTokens, calendarEvents, appointmentConfirmations, notifiche,
@@ -14,6 +14,7 @@ import {
   type ImmobileEsterno, type InsertImmobileEsterno,
   type AttivitaImmobile, type InsertAttivitaImmobile,
   type AttivitaCliente, type InsertAttivitaCliente,
+  type AttivitaImmobileEsterno, type InsertAttivitaImmobileEsterno,
   type DocumentoImmobile, type InsertDocumentoImmobile,
   type PortaleImmobile, type InsertPortaleImmobile,
   type StoricoPrezzo, type InsertStoricoPrezzo,
@@ -103,6 +104,12 @@ export interface IStorage {
   createAttivitaCliente(data: InsertAttivitaCliente): Promise<AttivitaCliente>;
   updateAttivitaCliente(id: number, data: Partial<InsertAttivitaCliente>): Promise<AttivitaCliente | undefined>;
   deleteAttivitaCliente(id: number): Promise<boolean>;
+
+  // Attività Immobile Esterno (Acquisizione)
+  getAttivitaImmobileEsterno(immobileEsternoId: number): Promise<AttivitaImmobileEsterno[]>;
+  createAttivitaImmobileEsterno(data: InsertAttivitaImmobileEsterno): Promise<AttivitaImmobileEsterno>;
+  updateAttivitaImmobileEsterno(id: number, data: Partial<InsertAttivitaImmobileEsterno>): Promise<AttivitaImmobileEsterno | undefined>;
+  deleteAttivitaImmobileEsterno(id: number): Promise<boolean>;
 
   // Documenti Immobile
   getDocumentiImmobile(immobileId: number): Promise<DocumentoImmobile[]>;
@@ -595,6 +602,26 @@ export class DatabaseStorage implements IStorage {
 
   async deleteAttivitaCliente(id: number): Promise<boolean> {
     await db.delete(attivitaCliente).where(eq(attivitaCliente.id, id));
+    return true;
+  }
+
+  // Attività Immobile Esterno (Acquisizione)
+  async getAttivitaImmobileEsterno(immobileEsternoId: number): Promise<AttivitaImmobileEsterno[]> {
+    return db.select().from(attivitaImmobileEsterno).where(eq(attivitaImmobileEsterno.immobileEsternoId, immobileEsternoId)).orderBy(desc(attivitaImmobileEsterno.createdAt));
+  }
+
+  async createAttivitaImmobileEsterno(data: InsertAttivitaImmobileEsterno): Promise<AttivitaImmobileEsterno> {
+    const [attivita] = await db.insert(attivitaImmobileEsterno).values(data).returning();
+    return attivita;
+  }
+
+  async updateAttivitaImmobileEsterno(id: number, data: Partial<InsertAttivitaImmobileEsterno>): Promise<AttivitaImmobileEsterno | undefined> {
+    const [attivita] = await db.update(attivitaImmobileEsterno).set(data).where(eq(attivitaImmobileEsterno.id, id)).returning();
+    return attivita;
+  }
+
+  async deleteAttivitaImmobileEsterno(id: number): Promise<boolean> {
+    await db.delete(attivitaImmobileEsterno).where(eq(attivitaImmobileEsterno.id, id));
     return true;
   }
 

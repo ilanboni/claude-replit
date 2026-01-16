@@ -2708,6 +2708,51 @@ ${analysis.areeSensibili.length > 0 ? analysis.areeSensibili.map(a => `• ${a}`
     }
   });
 
+  // Attività Immobile Esterno (Acquisizione)
+  app.get("/api/acquisizione/:id/attivita", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const attivita = await storage.getAttivitaImmobileEsterno(id);
+      res.json(attivita);
+    } catch (error) {
+      console.error("Get attivita immobile esterno error:", error);
+      res.status(500).json({ error: "Errore nel recupero delle attività" });
+    }
+  });
+
+  app.post("/api/acquisizione/:id/attivita", async (req, res) => {
+    try {
+      const immobileEsternoId = parseInt(req.params.id);
+      const attivita = await storage.createAttivitaImmobileEsterno({ ...req.body, immobileEsternoId });
+      res.status(201).json(attivita);
+    } catch (error) {
+      console.error("Create attivita immobile esterno error:", error);
+      res.status(500).json({ error: "Errore nella creazione dell'attività" });
+    }
+  });
+
+  app.patch("/api/acquisizione/attivita/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const attivita = await storage.updateAttivitaImmobileEsterno(id, req.body);
+      res.json(attivita);
+    } catch (error) {
+      console.error("Update attivita immobile esterno error:", error);
+      res.status(500).json({ error: "Errore nell'aggiornamento dell'attività" });
+    }
+  });
+
+  app.delete("/api/acquisizione/attivita/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteAttivitaImmobileEsterno(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Delete attivita immobile esterno error:", error);
+      res.status(500).json({ error: "Errore nell'eliminazione dell'attività" });
+    }
+  });
+
   // Generate personalized acquisition message with automatic mirroring
   // Automatically uses short format (max 400 chars) for Idealista listings
   app.post("/api/acquisizione/:id/generate-message", async (req, res) => {
