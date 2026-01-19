@@ -274,13 +274,38 @@ async function importFormResponses(): Promise<{ imported: number; errors: string
                            parsed.testoRisposta.match(/(https:\/\/www\.immobiliare\.it\/user\/messages\/[a-f0-9\-]+)/i);
           const linkChatImmobiliare = linkMatch ? linkMatch[1] : null;
 
-          // If we now have phone, update client too - or try to find client by name
+          // PREVENZIONE DUPLICATI: Usa il cliente esistente collegato all'immobile esterno
+          // Se il cliente ha un nome generico ("Proprietario..."), aggiorna con il nome reale
           let cliente = null;
           if (immobileEsterno.clienteId) {
             cliente = await storage.getCliente(immobileEsterno.clienteId);
+            
+            // Se il cliente esiste e ha un nome generico, aggiorna con il nome reale dal mittente
+            if (cliente && parsed.mittente) {
+              const nomeAttuale = `${cliente.nome || ""} ${cliente.cognome || ""}`.trim().toLowerCase();
+              const isNomeGenerico = nomeAttuale.startsWith("proprietario") || 
+                                     nomeAttuale === "" ||
+                                     nomeAttuale.includes("via ") ||
+                                     nomeAttuale.includes("viale ") ||
+                                     nomeAttuale.includes("corso ");
+              
+              if (isNomeGenerico) {
+                const nomeCompleto = parsed.mittente.trim();
+                const parti = nomeCompleto.split(/\s+/);
+                const nome = parti[0] || null;
+                const cognome = parti.slice(1).join(" ") || null;
+                
+                if (nome) {
+                  await storage.updateCliente(cliente.id, { nome, cognome });
+                  console.log(`[EmailImportWorker] Updated client ${cliente.id} name from "${nomeAttuale}" to "${nome} ${cognome}"`);
+                  // Ricarica il cliente aggiornato
+                  cliente = await storage.getCliente(cliente.id);
+                }
+              }
+            }
           }
           
-          // Se non abbiamo un cliente collegato, proviamo a cercare per nome nel mittente
+          // Solo se NON c'è un cliente collegato, cerchiamo per nome (per evitare duplicati)
           if (!cliente && parsed.mittente) {
             const nomeCompleto = parsed.mittente.trim();
             if (nomeCompleto.length > 2) {
@@ -289,22 +314,32 @@ async function importFormResponses(): Promise<{ imported: number; errors: string
               const cognome = parti.slice(1).join(" ");
               
               const allClienti = await storage.getClienti();
+              
+              // Prima cerca un cliente già collegato allo stesso immobile esterno
               cliente = allClienti.find(c => {
-                const clienteNome = (c.nome || "").toLowerCase().trim();
-                const clienteCognome = (c.cognome || "").toLowerCase().trim();
-                const searchNome = nome.toLowerCase();
-                const searchCognome = cognome.toLowerCase();
-                
-                if (clienteNome === searchNome && clienteCognome === searchCognome) return true;
-                if (clienteCognome.includes(searchNome) && clienteCognome.includes(searchCognome)) return true;
-                if (clienteNome === searchNome && searchCognome && clienteCognome.includes(searchCognome.split(" ")[0])) return true;
-                
-                return false;
+                // Verifica se questo cliente è già collegato a questo immobile esterno
+                // tramite comunicazioni o altri riferimenti
+                return false; // Per ora non cerchiamo, evitiamo duplicati
               });
               
+              // Se non troviamo, cerchiamo per nome esatto
+              if (!cliente) {
+                cliente = allClienti.find(c => {
+                  const clienteNome = (c.nome || "").toLowerCase().trim();
+                  const clienteCognome = (c.cognome || "").toLowerCase().trim();
+                  const searchNome = nome.toLowerCase();
+                  const searchCognome = cognome.toLowerCase();
+                  
+                  // Match esatto nome + cognome
+                  if (clienteNome === searchNome && clienteCognome === searchCognome) return true;
+                  
+                  return false;
+                });
+              }
+              
               if (cliente) {
-                console.log(`[EmailImportWorker] Found client by sender name "${nomeCompleto}": ${cliente.nome} ${cliente.cognome} (ID: ${cliente.id})`);
-                // Aggiorna l'immobile esterno con il cliente trovato
+                console.log(`[EmailImportWorker] Found existing client by name "${nomeCompleto}": ${cliente.nome} ${cliente.cognome} (ID: ${cliente.id})`);
+                // Collega l'immobile esterno al cliente trovato
                 await storage.updateImmobileEsterno(immobileEsterno.id, { clienteId: cliente.id });
               }
             }

@@ -27,6 +27,8 @@ import {
   Brain,
   RefreshCw,
   Sparkles,
+  Merge,
+  Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -60,16 +62,18 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { ClienteForm } from "./cliente-form";
 import { RichiestaForm } from "../richieste/richiesta-form";
 import type { Cliente, Richiesta, Immobile, ImmobileEsterno, Comunicazione, Appuntamento, AttivitaCliente } from "@shared/schema";
 
-function ClienteHeader({ cliente, onEdit, onDelete }: { 
+function ClienteHeader({ cliente, onEdit, onDelete, onMerge }: { 
   cliente: Cliente; 
   onEdit: () => void;
   onDelete: () => void;
+  onMerge: () => void;
 }) {
   const tipoLabel = cliente.tipoCliente === "compratore" ? "Compratore" : 
     cliente.tipoCliente === "venditore" ? "Venditore" : "Compratore/Venditore";
@@ -124,10 +128,14 @@ function ClienteHeader({ cliente, onEdit, onDelete }: {
         </div>
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
         <Button variant="outline" onClick={onEdit} data-testid="button-edit-client">
           <Edit className="h-4 w-4 mr-2" />
           Modifica
+        </Button>
+        <Button variant="outline" onClick={onMerge} data-testid="button-merge-client">
+          <Merge className="h-4 w-4 mr-2" />
+          Unisci
         </Button>
         <Button variant="destructive" onClick={onDelete} data-testid="button-delete-client">
           <Trash2 className="h-4 w-4 mr-2" />
@@ -1367,6 +1375,9 @@ export default function ClienteDetailPage() {
   const [showEditForm, setShowEditForm] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showRichiestaForm, setShowRichiestaForm] = useState(false);
+  const [showMergeDialog, setShowMergeDialog] = useState(false);
+  const [mergeSearchQuery, setMergeSearchQuery] = useState("");
+  const [selectedClienteToMerge, setSelectedClienteToMerge] = useState<Cliente | null>(null);
 
   const clienteId = parseInt(params.id || "0");
 
@@ -1409,6 +1420,50 @@ export default function ClienteDetailPage() {
       toast({ 
         title: "Errore", 
         description: error?.message || "Impossibile analizzare la personalità. Verifica che ci siano conversazioni WhatsApp.", 
+        variant: "destructive" 
+      });
+    },
+  });
+
+  // Query per tutti i clienti (per la ricerca nel merge)
+  const { data: allClienti = [] } = useQuery<Cliente[]>({
+    queryKey: ["/api/clienti"],
+    enabled: showMergeDialog,
+  });
+
+  // Filtra clienti per la ricerca (escludi il cliente corrente)
+  const filteredClientiForMerge = allClienti
+    .filter(c => c.id !== clienteId)
+    .filter(c => {
+      if (!mergeSearchQuery.trim()) return true;
+      const searchLower = mergeSearchQuery.toLowerCase();
+      const fullName = `${c.nome || ""} ${c.cognome || ""}`.toLowerCase();
+      const phone = (c.telefono || "").toLowerCase();
+      const email = (c.email || "").toLowerCase();
+      return fullName.includes(searchLower) || phone.includes(searchLower) || email.includes(searchLower);
+    })
+    .slice(0, 20); // Limita a 20 risultati
+
+  const mergeMutation = useMutation({
+    mutationFn: async (clienteDaUnireId: number) => {
+      const res = await apiRequest("POST", `/api/clienti/${clienteId}/unisci`, { clienteDaUnireId });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clienti"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/clienti", clienteId] });
+      toast({ 
+        title: "Clienti uniti con successo", 
+        description: data.message 
+      });
+      setShowMergeDialog(false);
+      setSelectedClienteToMerge(null);
+      setMergeSearchQuery("");
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: "Errore", 
+        description: error?.message || "Impossibile unire i clienti", 
         variant: "destructive" 
       });
     },
@@ -1468,6 +1523,7 @@ export default function ClienteDetailPage() {
         cliente={cliente} 
         onEdit={() => setShowEditForm(true)}
         onDelete={() => setShowDeleteDialog(true)}
+        onMerge={() => setShowMergeDialog(true)}
       />
 
       <Tabs defaultValue="panoramica" className="w-full">
@@ -1597,6 +1653,112 @@ export default function ClienteDetailPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={showMergeDialog} onOpenChange={(open) => {
+        setShowMergeDialog(open);
+        if (!open) {
+          setMergeSearchQuery("");
+          setSelectedClienteToMerge(null);
+        }
+      }}>
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Merge className="h-5 w-5" />
+              Unisci Cliente
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Seleziona un cliente duplicato da unire con <strong>{cliente.nome} {cliente.cognome}</strong>. 
+              Tutte le comunicazioni, richieste, appuntamenti e altri dati verranno trasferiti a questo cliente. 
+              Il cliente selezionato verrà archiviato.
+            </p>
+
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Cerca per nome, telefono o email..."
+                value={mergeSearchQuery}
+                onChange={(e) => setMergeSearchQuery(e.target.value)}
+                className="pl-9"
+                data-testid="input-merge-search"
+              />
+            </div>
+
+            <div className="border rounded-md max-h-[300px] overflow-y-auto">
+              {filteredClientiForMerge.length === 0 ? (
+                <div className="p-4 text-center text-muted-foreground">
+                  {mergeSearchQuery ? "Nessun cliente trovato" : "Digita per cercare clienti"}
+                </div>
+              ) : (
+                <div className="divide-y">
+                  {filteredClientiForMerge.map((c) => (
+                    <div
+                      key={c.id}
+                      className={`p-3 cursor-pointer hover-elevate ${
+                        selectedClienteToMerge?.id === c.id ? "bg-primary/10" : ""
+                      }`}
+                      onClick={() => setSelectedClienteToMerge(c)}
+                      data-testid={`merge-client-option-${c.id}`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-medium">{c.nome} {c.cognome}</div>
+                          <div className="text-sm text-muted-foreground flex items-center gap-2 flex-wrap">
+                            {c.telefono && <span>{c.telefono}</span>}
+                            {c.email && <span>{c.email}</span>}
+                          </div>
+                        </div>
+                        <Badge variant={c.attivo ? "default" : "secondary"}>
+                          {c.attivo ? "Attivo" : "Inattivo"}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {selectedClienteToMerge && (
+              <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-md">
+                <p className="text-sm">
+                  Stai per unire <strong>{selectedClienteToMerge.nome} {selectedClienteToMerge.cognome}</strong> con 
+                  <strong> {cliente.nome} {cliente.cognome}</strong>. Tutti i dati verranno trasferiti.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => setShowMergeDialog(false)}
+              data-testid="button-cancel-merge"
+            >
+              Annulla
+            </Button>
+            <Button
+              onClick={() => selectedClienteToMerge && mergeMutation.mutate(selectedClienteToMerge.id)}
+              disabled={!selectedClienteToMerge || mergeMutation.isPending}
+              data-testid="button-confirm-merge"
+            >
+              {mergeMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Unione in corso...
+                </>
+              ) : (
+                <>
+                  <Merge className="h-4 w-4 mr-2" />
+                  Unisci Clienti
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

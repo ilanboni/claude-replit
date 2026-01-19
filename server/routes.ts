@@ -753,6 +753,122 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
     }
   });
 
+  // Unisci due clienti: trasferisce tutti i dati dal cliente "daUnire" al cliente "mantenere"
+  app.post("/api/clienti/:id/unisci", async (req, res) => {
+    try {
+      const clienteMantenereid = parseInt(req.params.id);
+      const { clienteDaUnireId } = req.body;
+      
+      if (!clienteDaUnireId || isNaN(clienteDaUnireId)) {
+        return res.status(400).json({ error: "ID del cliente da unire non valido" });
+      }
+      
+      if (clienteMantenereid === clienteDaUnireId) {
+        return res.status(400).json({ error: "Non puoi unire un cliente con se stesso" });
+      }
+      
+      const clienteMantenere = await storage.getCliente(clienteMantenereid);
+      const clienteDaUnire = await storage.getCliente(clienteDaUnireId);
+      
+      if (!clienteMantenere) {
+        return res.status(404).json({ error: "Cliente da mantenere non trovato" });
+      }
+      if (!clienteDaUnire) {
+        return res.status(404).json({ error: "Cliente da unire non trovato" });
+      }
+      
+      // Trasferisci comunicazioni
+      const comunicazioni = await storage.getComunicazioni(clienteDaUnireId);
+      for (const com of comunicazioni) {
+        await storage.updateComunicazione(com.id, { clienteId: clienteMantenereid });
+      }
+      
+      // Trasferisci richieste
+      const richieste = await storage.getRichieste();
+      const richiesteCliente = richieste.filter(r => r.clienteId === clienteDaUnireId);
+      for (const richiesta of richiesteCliente) {
+        await storage.updateRichiesta(richiesta.id, { clienteId: clienteMantenereid });
+      }
+      
+      // Trasferisci appuntamenti
+      const appuntamenti = await storage.getAppuntamenti();
+      const appuntamentiCliente = appuntamenti.filter(a => a.clienteId === clienteDaUnireId);
+      for (const appuntamento of appuntamentiCliente) {
+        await storage.updateAppuntamento(appuntamento.id, { clienteId: clienteMantenereid });
+      }
+      
+      // Trasferisci conversazioni WhatsApp
+      const conversations = await storage.getWhatsappConversations();
+      const conversazioniCliente = conversations.filter(c => c.clienteId === clienteDaUnireId);
+      for (const conv of conversazioniCliente) {
+        await storage.updateWhatsappConversation(conv.id, { clienteId: clienteMantenereid });
+      }
+      
+      // Trasferisci immobili esterni collegati
+      const immobiliEsterni = await storage.getImmobiliEsterni();
+      const immobiliCliente = immobiliEsterni.filter(ie => ie.clienteId === clienteDaUnireId);
+      for (const immobile of immobiliCliente) {
+        await storage.updateImmobileEsterno(immobile.id, { clienteId: clienteMantenereid });
+      }
+      
+      // Trasferisci tasks
+      const tasks = await storage.getTasks();
+      const tasksCliente = tasks.filter(t => t.clienteId === clienteDaUnireId);
+      for (const task of tasksCliente) {
+        await storage.updateTask(task.id, { clienteId: clienteMantenereid });
+      }
+      
+      // Trasferisci notifiche
+      const notifiche = await storage.getNotifiche();
+      const notificheCliente = notifiche.filter(n => n.clienteId === clienteDaUnireId);
+      for (const notifica of notificheCliente) {
+        await storage.updateNotifica(notifica.id, { clienteId: clienteMantenereid });
+      }
+      
+      // Trasferisci attività cliente
+      const attivita = await storage.getAttivitaCliente(clienteDaUnireId);
+      for (const att of attivita) {
+        await storage.updateAttivitaCliente(att.id, { clienteId: clienteMantenereid });
+      }
+      
+      // Aggiorna note del cliente mantenuto con riferimento all'unione
+      const noteUnione = `\n[Unito con cliente: ${clienteDaUnire.nome || ""} ${clienteDaUnire.cognome || ""} (ID: ${clienteDaUnireId}) il ${new Date().toLocaleDateString('it-IT')}]`;
+      const noteAttuali = clienteMantenere.note || "";
+      
+      // Trasferisci info mancanti (telefono, email, etc.)
+      const updateData: any = {
+        note: noteAttuali + noteUnione
+      };
+      
+      if (!clienteMantenere.telefono && clienteDaUnire.telefono) {
+        updateData.telefono = clienteDaUnire.telefono;
+      }
+      if (!clienteMantenere.email && clienteDaUnire.email) {
+        updateData.email = clienteDaUnire.email;
+      }
+      
+      await storage.updateCliente(clienteMantenereid, updateData);
+      
+      // Archivia (disattiva) il cliente duplicato invece di eliminarlo
+      await storage.updateCliente(clienteDaUnireId, { 
+        attivo: false,
+        note: (clienteDaUnire.note || "") + `\n[ARCHIVIATO - Unito con cliente ID: ${clienteMantenereid} il ${new Date().toLocaleDateString('it-IT')}]`
+      });
+      
+      console.log(`[ClientiMerge] Merged client ${clienteDaUnireId} into ${clienteMantenereid}`);
+      
+      const clienteAggiornato = await storage.getCliente(clienteMantenereid);
+      res.json({
+        success: true,
+        message: `Cliente "${clienteDaUnire.nome || ""} ${clienteDaUnire.cognome || ""}" unito con successo`,
+        cliente: clienteAggiornato
+      });
+    } catch (error) {
+      console.error("Merge clienti error:", error);
+      res.status(500).json({ error: "Errore nell'unione dei clienti" });
+    }
+  });
+
   // Analyze client personality based on WhatsApp and Email conversations
   app.post("/api/clienti/:id/analizza-personalita", async (req, res) => {
     try {
