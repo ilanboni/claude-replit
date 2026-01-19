@@ -28,6 +28,38 @@ async function importPortalEmails(): Promise<{ imported: number; errors: string[
         
         let cliente = await storage.getClienteByEmailOrPhone(parsed.emailCliente, parsed.telefonoCliente);
         
+        // Se non troviamo per email/telefono, cerchiamo per nome nell'oggetto o nel corpo
+        if (!cliente && parsed.nomeCliente) {
+          const nomeCompleto = parsed.nomeCliente.trim();
+          if (nomeCompleto.length > 2) {
+            const parti = nomeCompleto.split(/\s+/);
+            const nome = parti[0];
+            const cognome = parti.slice(1).join(" ");
+            
+            // Cerca cliente per nome e cognome
+            const allClienti = await storage.getClienti();
+            cliente = allClienti.find(c => {
+              const clienteNome = (c.nome || "").toLowerCase().trim();
+              const clienteCognome = (c.cognome || "").toLowerCase().trim();
+              const searchNome = nome.toLowerCase();
+              const searchCognome = cognome.toLowerCase();
+              
+              // Match esatto nome + cognome
+              if (clienteNome === searchNome && clienteCognome === searchCognome) return true;
+              // Match nome completo nel cognome (es: "Fabrizio Monello" in cognome)
+              if (clienteCognome.includes(searchNome) && clienteCognome.includes(searchCognome)) return true;
+              // Match parziale con almeno nome e parte del cognome
+              if (clienteNome === searchNome && searchCognome && clienteCognome.includes(searchCognome.split(" ")[0])) return true;
+              
+              return false;
+            });
+            
+            if (cliente) {
+              console.log(`[EmailImportWorker] Found client by name "${nomeCompleto}": ${cliente.nome} ${cliente.cognome} (ID: ${cliente.id})`);
+            }
+          }
+        }
+        
         // Skip clients with invalid phone numbers (not starting with 3 or +)
         const telefono = parsed.telefonoCliente || "";
         const isInvalidPhone = telefono && /^[15]/.test(telefono);
@@ -237,25 +269,68 @@ async function importFormResponses(): Promise<{ imported: number; errors: string
             } : {}),
           });
 
-          // If we now have phone, update client too
+          // Estrai il link della chat di Immobiliare.it se presente
+          const linkMatch = parsed.testoRisposta.match(/\[LINK:\s*(https:\/\/www\.immobiliare\.it\/user\/messages\/[^\]]+)\]/i) ||
+                           parsed.testoRisposta.match(/(https:\/\/www\.immobiliare\.it\/user\/messages\/[a-f0-9\-]+)/i);
+          const linkChatImmobiliare = linkMatch ? linkMatch[1] : null;
+
+          // If we now have phone, update client too - or try to find client by name
+          let cliente = null;
           if (immobileEsterno.clienteId) {
-            const cliente = await storage.getCliente(immobileEsterno.clienteId);
-            if (cliente) {
-              // Create communication record
-              await storage.createComunicazione({
-                clienteId: cliente.id,
-                canale: 'email',
-                tipo: 'risposta',
-                testo: `Risposta da ${parsed.portale}: ${parsed.testoRisposta.slice(0, 1000)}`,
+            cliente = await storage.getCliente(immobileEsterno.clienteId);
+          }
+          
+          // Se non abbiamo un cliente collegato, proviamo a cercare per nome nel mittente
+          if (!cliente && parsed.mittente) {
+            const nomeCompleto = parsed.mittente.trim();
+            if (nomeCompleto.length > 2) {
+              const parti = nomeCompleto.split(/\s+/);
+              const nome = parti[0];
+              const cognome = parti.slice(1).join(" ");
+              
+              const allClienti = await storage.getClienti();
+              cliente = allClienti.find(c => {
+                const clienteNome = (c.nome || "").toLowerCase().trim();
+                const clienteCognome = (c.cognome || "").toLowerCase().trim();
+                const searchNome = nome.toLowerCase();
+                const searchCognome = cognome.toLowerCase();
+                
+                if (clienteNome === searchNome && clienteCognome === searchCognome) return true;
+                if (clienteCognome.includes(searchNome) && clienteCognome.includes(searchCognome)) return true;
+                if (clienteNome === searchNome && searchCognome && clienteCognome.includes(searchCognome.split(" ")[0])) return true;
+                
+                return false;
               });
               
-              // Update client contact info if missing
-              if (parsed.telefonoMittente && !cliente.telefono) {
-                await storage.updateCliente(cliente.id, { telefono: parsed.telefonoMittente });
+              if (cliente) {
+                console.log(`[EmailImportWorker] Found client by sender name "${nomeCompleto}": ${cliente.nome} ${cliente.cognome} (ID: ${cliente.id})`);
+                // Aggiorna l'immobile esterno con il cliente trovato
+                await storage.updateImmobileEsterno(immobileEsterno.id, { clienteId: cliente.id });
               }
-              if (parsed.emailMittente && !cliente.email) {
-                await storage.updateCliente(cliente.id, { email: parsed.emailMittente });
-              }
+            }
+          }
+          
+          if (cliente) {
+            // Create communication record with chat link
+            let testoCompleto = `Risposta da ${parsed.portale}: ${parsed.testoRisposta.slice(0, 1000)}`;
+            if (linkChatImmobiliare) {
+              testoCompleto += `\n\n[LINK: ${linkChatImmobiliare}]`;
+            }
+            
+            await storage.createComunicazione({
+              clienteId: cliente.id,
+              immobileEsternoId: immobileEsterno.id,
+              canale: 'email',
+              tipo: 'risposta',
+              testo: testoCompleto,
+            });
+            
+            // Update client contact info if missing
+            if (parsed.telefonoMittente && !cliente.telefono) {
+              await storage.updateCliente(cliente.id, { telefono: parsed.telefonoMittente });
+            }
+            if (parsed.emailMittente && !cliente.email) {
+              await storage.updateCliente(cliente.id, { email: parsed.emailMittente });
             }
           }
 
@@ -264,7 +339,7 @@ async function importFormResponses(): Promise<{ imported: number; errors: string
             tipo: 'risposta_form',
             titolo: `Risposta ricevuta da ${parsed.portale}`,
             messaggio: `Il proprietario di ${immobileEsterno.indirizzo || immobileEsterno.titolo} ha risposto al tuo messaggio`,
-            clienteId: immobileEsterno.clienteId || null,
+            clienteId: immobileEsterno.clienteId || cliente?.id || null,
             emailId: email.id,
             priorita: 1,
           });
