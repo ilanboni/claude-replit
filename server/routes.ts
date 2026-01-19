@@ -475,6 +475,12 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
   app.post("/api/tasks", async (req, res) => {
     try {
       const { syncCalendar, ...taskData } = req.body;
+      
+      // Converti scadenza da stringa ISO a Date se presente
+      if (taskData.scadenza && typeof taskData.scadenza === 'string') {
+        taskData.scadenza = new Date(taskData.scadenza);
+      }
+      
       const task = await storage.createTask(taskData);
       
       // Se syncCalendar è true e c'è una scadenza, crea evento calendario
@@ -520,6 +526,11 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
     try {
       const id = parseInt(req.params.id);
       const { syncCalendar, ...updateData } = req.body;
+      
+      // Converti scadenza da stringa ISO a Date se presente
+      if (updateData.scadenza && typeof updateData.scadenza === 'string') {
+        updateData.scadenza = new Date(updateData.scadenza);
+      }
       
       // Se il task viene completato, aggiungi completatoAt
       if (updateData.stato === "completato") {
