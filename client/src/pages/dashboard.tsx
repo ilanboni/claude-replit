@@ -42,7 +42,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import type { Cliente, Immobile, Richiesta, Appuntamento, Matching, WhatsappConversation, Task, Comunicazione } from "@shared/schema";
+import type { Cliente, Immobile, Richiesta, Appuntamento, Matching, WhatsappConversation, Task, Comunicazione, ImmobileEsterno } from "@shared/schema";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface TrendData {
   nome: string;
@@ -845,14 +846,28 @@ function TasksCard({ loading }: { loading?: boolean }) {
   const [showNewTask, setShowNewTask] = useState(false);
   const [newTaskTitolo, setNewTaskTitolo] = useState("");
   const [newTaskScadenza, setNewTaskScadenza] = useState("");
+  const [newTaskClienteId, setNewTaskClienteId] = useState<string>("");
+  const [newTaskImmobileId, setNewTaskImmobileId] = useState<string>("");
   const [syncCalendar, setSyncCalendar] = useState(true);
 
   const { data: tasks = [], isLoading } = useQuery<Task[]>({
     queryKey: ["/api/tasks"],
   });
 
+  const { data: clienti = [] } = useQuery<Cliente[]>({
+    queryKey: ["/api/clienti"],
+  });
+
+  const { data: immobili = [] } = useQuery<Immobile[]>({
+    queryKey: ["/api/immobili"],
+  });
+
+  const { data: acquisizioni = [] } = useQuery<ImmobileEsterno[]>({
+    queryKey: ["/api/acquisizione"],
+  });
+
   const createTaskMutation = useMutation({
-    mutationFn: async (data: { titolo: string; scadenza?: string; syncCalendar?: boolean }) => {
+    mutationFn: async (data: { titolo: string; scadenza?: string; clienteId?: number; immobileId?: number; syncCalendar?: boolean }) => {
       return apiRequest("POST", "/api/tasks", data);
     },
     onSuccess: () => {
@@ -861,8 +876,16 @@ function TasksCard({ loading }: { loading?: boolean }) {
       setShowNewTask(false);
       setNewTaskTitolo("");
       setNewTaskScadenza("");
+      setNewTaskClienteId("");
+      setNewTaskImmobileId("");
     },
   });
+
+  // Combina immobili normali e acquisizioni per il selettore
+  const tuttiImmobili = [
+    ...immobili.map(i => ({ id: i.id, label: `${i.titolo || i.indirizzo || 'Immobile'}`, tipo: 'portfolio' as const })),
+    ...acquisizioni.map(a => ({ id: a.id, label: `[Acq] ${a.titolo || a.indirizzo || 'Acquisizione'}`, tipo: 'acquisizione' as const })),
+  ];
 
   const completeTaskMutation = useMutation({
     mutationFn: async (id: number) => {
@@ -945,18 +968,52 @@ function TasksCard({ loading }: { loading?: boolean }) {
                 </label>
               )}
             </div>
+            <div className="flex gap-2">
+              <Select value={newTaskClienteId} onValueChange={setNewTaskClienteId}>
+                <SelectTrigger className="flex-1" data-testid="select-task-cliente">
+                  <SelectValue placeholder="Cliente (opz.)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nessun cliente</SelectItem>
+                  {clienti.slice(0, 50).map(c => (
+                    <SelectItem key={c.id} value={String(c.id)}>
+                      {c.nome} {c.cognome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={newTaskImmobileId} onValueChange={setNewTaskImmobileId}>
+                <SelectTrigger className="flex-1" data-testid="select-task-immobile">
+                  <SelectValue placeholder="Immobile (opz.)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nessun immobile</SelectItem>
+                  {tuttiImmobili.slice(0, 50).map(i => (
+                    <SelectItem key={`${i.tipo}-${i.id}`} value={`${i.tipo}-${i.id}`}>
+                      {i.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="flex gap-1 justify-end">
-              <Button size="sm" variant="ghost" onClick={() => { setShowNewTask(false); setNewTaskTitolo(""); setNewTaskScadenza(""); }}>
+              <Button size="sm" variant="ghost" onClick={() => { setShowNewTask(false); setNewTaskTitolo(""); setNewTaskScadenza(""); setNewTaskClienteId(""); setNewTaskImmobileId(""); }}>
                 <X className="h-4 w-4" />
               </Button>
               <Button 
                 size="sm" 
                 disabled={!newTaskTitolo.trim() || createTaskMutation.isPending}
-                onClick={() => createTaskMutation.mutate({ 
-                  titolo: newTaskTitolo, 
-                  scadenza: newTaskScadenza ? new Date(newTaskScadenza).toISOString() : undefined,
-                  syncCalendar: syncCalendar && !!newTaskScadenza
-                })}
+                onClick={() => {
+                  const immobileValue = newTaskImmobileId && newTaskImmobileId !== "none" ? newTaskImmobileId.split("-") : null;
+                  createTaskMutation.mutate({ 
+                    titolo: newTaskTitolo, 
+                    scadenza: newTaskScadenza ? new Date(newTaskScadenza).toISOString() : undefined,
+                    clienteId: newTaskClienteId && newTaskClienteId !== "none" ? parseInt(newTaskClienteId) : undefined,
+                    immobileId: immobileValue && immobileValue[0] === "portfolio" ? parseInt(immobileValue[1]) : undefined,
+                    syncCalendar: syncCalendar && !!newTaskScadenza
+                  });
+                }}
+                data-testid="button-save-task"
               >
                 <Check className="h-4 w-4" />
               </Button>
