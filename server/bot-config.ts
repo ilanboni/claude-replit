@@ -189,87 +189,64 @@ export function checkForObjection(message: string): { found: boolean; handler?: 
   return { found: false };
 }
 
-// Prompt per generare frasi di mirroring dall'annuncio - v10
-// generate_mirroring_text: formula obbligatoria FISSA, max 3 frasi, max 2 caratteristiche
-export const MIRRORING_PROMPT = `Genera il blocco di mirroring del messaggio WhatsApp rivolto a proprietari privati, con italiano naturale, istituzionale e credibile, basato esclusivamente su dati reali presenti nell'annuncio.
+// Prompt per generare frasi di mirroring dall'annuncio - v11
+// Versione flessibile: estrae caratteristiche SPECIFICHE dall'annuncio
+export const MIRRORING_PROMPT = `Genera il blocco di mirroring del messaggio WhatsApp rivolto a proprietari privati. Il mirroring deve menzionare caratteristiche SPECIFICHE e CONCRETE presenti nell'annuncio.
 
 COMPORTAMENTO:
 - Tono: istituzionale, sobrio, rispettoso
-- Stile: italiano naturale, frasi semplici, nessun linguaggio commerciale
+- Stile: italiano naturale, frasi semplici
 - Persona: assistente del Dott. Ilan Boni
-- Priorità: credibilità assoluta
+- Priorità: SPECIFICITÀ - cita dettagli reali, mai frasi generiche
 
 REGOLE APERTURA:
 - Scrivi UNA SOLA frase di apertura
-- Formato preferito: "Ha notato il suo immobile."
-- Usa indirizzo SOLO se COMPLETO (via + numero civico): "Ha notato il suo immobile in {{indirizzo_completo}}."
-- MAI usare indirizzo parziale
-- MAI usare zona
-- MAI usare quartiere
-- MAI usare il titolo dell'annuncio
-- MAI ripetere l'apertura
-- MAI mostrare errori
+- Se hai indirizzo COMPLETO (via + numero): "Ha notato il suo immobile in {{indirizzo}}."
+- Altrimenti: "Ha notato il suo immobile."
+- MAI usare zona/quartiere
 
-FORMULA OBBLIGATORIA PER MIRRORING:
-"Dal suo annuncio si notano alcune caratteristiche, come {{dato_1}} e {{dato_2}}, che rendono l'immobile in linea con alcune esigenze ricorrenti in questo periodo."
+REGOLE MIRRORING (la parte centrale):
+- CITA 2-3 caratteristiche SPECIFICHE trovate nell'annuncio
+- USA i dettagli ESATTI: "ristrutturato nel 2020", "terrazzo di 15 mq", "doppia esposizione est-ovest"
+- EVITA frasi generiche come "distribuzione interna" o "numero locali" se non hai dettagli specifici
+- Collega le caratteristiche alla domanda di mercato
 
-NOTA: Usa ESATTAMENTE questa formula. NON modificare la parte finale. MAI variare.
+PRIORITÀ CARATTERISTICHE (in ordine):
+1. Ristrutturazione recente con anno ("ristrutturato nel 2022")
+2. Elementi esterni: terrazzo, balcone, giardino con dimensioni
+3. Esposizione: doppia esposizione, vista, luminosità
+4. Stato: nuovo, ristrutturato, da ristrutturare
+5. Dotazioni speciali: cantina, box, posto auto
+6. Servizi stabile: portineria, ascensore
+7. Classe energetica alta (A, B)
+8. Arredamento incluso
 
-CARATTERISTICHE AMMESSE (max 2, solo se presenti nell'annuncio):
-- ristrutturazione
-- anno ristrutturazione
-- distribuzione interna
-- numero locali
-- balcone o terrazzo
-- doppia esposizione
-- arredato
-- climatizzazione
-- domotica
-- pavimentazione
-- classe energetica
-- pertinenze (cantina, soffitta, posto auto)
-- dotazioni dello stabile
+STRUTTURA MIRRORING FLESSIBILE:
+- "Ha notato [indirizzo]. La [caratteristica_1] e [caratteristica_2] lo rendono interessante per alcuni clienti che seguiamo."
+- "Ha notato [indirizzo]. [Caratteristica_1], insieme a [caratteristica_2], sono aspetti che stiamo cercando per alcuni acquirenti."
+- "Ha notato [indirizzo]. Elementi come [caratteristica_specifica] sono richiesti in questo momento."
 
 FRASI VIETATE:
-- "Dal suo annuncio emerge"
-- "L'immobile presenta"
-- "Soluzione ideale"
-- "Particolarmente interessante"
-- "Di pregio"
-- "Di lusso"
+- "alcune caratteristiche" (troppo generico)
+- "distribuzione interna" (troppo generico, usa solo se specifico)
+- "numero locali" (troppo generico)
+- "soluzione ideale"
+- "particolarmente interessante"
+- "di pregio" / "di lusso"
 
-CONTENUTO VIETATO:
-- interpretazioni
-- giudizi soggettivi
-- enfasi commerciale
-- aggettivi superlativi
-- promesse
+ESEMPI BUONI (nota la specificità):
+- "Ha notato il suo immobile in Via Panizzi 15. Il terrazzo abitabile e la recente ristrutturazione del 2021 lo rendono interessante per clienti che seguiamo in zona."
+- "Ha notato il suo immobile. La doppia esposizione est-ovest e la presenza di box e cantina sono aspetti molto richiesti in questo momento."
+- "Ha notato il suo trilocale in Via Roma 8. L'appartamento al piano alto con ascensore e la classe energetica B sono caratteristiche ricercate dai nostri acquirenti."
 
-STRUTTURA (max 3 frasi totali):
-1) Apertura con indirizzo completo o fallback
-2) Frase con formula "Dal suo annuncio si notano..."
-3) Eventuale frase tecnica di completamento (facoltativa)
+ESEMPI SBAGLIATI (troppo generici):
+- "Dal suo annuncio si notano alcune caratteristiche, come il numero di locali e la distribuzione interna" (VIETATO - troppo generico)
+- "L'immobile presenta buone caratteristiche" (VIETATO - generico)
+- "Soluzione ideale per famiglie" (VIETATO - commerciale)`;
 
-PREVENZIONE ERRORI:
-- NO duplicati
-- NO menzioni di zona
-- NO titoli annuncio
-- NO invenzioni
-- NO errori visibili
-
-ESEMPI BUONI:
-- "Ha notato il suo immobile. Dal suo annuncio si notano alcune caratteristiche, come la ristrutturazione completa e la presenza del balcone, che rendono l'immobile in linea con alcune esigenze ricorrenti in questo periodo."
-- "Ha notato il suo immobile in Via Antonio Panizzi 15. Dal suo annuncio si notano alcune caratteristiche, come la doppia esposizione e la distribuzione interna, che rendono l'immobile in linea con alcune esigenze ricorrenti in questo periodo. L'appartamento risulta inoltre venduto arredato."
-
-ESEMPI SBAGLIATI:
-- "Dal suo annuncio emerge un appartamento molto interessante."
-- "L'immobile presenta finiture di lusso."
-- "Soluzione ideale per chi cerca il massimo comfort."
-- "Ha notato il suo immobile in zona Navigli."`;
-
-// Mirroring configuration for structured calls - v9
+// Mirroring configuration for structured calls - v11
 export const MIRRORING_CONFIG = {
-  temperature: 0,
+  temperature: 0.3,  // Leggera variazione per evitare ripetizioni
   max_tokens: 400
 };
 
