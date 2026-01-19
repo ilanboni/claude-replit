@@ -3,7 +3,7 @@ import {
   attivitaImmobile, attivitaCliente, attivitaImmobileEsterno, documentiImmobile, portaliImmobile, storicoPrezzo,
   whatsappCampaigns, campaignMessages, botConversationLogs, scheduledBotMessages,
   whatsappConversations, whatsappMessages, annunciImmobile,
-  oauthTokens, calendarEvents, appointmentConfirmations, notifiche,
+  oauthTokens, calendarEvents, appointmentConfirmations, notifiche, tasks,
   opportunitaMercato, pubblicizzatoDa, attivitaOpportunita, documentiOpportunita, matchingOpportunita,
   type Cliente, type InsertCliente,
   type Richiesta, type InsertRichiesta,
@@ -15,6 +15,7 @@ import {
   type AttivitaImmobile, type InsertAttivitaImmobile,
   type AttivitaCliente, type InsertAttivitaCliente,
   type AttivitaImmobileEsterno, type InsertAttivitaImmobileEsterno,
+  type Task, type InsertTask,
   type DocumentoImmobile, type InsertDocumentoImmobile,
   type PortaleImmobile, type InsertPortaleImmobile,
   type StoricoPrezzo, type InsertStoricoPrezzo,
@@ -212,6 +213,14 @@ export interface IStorage {
   createMatchingOpportunita(data: InsertMatchingOpportunita): Promise<MatchingOpportunita>;
   updateMatchingOpportunita(id: number, data: Partial<InsertMatchingOpportunita>): Promise<MatchingOpportunita | undefined>;
   deleteMatchingOpportunita(id: number): Promise<boolean>;
+
+  // Tasks (promemoria personali con sync calendario)
+  getTasks(stato?: string): Promise<Task[]>;
+  getTask(id: number): Promise<Task | undefined>;
+  getTasksScadenza(beforeDate: Date): Promise<Task[]>;
+  createTask(data: InsertTask): Promise<Task>;
+  updateTask(id: number, data: Partial<InsertTask>): Promise<Task | undefined>;
+  deleteTask(id: number): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -942,6 +951,43 @@ export class DatabaseStorage implements IStorage {
 
   async deleteNotifica(id: number): Promise<boolean> {
     await db.delete(notifiche).where(eq(notifiche.id, id));
+    return true;
+  }
+
+  // Tasks (promemoria personali con sync calendario)
+  async getTasks(stato?: string): Promise<Task[]> {
+    if (stato) {
+      return db.select().from(tasks).where(eq(tasks.stato, stato)).orderBy(desc(tasks.createdAt));
+    }
+    return db.select().from(tasks).orderBy(desc(tasks.createdAt));
+  }
+
+  async getTask(id: number): Promise<Task | undefined> {
+    const [task] = await db.select().from(tasks).where(eq(tasks.id, id));
+    return task;
+  }
+
+  async getTasksScadenza(beforeDate: Date): Promise<Task[]> {
+    return db.select().from(tasks)
+      .where(and(
+        lte(tasks.scadenza, beforeDate),
+        eq(tasks.stato, "da_fare")
+      ))
+      .orderBy(tasks.scadenza);
+  }
+
+  async createTask(data: InsertTask): Promise<Task> {
+    const [task] = await db.insert(tasks).values(data).returning();
+    return task;
+  }
+
+  async updateTask(id: number, data: Partial<InsertTask>): Promise<Task | undefined> {
+    const [task] = await db.update(tasks).set({ ...data, updatedAt: new Date() }).where(eq(tasks.id, id)).returning();
+    return task;
+  }
+
+  async deleteTask(id: number): Promise<boolean> {
+    await db.delete(tasks).where(eq(tasks.id, id));
     return true;
   }
 

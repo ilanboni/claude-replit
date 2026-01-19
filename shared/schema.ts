@@ -630,6 +630,25 @@ export const notifiche = pgTable("notifiche", {
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
+// TASKS - Personal task/reminder management with calendar sync
+export const tasks = pgTable("tasks", {
+  id: serial("id").primaryKey(),
+  titolo: text("titolo").notNull(),
+  descrizione: text("descrizione"),
+  stato: text("stato").notNull().default("da_fare"), // da_fare, in_corso, completato
+  priorita: integer("priorita").default(2), // 1=alta, 2=media, 3=bassa
+  scadenza: timestamp("scadenza"), // optional due date
+  clienteId: integer("cliente_id").references(() => clienti.id, { onDelete: "set null" }),
+  immobileId: integer("immobile_id").references(() => immobili.id, { onDelete: "set null" }),
+  comunicazioneId: integer("comunicazione_id").references(() => comunicazioni.id, { onDelete: "set null" }),
+  whatsappMessageId: integer("whatsapp_message_id").references(() => whatsappMessages.id, { onDelete: "set null" }),
+  calendarEventId: text("calendar_event_id"), // Google Calendar event ID for sync
+  calendarSyncStatus: text("calendar_sync_status").default("not_synced"), // not_synced, synced, failed
+  completatoAt: timestamp("completato_at"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
 // Relations
 export const clientiRelations = relations(clienti, ({ many }) => ({
   richieste: many(richieste),
@@ -982,6 +1001,11 @@ export type InsertAppointmentConfirmation = z.infer<typeof insertAppointmentConf
 export const insertNotificaSchema = createInsertSchema(notifiche).omit({ id: true, createdAt: true });
 export type Notifica = typeof notifiche.$inferSelect;
 export type InsertNotifica = z.infer<typeof insertNotificaSchema>;
+
+// Task types
+export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true, createdAt: true, updatedAt: true });
+export type Task = typeof tasks.$inferSelect;
+export type InsertTask = z.infer<typeof insertTaskSchema>;
 
 // Opportunita Mercato types
 export const insertOpportunitaMercatoSchema = createInsertSchema(opportunitaMercato).omit({

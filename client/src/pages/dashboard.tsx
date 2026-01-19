@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useState } from "react";
 import { 
   Users, 
   Building2, 
@@ -11,11 +12,18 @@ import {
   AlertCircle,
   MessageCircle,
   Send,
+  Mail,
+  Plus,
+  ListTodo,
+  CalendarPlus,
+  Check,
+  X,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
 import { Link } from "wouter";
 import { 
   AreaChart, 
@@ -29,7 +37,12 @@ import {
   Bar,
   Legend
 } from "recharts";
-import type { Cliente, Immobile, Richiesta, Appuntamento, Matching, WhatsappConversation } from "@shared/schema";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import type { Cliente, Immobile, Richiesta, Appuntamento, Matching, WhatsappConversation, Task, Comunicazione } from "@shared/schema";
 
 interface TrendData {
   nome: string;
@@ -646,6 +659,351 @@ function MatchingSuggestionsCard({
   );
 }
 
+interface MessaggioRecente extends Comunicazione {
+  clienteNome?: string | null;
+}
+
+function MessaggiRecentiCard({ loading }: { loading?: boolean }) {
+  const { toast } = useToast();
+  const [showTaskDialog, setShowTaskDialog] = useState(false);
+  const [selectedMessaggio, setSelectedMessaggio] = useState<MessaggioRecente | null>(null);
+  const [taskTitolo, setTaskTitolo] = useState("");
+  const [taskScadenza, setTaskScadenza] = useState("");
+  const [syncCalendar, setSyncCalendar] = useState(true);
+
+  const { data: messaggi = [], isLoading } = useQuery<MessaggioRecente[]>({
+    queryKey: ["/api/dashboard/messaggi-recenti"],
+  });
+
+  const createTaskMutation = useMutation({
+    mutationFn: async (data: { titolo: string; descrizione?: string; scadenza?: string; comunicazioneId?: number; clienteId?: number; syncCalendar?: boolean }) => {
+      return apiRequest("POST", "/api/tasks", data);
+    },
+    onSuccess: () => {
+      toast({ title: "Task creato", description: "Il promemoria è stato creato" });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+      setShowTaskDialog(false);
+      setTaskTitolo("");
+      setTaskScadenza("");
+      setSelectedMessaggio(null);
+    },
+    onError: () => {
+      toast({ title: "Errore", description: "Impossibile creare il task", variant: "destructive" });
+    },
+  });
+
+  const handleCreateTask = () => {
+    if (!taskTitolo.trim()) return;
+    createTaskMutation.mutate({
+      titolo: taskTitolo,
+      descrizione: selectedMessaggio ? `Da messaggio: ${selectedMessaggio.testo?.substring(0, 100)}...` : undefined,
+      scadenza: taskScadenza ? new Date(taskScadenza).toISOString() : undefined,
+      comunicazioneId: selectedMessaggio?.id,
+      clienteId: selectedMessaggio?.clienteId || undefined,
+      syncCalendar: syncCalendar && !!taskScadenza,
+    });
+  };
+
+  const openTaskDialog = (msg: MessaggioRecente) => {
+    setSelectedMessaggio(msg);
+    setTaskTitolo(`Rispondere a ${msg.clienteNome || "cliente"}`);
+    setShowTaskDialog(true);
+  };
+
+  if (loading || isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-6 w-40" />
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-14 w-full" />
+          ))}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const formatDate = (date: string | Date | null) => {
+    if (!date) return "";
+    const d = new Date(date);
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    
+    if (diffMins < 60) return `${diffMins}m fa`;
+    if (diffHours < 24) return `${diffHours}h fa`;
+    if (diffDays < 7) return `${diffDays}g fa`;
+    return d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' });
+  };
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-4">
+        <CardTitle className="flex items-center gap-2">
+          <MessageCircle className="h-5 w-5 text-primary" />
+          Messaggi Recenti
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {messaggi.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <Mail className="h-12 w-12 text-muted-foreground/50 mb-3" />
+            <p className="text-sm text-muted-foreground">Nessun messaggio recente</p>
+          </div>
+        ) : (
+          messaggi.slice(0, 5).map((msg) => (
+            <div key={msg.id} className="flex items-center gap-3 rounded-md border p-3">
+              <div className={`flex h-9 w-9 items-center justify-center rounded-full ${msg.tipo === "whatsapp" ? "bg-green-500/10 text-green-600" : "bg-blue-500/10 text-blue-600"}`}>
+                {msg.tipo === "whatsapp" ? <MessageCircle className="h-4 w-4" /> : <Mail className="h-4 w-4" />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-medium truncate">
+                    {msg.clienteNome || "Cliente sconosciuto"}
+                  </p>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">
+                    {formatDate(msg.dataOra)}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground truncate">
+                  {msg.testo?.substring(0, 50)}...
+                </p>
+              </div>
+              <Button 
+                size="icon" 
+                variant="ghost" 
+                onClick={() => openTaskDialog(msg)}
+                data-testid={`button-create-task-${msg.id}`}
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+          ))
+        )}
+      </CardContent>
+
+      <Dialog open={showTaskDialog} onOpenChange={setShowTaskDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Crea Promemoria</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label>Titolo</Label>
+              <Input 
+                value={taskTitolo} 
+                onChange={(e) => setTaskTitolo(e.target.value)}
+                placeholder="Es: Richiamare cliente"
+                data-testid="input-task-title"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Scadenza (opzionale)</Label>
+              <Input 
+                type="datetime-local" 
+                value={taskScadenza} 
+                onChange={(e) => setTaskScadenza(e.target.value)}
+                data-testid="input-task-scadenza"
+              />
+            </div>
+            {taskScadenza && (
+              <div className="flex items-center gap-2">
+                <input 
+                  type="checkbox" 
+                  id="syncCalendar" 
+                  checked={syncCalendar} 
+                  onChange={(e) => setSyncCalendar(e.target.checked)}
+                  className="h-4 w-4"
+                />
+                <Label htmlFor="syncCalendar" className="text-sm cursor-pointer flex items-center gap-1">
+                  <CalendarPlus className="h-4 w-4" />
+                  Sincronizza con Google Calendar
+                </Label>
+              </div>
+            )}
+            <div className="flex gap-2 justify-end pt-2">
+              <Button variant="outline" onClick={() => setShowTaskDialog(false)}>
+                Annulla
+              </Button>
+              <Button onClick={handleCreateTask} disabled={!taskTitolo.trim() || createTaskMutation.isPending}>
+                {createTaskMutation.isPending ? "Creazione..." : "Crea Task"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </Card>
+  );
+}
+
+function TasksCard({ loading }: { loading?: boolean }) {
+  const { toast } = useToast();
+  const [showNewTask, setShowNewTask] = useState(false);
+  const [newTaskTitolo, setNewTaskTitolo] = useState("");
+  const [newTaskScadenza, setNewTaskScadenza] = useState("");
+  const [syncCalendar, setSyncCalendar] = useState(true);
+
+  const { data: tasks = [], isLoading } = useQuery<Task[]>({
+    queryKey: ["/api/tasks"],
+  });
+
+  const createTaskMutation = useMutation({
+    mutationFn: async (data: { titolo: string; scadenza?: string; syncCalendar?: boolean }) => {
+      return apiRequest("POST", "/api/tasks", data);
+    },
+    onSuccess: () => {
+      toast({ title: "Task creato" });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+      setShowNewTask(false);
+      setNewTaskTitolo("");
+      setNewTaskScadenza("");
+    },
+  });
+
+  const completeTaskMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return apiRequest("PATCH", `/api/tasks/${id}`, { stato: "completato" });
+    },
+    onSuccess: () => {
+      toast({ title: "Task completato" });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+    },
+  });
+
+  if (loading || isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-6 w-32" />
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-12 w-full" />
+          ))}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const tasksDaFare = tasks.filter(t => t.stato === "da_fare").slice(0, 5);
+
+  const formatScadenza = (scadenza: string | Date | null) => {
+    if (!scadenza) return null;
+    const d = new Date(scadenza);
+    const now = new Date();
+    const diffMs = d.getTime() - now.getTime();
+    const diffDays = Math.floor(diffMs / 86400000);
+    
+    if (diffDays < 0) return { text: "Scaduto", color: "text-red-600" };
+    if (diffDays === 0) return { text: "Oggi", color: "text-amber-600" };
+    if (diffDays === 1) return { text: "Domani", color: "text-amber-600" };
+    return { text: d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }), color: "text-muted-foreground" };
+  };
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-4">
+        <CardTitle className="flex items-center gap-2">
+          <ListTodo className="h-5 w-5 text-primary" />
+          I Miei Task
+        </CardTitle>
+        <Button size="sm" variant="ghost" onClick={() => setShowNewTask(true)} data-testid="button-new-task">
+          <Plus className="h-4 w-4" />
+        </Button>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {showNewTask && (
+          <div className="flex flex-col gap-2 p-3 border rounded-md bg-muted/30">
+            <Input 
+              value={newTaskTitolo}
+              onChange={(e) => setNewTaskTitolo(e.target.value)}
+              placeholder="Cosa devi fare?"
+              autoFocus
+              data-testid="input-new-task"
+            />
+            <div className="flex gap-2 items-center">
+              <Input 
+                type="datetime-local"
+                value={newTaskScadenza}
+                onChange={(e) => setNewTaskScadenza(e.target.value)}
+                className="flex-1"
+                data-testid="input-new-task-scadenza"
+              />
+              {newTaskScadenza && (
+                <label className="flex items-center gap-1 text-xs cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={syncCalendar} 
+                    onChange={(e) => setSyncCalendar(e.target.checked)}
+                    className="h-3 w-3"
+                  />
+                  <CalendarPlus className="h-3 w-3" />
+                </label>
+              )}
+            </div>
+            <div className="flex gap-1 justify-end">
+              <Button size="sm" variant="ghost" onClick={() => { setShowNewTask(false); setNewTaskTitolo(""); setNewTaskScadenza(""); }}>
+                <X className="h-4 w-4" />
+              </Button>
+              <Button 
+                size="sm" 
+                disabled={!newTaskTitolo.trim() || createTaskMutation.isPending}
+                onClick={() => createTaskMutation.mutate({ 
+                  titolo: newTaskTitolo, 
+                  scadenza: newTaskScadenza ? new Date(newTaskScadenza).toISOString() : undefined,
+                  syncCalendar: syncCalendar && !!newTaskScadenza
+                })}
+              >
+                <Check className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {tasksDaFare.length === 0 && !showNewTask ? (
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <CheckCircle2 className="h-12 w-12 text-muted-foreground/50 mb-3" />
+            <p className="text-sm text-muted-foreground">Nessun task in sospeso</p>
+            <Button variant="outline" size="sm" className="mt-3" onClick={() => setShowNewTask(true)}>
+              Nuovo Task
+            </Button>
+          </div>
+        ) : (
+          tasksDaFare.map((task) => {
+            const scadenzaInfo = formatScadenza(task.scadenza);
+            return (
+              <div key={task.id} className="flex items-center gap-3 rounded-md border p-3">
+                <Button 
+                  size="icon" 
+                  variant="ghost" 
+                  className="h-6 w-6 rounded-full border"
+                  onClick={() => completeTaskMutation.mutate(task.id)}
+                  data-testid={`button-complete-task-${task.id}`}
+                >
+                  <Check className="h-3 w-3 opacity-0 hover:opacity-100" />
+                </Button>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{task.titolo}</p>
+                  {scadenzaInfo && (
+                    <p className={`text-xs ${scadenzaInfo.color}`}>{scadenzaInfo.text}</p>
+                  )}
+                </div>
+                {task.calendarSyncStatus === "synced" && (
+                  <CalendarPlus className="h-4 w-4 text-green-500" />
+                )}
+              </div>
+            );
+          })
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
     queryKey: ["/api/dashboard/stats"],
@@ -721,6 +1079,11 @@ export default function Dashboard() {
           immobili={immobili} 
           loading={loading} 
         />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <MessaggiRecentiCard loading={loading} />
+        <TasksCard loading={loading} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">

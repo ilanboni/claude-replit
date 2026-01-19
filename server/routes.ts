@@ -446,6 +446,138 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
     }
   });
 
+  // ============ TASKS (Promemoria con sync Calendar) ============
+  app.get("/api/tasks", async (req, res) => {
+    try {
+      const stato = req.query.stato as string | undefined;
+      const tasks = await storage.getTasks(stato);
+      res.json(tasks);
+    } catch (error) {
+      console.error("Get tasks error:", error);
+      res.status(500).json({ error: "Errore nel recupero dei task" });
+    }
+  });
+
+  app.get("/api/tasks/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const task = await storage.getTask(id);
+      if (!task) {
+        return res.status(404).json({ error: "Task non trovato" });
+      }
+      res.json(task);
+    } catch (error) {
+      console.error("Get task error:", error);
+      res.status(500).json({ error: "Errore nel recupero del task" });
+    }
+  });
+
+  app.post("/api/tasks", async (req, res) => {
+    try {
+      const { syncCalendar, ...taskData } = req.body;
+      const task = await storage.createTask(taskData);
+      
+      // Se syncCalendar è true e c'è una scadenza, crea evento calendario
+      if (syncCalendar && task.scadenza) {
+        try {
+          const { createCalendarEvent, getOAuthClient } = await import("./calendar-service");
+          const oauthClient = await getOAuthClient();
+          
+          if (oauthClient) {
+            const endDate = new Date(task.scadenza);
+            endDate.setHours(endDate.getHours() + 1);
+            
+            const calendarEvent = await createCalendarEvent(oauthClient, {
+              summary: `[Task] ${task.titolo}`,
+              description: task.descrizione || "",
+              start: { dateTime: new Date(task.scadenza).toISOString() },
+              end: { dateTime: endDate.toISOString() },
+            });
+            
+            if (calendarEvent?.id) {
+              await storage.updateTask(task.id, {
+                calendarEventId: calendarEvent.id,
+                calendarSyncStatus: "synced"
+              });
+              task.calendarEventId = calendarEvent.id;
+              task.calendarSyncStatus = "synced";
+            }
+          }
+        } catch (calendarError) {
+          console.error("Calendar sync error:", calendarError);
+          await storage.updateTask(task.id, { calendarSyncStatus: "failed" });
+        }
+      }
+      
+      res.status(201).json(task);
+    } catch (error) {
+      console.error("Create task error:", error);
+      res.status(500).json({ error: "Errore nella creazione del task" });
+    }
+  });
+
+  app.patch("/api/tasks/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { syncCalendar, ...updateData } = req.body;
+      
+      // Se il task viene completato, aggiungi completatoAt
+      if (updateData.stato === "completato") {
+        updateData.completatoAt = new Date();
+      }
+      
+      const task = await storage.updateTask(id, updateData);
+      res.json(task);
+    } catch (error) {
+      console.error("Update task error:", error);
+      res.status(500).json({ error: "Errore nell'aggiornamento del task" });
+    }
+  });
+
+  app.delete("/api/tasks/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteTask(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Delete task error:", error);
+      res.status(500).json({ error: "Errore nell'eliminazione del task" });
+    }
+  });
+
+  // Endpoint per ottenere messaggi recenti (WhatsApp + Email) per dashboard
+  app.get("/api/dashboard/messaggi-recenti", async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 10;
+      
+      // Ottieni le ultime comunicazioni (email e whatsapp)
+      const comunicazioni = await storage.getComunicazioni();
+      const recentComunicazioni = comunicazioni
+        .filter(c => c.tipo === "email" || c.tipo === "whatsapp")
+        .slice(0, limit);
+      
+      // Arricchisci con dati cliente
+      const messaggiArricchiti = await Promise.all(
+        recentComunicazioni.map(async (com) => {
+          let clienteNome = null;
+          if (com.clienteId) {
+            const cliente = await storage.getCliente(com.clienteId);
+            clienteNome = cliente ? `${cliente.nome || ""} ${cliente.cognome || ""}`.trim() : null;
+          }
+          return {
+            ...com,
+            clienteNome
+          };
+        })
+      );
+      
+      res.json(messaggiArricchiti);
+    } catch (error) {
+      console.error("Get messaggi recenti error:", error);
+      res.status(500).json({ error: "Errore nel recupero dei messaggi recenti" });
+    }
+  });
+
   app.post("/api/notifiche/import-email", async (req, res) => {
     try {
       const { manualImportEmails } = await import("./email-import-worker");
