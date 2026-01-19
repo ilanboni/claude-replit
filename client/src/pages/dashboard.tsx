@@ -18,6 +18,8 @@ import {
   CalendarPlus,
   Check,
   X,
+  Trash2,
+  Pencil,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -844,10 +846,13 @@ function MessaggiRecentiCard({ loading }: { loading?: boolean }) {
 function TasksCard({ loading }: { loading?: boolean }) {
   const { toast } = useToast();
   const [showNewTask, setShowNewTask] = useState(false);
+  const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
   const [newTaskTitolo, setNewTaskTitolo] = useState("");
   const [newTaskScadenza, setNewTaskScadenza] = useState("");
   const [newTaskClienteId, setNewTaskClienteId] = useState<string>("");
   const [newTaskImmobileId, setNewTaskImmobileId] = useState<string>("");
+  const [manualClienteName, setManualClienteName] = useState("");
+  const [manualImmobileName, setManualImmobileName] = useState("");
   const [syncCalendar, setSyncCalendar] = useState(true);
 
   const { data: tasks = [], isLoading } = useQuery<Task[]>({
@@ -896,6 +901,44 @@ function TasksCard({ loading }: { loading?: boolean }) {
       queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
     },
   });
+
+  const deleteTaskMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return apiRequest("DELETE", `/api/tasks/${id}`);
+    },
+    onSuccess: () => {
+      toast({ title: "Task eliminato" });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+    },
+  });
+
+  const updateTaskMutation = useMutation({
+    mutationFn: async ({ id, ...data }: { id: number; titolo?: string; scadenza?: string | null }) => {
+      return apiRequest("PATCH", `/api/tasks/${id}`, data);
+    },
+    onSuccess: () => {
+      toast({ title: "Task aggiornato" });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+      setEditingTaskId(null);
+      resetForm();
+    },
+  });
+
+  const resetForm = () => {
+    setNewTaskTitolo("");
+    setNewTaskScadenza("");
+    setNewTaskClienteId("");
+    setNewTaskImmobileId("");
+    setManualClienteName("");
+    setManualImmobileName("");
+  };
+
+  const startEditTask = (task: Task) => {
+    setEditingTaskId(task.id);
+    setNewTaskTitolo(task.titolo);
+    setNewTaskScadenza(task.scadenza ? new Date(task.scadenza).toISOString().slice(0, 16) : "");
+    setShowNewTask(false);
+  };
 
   if (loading || isLoading) {
     return (
@@ -969,32 +1012,56 @@ function TasksCard({ loading }: { loading?: boolean }) {
               )}
             </div>
             <div className="flex gap-2">
-              <Select value={newTaskClienteId} onValueChange={setNewTaskClienteId}>
-                <SelectTrigger className="flex-1" data-testid="select-task-cliente">
-                  <SelectValue placeholder="Cliente (opz.)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Nessun cliente</SelectItem>
-                  {clienti.slice(0, 50).map(c => (
-                    <SelectItem key={c.id} value={String(c.id)}>
-                      {c.nome} {c.cognome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={newTaskImmobileId} onValueChange={setNewTaskImmobileId}>
-                <SelectTrigger className="flex-1" data-testid="select-task-immobile">
-                  <SelectValue placeholder="Immobile (opz.)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Nessun immobile</SelectItem>
-                  {tuttiImmobili.slice(0, 50).map(i => (
-                    <SelectItem key={`${i.tipo}-${i.id}`} value={`${i.tipo}-${i.id}`}>
-                      {i.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex-1">
+                {newTaskClienteId === "manual" ? (
+                  <Input 
+                    value={manualClienteName}
+                    onChange={(e) => setManualClienteName(e.target.value)}
+                    placeholder="Nome cliente..."
+                    data-testid="input-task-cliente-manual"
+                  />
+                ) : (
+                  <Select value={newTaskClienteId} onValueChange={setNewTaskClienteId}>
+                    <SelectTrigger data-testid="select-task-cliente">
+                      <SelectValue placeholder="Cliente (opz.)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nessun cliente</SelectItem>
+                      <SelectItem value="manual">Inserisci manuale...</SelectItem>
+                      {clienti.slice(0, 50).map(c => (
+                        <SelectItem key={c.id} value={String(c.id)}>
+                          {c.nome} {c.cognome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+              <div className="flex-1">
+                {newTaskImmobileId === "manual" ? (
+                  <Input 
+                    value={manualImmobileName}
+                    onChange={(e) => setManualImmobileName(e.target.value)}
+                    placeholder="Nome immobile..."
+                    data-testid="input-task-immobile-manual"
+                  />
+                ) : (
+                  <Select value={newTaskImmobileId} onValueChange={setNewTaskImmobileId}>
+                    <SelectTrigger data-testid="select-task-immobile">
+                      <SelectValue placeholder="Immobile (opz.)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nessun immobile</SelectItem>
+                      <SelectItem value="manual">Inserisci manuale...</SelectItem>
+                      {tuttiImmobili.slice(0, 50).map(i => (
+                        <SelectItem key={`${i.tipo}-${i.id}`} value={`${i.tipo}-${i.id}`}>
+                          {i.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
             </div>
             <div className="flex gap-1 justify-end">
               <Button size="sm" variant="ghost" onClick={() => { setShowNewTask(false); setNewTaskTitolo(""); setNewTaskScadenza(""); setNewTaskClienteId(""); setNewTaskImmobileId(""); }}>
@@ -1032,8 +1099,43 @@ function TasksCard({ loading }: { loading?: boolean }) {
         ) : (
           tasksDaFare.map((task) => {
             const scadenzaInfo = formatScadenza(task.scadenza);
+            
+            if (editingTaskId === task.id) {
+              return (
+                <div key={task.id} className="flex flex-col gap-2 p-3 border rounded-md bg-muted/30">
+                  <Input 
+                    value={newTaskTitolo}
+                    onChange={(e) => setNewTaskTitolo(e.target.value)}
+                    placeholder="Titolo task"
+                    autoFocus
+                  />
+                  <Input 
+                    type="datetime-local"
+                    value={newTaskScadenza}
+                    onChange={(e) => setNewTaskScadenza(e.target.value)}
+                  />
+                  <div className="flex gap-1 justify-end">
+                    <Button size="sm" variant="ghost" onClick={() => { setEditingTaskId(null); resetForm(); }}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      disabled={!newTaskTitolo.trim() || updateTaskMutation.isPending}
+                      onClick={() => updateTaskMutation.mutate({
+                        id: task.id,
+                        titolo: newTaskTitolo,
+                        scadenza: newTaskScadenza ? new Date(newTaskScadenza).toISOString() : null
+                      })}
+                    >
+                      <Check className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              );
+            }
+            
             return (
-              <div key={task.id} className="flex items-center gap-3 rounded-md border p-3">
+              <div key={task.id} className="flex items-center gap-3 rounded-md border p-3 group">
                 <Button 
                   size="icon" 
                   variant="ghost" 
@@ -1048,6 +1150,26 @@ function TasksCard({ loading }: { loading?: boolean }) {
                   {scadenzaInfo && (
                     <p className={`text-xs ${scadenzaInfo.color}`}>{scadenzaInfo.text}</p>
                   )}
+                </div>
+                <div className="flex gap-1">
+                  <Button 
+                    size="icon" 
+                    variant="ghost" 
+                    className="h-6 w-6"
+                    onClick={() => startEditTask(task)}
+                    data-testid={`button-edit-task-${task.id}`}
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </Button>
+                  <Button 
+                    size="icon" 
+                    variant="ghost" 
+                    className="h-6 w-6 text-destructive hover:text-destructive"
+                    onClick={() => deleteTaskMutation.mutate(task.id)}
+                    data-testid={`button-delete-task-${task.id}`}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
                 </div>
                 {task.calendarSyncStatus === "synced" && (
                   <CalendarPlus className="h-4 w-4 text-green-500" />
