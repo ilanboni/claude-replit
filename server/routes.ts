@@ -3030,9 +3030,17 @@ ${analysis.areeSensibili.length > 0 ? analysis.areeSensibili.map(a => `• ${a}`
       } = await import("./bot-config");
       
       // Build mirroring context using the new schema
-      const testoAnnuncio = immobile.descrizione || immobile.titolo || 'Nessun testo disponibile';
+      // IMPORTANTE: Se la descrizione è vuota o generica, usa il titolo
+      let testoAnnuncio = immobile.descrizione || '';
+      const descrizioneGenerica = testoAnnuncio.toLowerCase().includes('aggiungi una nota') || 
+                                   testoAnnuncio.toLowerCase().includes('modifica') ||
+                                   testoAnnuncio.trim().length < 50;
       
-      // Determine tipo_unita from camere count
+      if (descrizioneGenerica) {
+        testoAnnuncio = immobile.titolo || 'Immobile in vendita';
+      }
+      
+      // Determine tipo_unita from camere count OR from title
       let tipoUnita: string | null = null;
       if (immobile.camere) {
         const camereNum = Number(immobile.camere);
@@ -3040,15 +3048,26 @@ ${analysis.areeSensibili.length > 0 ? analysis.areeSensibili.map(a => `• ${a}`
         else if (camereNum === 2) tipoUnita = "bilocale";
         else if (camereNum === 3) tipoUnita = "trilocale";
         else if (camereNum >= 4) tipoUnita = "quadrilocale";
+      } else {
+        // Extract from title if not in camere
+        const titoloLower = (immobile.titolo || '').toLowerCase();
+        if (titoloLower.includes('monolocale')) tipoUnita = "monolocale";
+        else if (titoloLower.includes('bilocale')) tipoUnita = "bilocale";
+        else if (titoloLower.includes('trilocale')) tipoUnita = "trilocale";
+        else if (titoloLower.includes('quadrilocale') || titoloLower.includes('4 locali')) tipoUnita = "quadrilocale";
+        else if (titoloLower.includes('attico')) tipoUnita = "attico";
+        else if (titoloLower.includes('loft')) tipoUnita = "loft";
       }
       
-      // Determine zona_o_via
-      const zonaOVia = immobile.zona || immobile.indirizzo || null;
+      // Determine zona_o_via - prefer indirizzo if complete
+      const zonaOVia = immobile.indirizzo || immobile.zona || null;
       
-      // Build context message for AI
+      // Build context message for AI con più dati strutturati
       let context = `Testo annuncio:\n"${testoAnnuncio}"`;
       if (tipoUnita) context += `\n\nTipo unità: ${tipoUnita}`;
-      if (zonaOVia) context += `\nZona o via: ${zonaOVia}`;
+      if (zonaOVia && !zonaOVia.toLowerCase().includes('mappa')) context += `\nIndirizzo: ${zonaOVia}`;
+      if (immobile.mq) context += `\nMetratura: ${immobile.mq} mq`;
+      if (immobile.prezzo) context += `\nPrezzo: €${Number(immobile.prezzo).toLocaleString('it-IT')}`;
       
       // Add additional extracted fields for richer context
       const campiEstratti: string[] = [];
