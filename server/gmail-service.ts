@@ -468,10 +468,14 @@ export async function searchFormResponseEmails(): Promise<EmailMessage[]> {
     'from:immobiliare.it subject:risposta',
     'from:idealista.it subject:risposta',
     'from:casa.it subject:risposta',
+    // Nuovo pattern: "Nuovo messaggio di XXX per l'annuncio" (risposta acquisizione Immobiliare.it)
+    'from:immobiliare.it subject:"Nuovo messaggio di"',
+    'from:idealista.it subject:"nuovo messaggio"',
+    'from:immobiliare.it subject:"messaggio per l\'annuncio"',
   ];
   
   const query = responseQueries.join(' OR ');
-  return getEmailsByQuery(query, 30);
+  return getEmailsByQuery(query, 50);
 }
 
 export interface ParsedFormResponse {
@@ -508,34 +512,54 @@ export function parseFormResponseEmail(email: EmailMessage): ParsedFormResponse 
   const senderEmail = emails.find(e => !excludedDomains.some(d => e.includes(d)));
   const senderPhone = phones[0]?.replace(/[\s.-]/g, '');
   
-  // Extract sender name patterns
+  // Extract sender name patterns - first try from subject line
   let mittente: string | undefined;
-  const namePatterns = [
-    /(?:Da|From|Mittente|Proprietario)[:\s]+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\s]+?)(?:\n|<|Email|Telefono)/i,
-    /(?:Nome)[:\s]+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\s]+)/i,
-  ];
   
-  for (const pattern of namePatterns) {
-    const match = body.match(pattern);
-    if (match) {
-      mittente = match[1].trim();
-      break;
+  // Pattern per "Nuovo messaggio di XXX per l'annuncio" (Immobiliare.it)
+  const subjectNameMatch = subject.match(/(?:Nuovo messaggio di|Messaggio da)\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\s]+?)(?:\s+per|\s+riguardo|$)/i);
+  if (subjectNameMatch) {
+    mittente = subjectNameMatch[1].trim();
+  }
+  
+  // Se non trovato nell'oggetto, cerca nel corpo
+  if (!mittente) {
+    const namePatterns = [
+      /(?:Da|From|Mittente|Proprietario)[:\s]+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\s]+?)(?:\n|<|Email|Telefono)/i,
+      /(?:Nome)[:\s]+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\s]+)/i,
+    ];
+    
+    for (const pattern of namePatterns) {
+      const match = body.match(pattern);
+      if (match) {
+        mittente = match[1].trim();
+        break;
+      }
     }
   }
   
-  // Extract address from body
+  // Extract address from body or subject
   let indirizzoImmobile: string | undefined;
-  const addressPatterns = [
-    /(?:Indirizzo|Via|Piazza|Corso|Viale)[:\s]+([A-Za-zÀ-ÿ0-9\s,.-]+?)(?:\n|Prezzo|Mq|$)/i,
-    /(?:Immobile in)[:\s]+([A-Za-zÀ-ÿ0-9\s,.-]+?)(?:\n|$)/i,
-    /(?:Annuncio)[:\s]+"?([^"]+)"?/i,
-  ];
   
-  for (const pattern of addressPatterns) {
-    const match = body.match(pattern);
-    if (match) {
-      indirizzoImmobile = match[1].trim();
-      break;
+  // Prima prova ad estrarre dall'oggetto (es: "per l'annuncio: Appartamento in vendita a Milano")
+  const subjectAddressMatch = subject.match(/per l['']annuncio[:\s]+(.+?)$/i);
+  if (subjectAddressMatch) {
+    indirizzoImmobile = subjectAddressMatch[1].trim();
+  }
+  
+  // Poi cerca nel corpo
+  if (!indirizzoImmobile) {
+    const addressPatterns = [
+      /(?:Indirizzo|Via|Piazza|Corso|Viale)[:\s]+([A-Za-zÀ-ÿ0-9\s,.-]+?)(?:\n|Prezzo|Mq|$)/i,
+      /(?:Immobile in)[:\s]+([A-Za-zÀ-ÿ0-9\s,.-]+?)(?:\n|$)/i,
+      /(?:Annuncio)[:\s]+"?([^"]+)"?/i,
+    ];
+  
+    for (const pattern of addressPatterns) {
+      const match = body.match(pattern);
+      if (match) {
+        indirizzoImmobile = match[1].trim();
+        break;
+      }
     }
   }
   

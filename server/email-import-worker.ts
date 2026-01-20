@@ -1,8 +1,139 @@
 import { storage } from "./storage";
-import { searchPortalEmails, parsePortalEmail, markAsRead, isGmailConfigured, searchFormResponseEmails, parseFormResponseEmail } from "./gmail-service";
+import { searchPortalEmails, parsePortalEmail, markAsRead, isGmailConfigured, searchFormResponseEmails, parseFormResponseEmail, EmailMessage } from "./gmail-service";
 
 let isRunning = false;
 let intervalId: NodeJS.Timeout | null = null;
+
+// Gestisce le risposte alle email di acquisizione ("Nuovo messaggio di XXX per l'annuncio")
+async function handleAcquisitionResponse(email: EmailMessage): Promise<boolean> {
+  const subject = email.subject || '';
+  const body = email.body || email.snippet || '';
+  
+  // Estrai nome mittente dall'oggetto "Nuovo messaggio di XXX per l'annuncio"
+  const nameMatch = subject.match(/Nuovo messaggio di\s+([^]+?)\s+per l['']annuncio/i);
+  const mittenteNome = nameMatch ? nameMatch[1].trim() : null;
+  
+  // Estrai titolo annuncio dall'oggetto "per l'annuncio: TITOLO"
+  const titoloMatch = subject.match(/per l['']annuncio[:\s]+(.+)$/i);
+  const titoloAnnuncio = titoloMatch ? titoloMatch[1].trim() : null;
+  
+  console.log(`[EmailImportWorker] Acquisition response from "${mittenteNome}" for "${titoloAnnuncio}"`);
+  
+  // Cerca l'immobile esterno corrispondente
+  let immobileEsterno = null;
+  if (titoloAnnuncio) {
+    const allEsterni = await storage.getImmobiliEsterni();
+    const searchText = titoloAnnuncio.toLowerCase().replace(/[,.\-\s]+/g, ' ');
+    
+    immobileEsterno = allEsterni.find(ie => {
+      // Match con titolo
+      if (ie.titolo) {
+        const titolo = ie.titolo.toLowerCase().replace(/[,.\-\s]+/g, ' ');
+        const searchWords = searchText.split(' ').filter(w => w.length > 2);
+        const matchingWords = searchWords.filter(w => titolo.includes(w));
+        if (matchingWords.length >= 2) return true;
+        if (titolo.includes(searchText) || searchText.includes(titolo)) return true;
+      }
+      // Match con indirizzo
+      if (ie.indirizzo) {
+        const addr = ie.indirizzo.toLowerCase().replace(/[,.\-\s]+/g, ' ');
+        if (searchText.includes(addr) || addr.includes(searchText)) return true;
+      }
+      return false;
+    });
+    
+    if (immobileEsterno) {
+      console.log(`[EmailImportWorker] Matched external property: ${immobileEsterno.titolo} (ID: ${immobileEsterno.id})`);
+    }
+  }
+  
+  // Estrai messaggio dal corpo
+  let testoRisposta = '';
+  const messagePatterns = [
+    /(?:Messaggio|Risposta)[:\s]*([\s\S]*?)(?:Rispondi|Contatta|Vai all|Il Team|$)/i,
+    /(?:ha scritto)[:\s]*([\s\S]*?)(?:Rispondi|Contatta|$)/i,
+  ];
+  
+  for (const pattern of messagePatterns) {
+    const match = body.match(pattern);
+    if (match && match[1]?.trim()) {
+      testoRisposta = match[1].trim().slice(0, 1000);
+      break;
+    }
+  }
+  if (!testoRisposta) {
+    testoRisposta = email.snippet.slice(0, 500);
+  }
+  
+  // Trova o aggiorna cliente
+  let cliente = null;
+  
+  if (immobileEsterno?.clienteId) {
+    cliente = await storage.getCliente(immobileEsterno.clienteId);
+    
+    // Aggiorna nome se generico
+    if (cliente && mittenteNome) {
+      const nomeAttuale = `${cliente.nome || ""} ${cliente.cognome || ""}`.trim().toLowerCase();
+      const isNomeGenerico = nomeAttuale.startsWith("proprietario") || 
+                             nomeAttuale === "" ||
+                             nomeAttuale.includes("via ") ||
+                             nomeAttuale.includes("viale ");
+      
+      if (isNomeGenerico) {
+        const parti = mittenteNome.split(/\s+/);
+        const nome = parti[0] || null;
+        const cognome = parti.slice(1).join(" ") || null;
+        
+        if (nome) {
+          await storage.updateCliente(cliente.id, { nome, cognome });
+          console.log(`[EmailImportWorker] Updated client name to "${nome} ${cognome}"`);
+          cliente = await storage.getCliente(cliente.id);
+        }
+      }
+    }
+  }
+  
+  if (immobileEsterno) {
+    // Aggiorna immobile esterno: risposta ricevuta
+    await storage.updateImmobileEsterno(immobileEsterno.id, {
+      rispostaRicevuta: true,
+      statoContatto: 'interessato',
+    });
+    
+    if (cliente) {
+      // Crea comunicazione
+      await storage.createComunicazione({
+        clienteId: cliente.id,
+        immobileEsternoId: immobileEsterno.id,
+        canale: 'email',
+        tipo: 'risposta',
+        testo: `Risposta da Immobiliare.it: ${testoRisposta}`,
+      });
+    }
+    
+    // Crea notifica
+    await storage.createNotifica({
+      tipo: 'risposta_form',
+      titolo: `Risposta ricevuta da Immobiliare.it`,
+      messaggio: `${mittenteNome || 'Il proprietario'} ha risposto al tuo messaggio per ${immobileEsterno.indirizzo || immobileEsterno.titolo}`,
+      clienteId: cliente?.id || immobileEsterno.clienteId || null,
+      emailId: email.id,
+      priorita: 1,
+    });
+  } else {
+    // Immobile non trovato - crea notifica generica
+    await storage.createNotifica({
+      tipo: 'risposta_form',
+      titolo: `Risposta da Immobiliare.it`,
+      messaggio: `${mittenteNome || 'Qualcuno'} ha risposto: ${testoRisposta.slice(0, 200)}`,
+      emailId: email.id,
+      priorita: 2,
+    });
+  }
+  
+  await markAsRead(email.id);
+  return true;
+}
 
 async function importPortalEmails(): Promise<{ imported: number; errors: string[] }> {
   if (!await isGmailConfigured()) {
@@ -21,6 +152,22 @@ async function importPortalEmails(): Promise<{ imported: number; errors: string[
       try {
         const existing = await storage.getNotificaByEmailId(email.id);
         if (existing) {
+          continue;
+        }
+
+        // Distingui tra richiesta visita e risposta acquisizione
+        // "Nuovo messaggio di XXX per l'annuncio" = risposta a nostra email di acquisizione
+        // "Nuovo contatto per l'annuncio XXX" = richiesta visita su nostro immobile
+        const isRispostaAcquisizione = email.subject.includes("Nuovo messaggio di") && 
+                                        email.subject.includes("per l'annuncio");
+        
+        if (isRispostaAcquisizione) {
+          // Gestisci come risposta acquisizione
+          const result = await handleAcquisitionResponse(email);
+          if (result) {
+            imported++;
+            console.log(`[EmailImportWorker] Imported acquisition response from ${email.subject}`);
+          }
           continue;
         }
 
@@ -231,15 +378,34 @@ async function importFormResponses(): Promise<{ imported: number; errors: string
           immobileEsterno = await storage.getImmobileEsternoByUrl(parsed.urlAnnuncio);
         }
         
-        // Match by address (fuzzy)
+        // Match by address or title (fuzzy)
         if (!immobileEsterno && parsed.indirizzoImmobile) {
           const allEsterni = await storage.getImmobiliEsterni();
+          const searchText = parsed.indirizzoImmobile.toLowerCase().replace(/[,.\-\s]+/g, ' ');
+          
           immobileEsterno = allEsterni.find(ie => {
-            if (!ie.indirizzo) return false;
-            const addr1 = ie.indirizzo.toLowerCase().replace(/[,.\-\s]+/g, ' ');
-            const addr2 = parsed.indirizzoImmobile!.toLowerCase().replace(/[,.\-\s]+/g, ' ');
-            return addr1.includes(addr2) || addr2.includes(addr1);
+            // Match con indirizzo
+            if (ie.indirizzo) {
+              const addr1 = ie.indirizzo.toLowerCase().replace(/[,.\-\s]+/g, ' ');
+              if (addr1.includes(searchText) || searchText.includes(addr1)) return true;
+            }
+            // Match con titolo dell'annuncio (es: "Quadrilocale via Francesco Viganò 8")
+            if (ie.titolo) {
+              const titolo = ie.titolo.toLowerCase().replace(/[,.\-\s]+/g, ' ');
+              // Confronto più flessibile: cerca parole chiave in comune
+              const searchWords = searchText.split(' ').filter(w => w.length > 2);
+              const matchingWords = searchWords.filter(w => titolo.includes(w));
+              // Se almeno 2 parole corrispondono (es: "quadrilocale" e "viganò"), è un match
+              if (matchingWords.length >= 2) return true;
+              // Oppure se il titolo contiene la stringa di ricerca o viceversa
+              if (titolo.includes(searchText) || searchText.includes(titolo)) return true;
+            }
+            return false;
           });
+          
+          if (immobileEsterno) {
+            console.log(`[EmailImportWorker] Matched external property by title/address: ${immobileEsterno.titolo}`);
+          }
         }
         
         // Match by reference number

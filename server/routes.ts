@@ -5718,6 +5718,33 @@ FORMATO RISPOSTE:
     }
   });
 
+  // Search form response emails (risposte acquisizioni)
+  app.get("/api/gmail/form-responses", async (req, res) => {
+    try {
+      const { searchFormResponseEmails, parseFormResponseEmail } = await import("./gmail-service");
+      const emails = await searchFormResponseEmails();
+      const parsedEmails = emails.map(email => ({
+        id: email.id,
+        from: email.from,
+        subject: email.subject,
+        date: email.date,
+        snippet: email.snippet,
+        parsed: parseFormResponseEmail(email)
+      }));
+      res.json({
+        count: emails.length,
+        emails: parsedEmails
+      });
+    } catch (error: any) {
+      console.error("Gmail form-responses error:", error);
+      if (error.message?.includes('Gmail not connected')) {
+        res.status(401).json({ error: "Gmail non connesso", needsAuth: true });
+      } else {
+        res.status(500).json({ error: "Errore nel recupero email form responses" });
+      }
+    }
+  });
+
   // Mark email as read
   app.post("/api/gmail/mark-read/:id", async (req, res) => {
     try {
