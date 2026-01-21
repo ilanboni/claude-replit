@@ -5699,6 +5699,28 @@ FORMATO RISPOSTE:
     }
   });
 
+  // Search all emails (read and unread) by query
+  app.get("/api/gmail/search", async (req, res) => {
+    try {
+      const query = req.query.q as string;
+      if (!query) {
+        return res.status(400).json({ error: "Query parameter 'q' required" });
+      }
+      const emails = await getEmailsByQuery(query, 30);
+      res.json(emails.map(email => ({
+        id: email.id,
+        from: email.from,
+        subject: email.subject,
+        date: email.date,
+        snippet: email.snippet,
+        body: email.body?.substring(0, 2000)
+      })));
+    } catch (error: any) {
+      console.error("Gmail search error:", error);
+      res.status(500).json({ error: "Errore nella ricerca email" });
+    }
+  });
+
   // Search portal emails
   app.get("/api/gmail/portali", async (req, res) => {
     try {
