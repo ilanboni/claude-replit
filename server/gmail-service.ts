@@ -231,7 +231,7 @@ export async function searchPortalEmails(): Promise<EmailMessage[]> {
     'subject:contatto annuncio'
   ];
   
-  const query = portalQueries.join(' OR ');
+  const query = `is:unread (${portalQueries.join(' OR ')})`;
   return getEmailsByQuery(query, 50);
 }
 
@@ -474,7 +474,7 @@ export async function searchFormResponseEmails(): Promise<EmailMessage[]> {
     'from:immobiliare.it subject:"messaggio per l\'annuncio"',
   ];
   
-  const query = responseQueries.join(' OR ');
+  const query = `is:unread (${responseQueries.join(' OR ')})`;
   return getEmailsByQuery(query, 50);
 }
 
