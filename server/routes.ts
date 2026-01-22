@@ -13,6 +13,7 @@ import { sendWhatsAppMessage, isUltraMsgConfigured, normalizeItalianPhone } from
 import { getUnreadEmails, searchPortalEmails, parsePortalEmail, markAsRead, EmailMessage, sendEmail, isGmailConfigured, getEmailsByQuery } from "./gmail-service";
 import { processChatbotMessage } from "./services/chatbotService";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
+import { importIdealistaConversations, isIdealistaConfigured } from "./idealista-conversations";
 import { exec } from "child_process";
 import { promisify } from "util";
 import * as fs from "fs";
@@ -7310,6 +7311,46 @@ FORMATO RISPOSTE:
       res.json(proposte.filter(Boolean));
     } catch (error: any) {
       console.error("Get proponi clienti error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ==================== IDEALISTA CONVERSATIONS ====================
+
+  // Check if Idealista integration is configured
+  app.get("/api/idealista/status", async (req, res) => {
+    try {
+      res.json({
+        configured: isIdealistaConfigured(),
+        hasApifyToken: !!process.env.APIFY_API_TOKEN,
+        hasCredentials: !!(process.env.IDEALISTA_EMAIL && process.env.IDEALISTA_PASSWORD)
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Import conversations from Idealista (manual trigger)
+  app.post("/api/idealista/import", async (req, res) => {
+    try {
+      if (!isIdealistaConfigured()) {
+        return res.status(400).json({ 
+          error: "Integrazione Idealista non configurata. Servono APIFY_API_TOKEN, IDEALISTA_EMAIL e IDEALISTA_PASSWORD" 
+        });
+      }
+
+      console.log("[API] Starting Idealista conversations import...");
+      const result = await importIdealistaConversations();
+      
+      res.json({
+        success: result.success,
+        message: result.success 
+          ? `Importate ${result.messagesImported} messaggi da ${result.clientsMatched} conversazioni`
+          : "Importazione fallita",
+        details: result
+      });
+    } catch (error: any) {
+      console.error("Idealista import error:", error);
       res.status(500).json({ error: error.message });
     }
   });
