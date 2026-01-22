@@ -7360,8 +7360,18 @@ FORMATO RISPOSTE:
     }
   });
 
+  // Handle CORS preflight for Idealista extension
+  app.options("/api/idealista/import-from-extension", (req, res) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.header("Access-Control-Allow-Headers", "Content-Type");
+    res.sendStatus(200);
+  });
+
   // Import conversations from browser extension
   app.post("/api/idealista/import-from-extension", async (req, res) => {
+    // Set CORS headers for response
+    res.header("Access-Control-Allow-Origin", "*");
     try {
       const { conversations, extractedAt, sourceUrl } = req.body;
       
