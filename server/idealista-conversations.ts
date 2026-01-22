@@ -143,7 +143,7 @@ async function runApifyActor(): Promise<IdealistaConversation[]> {
     maxConcurrency: 1,
     maxRequestRetries: 3,
     maxPagesPerCrawl: 25,
-    waitUntil: "networkidle2"
+    waitUntil: ["networkidle2"]
   };
 
   console.log("[Idealista] Starting Apify Web Scraper actor...");
@@ -266,6 +266,102 @@ async function findPropertyByRef(ref: string | null, title: string | null): Prom
   }
   
   return null;
+}
+
+interface PreviewResult {
+  conversations: Array<{
+    conversationId: string;
+    contactName: string;
+    contactPhone: string | null;
+    contactEmail: string | null;
+    propertyRef: string | null;
+    propertyTitle: string | null;
+    messagesCount: number;
+    lastMessage: string;
+    matchedClient: {
+      id: number;
+      nome: string;
+      cognome: string;
+      telefono: string | null;
+      email: string | null;
+    } | null;
+    matchedProperty: {
+      id: number;
+      titolo: string;
+    } | null;
+    wouldCreateClient: boolean;
+  }>;
+  totalMessages: number;
+  errors: string[];
+}
+
+export async function previewIdealistaConversations(): Promise<PreviewResult> {
+  const result: PreviewResult = {
+    conversations: [],
+    totalMessages: 0,
+    errors: []
+  };
+
+  try {
+    const conversations = await runApifyActor();
+
+    for (const conv of conversations) {
+      try {
+        // Find matching client
+        const clienteId = await matchClientByContact(conv.contactPhone, conv.contactEmail, conv.contactName);
+        
+        let matchedClient = null;
+        if (clienteId) {
+          const cliente = await storage.getCliente(clienteId);
+          if (cliente) {
+            matchedClient = {
+              id: cliente.id,
+              nome: cliente.nome || '',
+              cognome: cliente.cognome || '',
+              telefono: cliente.telefono,
+              email: cliente.email
+            };
+          }
+        }
+
+        // Find related property
+        const immobileId = await findPropertyByRef(conv.propertyRef, conv.propertyTitle);
+        let matchedProperty = null;
+        if (immobileId) {
+          const immobile = await storage.getImmobile(immobileId);
+          if (immobile) {
+            matchedProperty = {
+              id: immobile.id,
+              titolo: immobile.titolo || ''
+            };
+          }
+        }
+
+        result.conversations.push({
+          conversationId: conv.conversationId,
+          contactName: conv.contactName,
+          contactPhone: conv.contactPhone,
+          contactEmail: conv.contactEmail,
+          propertyRef: conv.propertyRef,
+          propertyTitle: conv.propertyTitle,
+          messagesCount: conv.messages.length,
+          lastMessage: conv.messages[conv.messages.length - 1]?.content?.slice(0, 200) || '',
+          matchedClient,
+          matchedProperty,
+          wouldCreateClient: !matchedClient && !!conv.contactName
+        });
+
+        result.totalMessages += conv.messages.length;
+      } catch (convError: any) {
+        result.errors.push(`Conversation ${conv.conversationId}: ${convError.message}`);
+      }
+    }
+  } catch (error: any) {
+    result.errors.push(error.message);
+    console.error("[Idealista] Preview failed:", error);
+  }
+
+  return result;
 }
 
 export async function importIdealistaConversations(): Promise<ImportResult> {

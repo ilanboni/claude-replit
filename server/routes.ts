@@ -13,7 +13,7 @@ import { sendWhatsAppMessage, isUltraMsgConfigured, normalizeItalianPhone } from
 import { getUnreadEmails, searchPortalEmails, parsePortalEmail, markAsRead, EmailMessage, sendEmail, isGmailConfigured, getEmailsByQuery } from "./gmail-service";
 import { processChatbotMessage } from "./services/chatbotService";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
-import { importIdealistaConversations, isIdealistaConfigured } from "./idealista-conversations";
+import { importIdealistaConversations, previewIdealistaConversations, isIdealistaConfigured } from "./idealista-conversations";
 import { exec } from "child_process";
 import { promisify } from "util";
 import * as fs from "fs";
@@ -7326,6 +7326,36 @@ FORMATO RISPOSTE:
         hasCredentials: !!(process.env.IDEALISTA_EMAIL && process.env.IDEALISTA_PASSWORD)
       });
     } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Preview conversations from Idealista (dry run - no changes)
+  app.post("/api/idealista/preview", async (req, res) => {
+    try {
+      if (!isIdealistaConfigured()) {
+        return res.status(400).json({ 
+          error: "Integrazione Idealista non configurata. Servono APIFY_API_TOKEN, IDEALISTA_EMAIL e IDEALISTA_PASSWORD" 
+        });
+      }
+
+      console.log("[API] Starting Idealista conversations preview (dry run)...");
+      const result = await previewIdealistaConversations();
+      
+      res.json({
+        message: "Anteprima completata - nessun dato salvato",
+        summary: {
+          conversationsFound: result.conversations.length,
+          totalMessages: result.totalMessages,
+          clientsMatched: result.conversations.filter(c => c.matchedClient).length,
+          wouldCreateClients: result.conversations.filter(c => c.wouldCreateClient).length,
+          propertiesMatched: result.conversations.filter(c => c.matchedProperty).length
+        },
+        conversations: result.conversations,
+        errors: result.errors
+      });
+    } catch (error: any) {
+      console.error("Idealista preview error:", error);
       res.status(500).json({ error: error.message });
     }
   });
