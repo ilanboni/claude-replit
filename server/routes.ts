@@ -7418,6 +7418,37 @@ FORMATO RISPOSTE:
             }
           }
 
+          // Try to match immobile from propertyRef or message content
+          let matchedImmobile = null;
+          const immobili = await storage.getImmobili();
+          const searchText = `${conv.propertyRef || ''} ${conv.lastMessage || ''}`.toLowerCase();
+          
+          // Extract street names from message (Via/Viale/Piazza + name)
+          const streetMatch = searchText.match(/(via|viale|piazza|corso|largo)\s+([a-zàèéìòù\s]+)/i);
+          if (streetMatch) {
+            const streetName = streetMatch[2].trim().toLowerCase();
+            // Only match if street name is at least 4 chars (avoid false positives)
+            if (streetName.length >= 4) {
+              matchedImmobile = immobili.find(imm => {
+                const immIndirizzo = (imm.indirizzo || '').toLowerCase();
+                const immTitolo = (imm.titolo || '').toLowerCase();
+                // Require exact street name match (not partial)
+                return immIndirizzo.includes(streetName) || immTitolo.includes(streetName);
+              });
+            }
+          }
+          
+          // Also try matching by idPortale if present in propertyRef
+          if (!matchedImmobile && conv.propertyRef) {
+            const refClean = conv.propertyRef.trim();
+            if (refClean.length >= 3) {
+              matchedImmobile = immobili.find(imm => 
+                imm.idPortale?.toLowerCase() === refClean.toLowerCase() ||
+                imm.riferimentoAnnuncio?.toLowerCase() === refClean.toLowerCase()
+              );
+            }
+          }
+
           if (matchedCliente) {
             matched++;
             
@@ -7430,12 +7461,16 @@ FORMATO RISPOSTE:
             if (!isDuplicate && conv.lastMessage) {
               await storage.createComunicazione({
                 clienteId: matchedCliente.id,
+                immobileId: matchedImmobile?.id || undefined,
                 tipo: 'messaggio',
                 testo: `[Idealista] ${conv.lastMessage}${conv.date ? ` (${conv.date})` : ''}`,
                 canale: 'idealista',
                 creatoDA: 'cliente'
               });
               imported++;
+              if (matchedImmobile) {
+                console.log(`[Idealista Extension] Linked to immobile: ${matchedImmobile.titolo || matchedImmobile.indirizzo}`);
+              }
             }
           } else {
             // Create new client if we have enough info
@@ -7456,11 +7491,15 @@ FORMATO RISPOSTE:
               if (conv.lastMessage) {
                 await storage.createComunicazione({
                   clienteId: newCliente.id,
+                  immobileId: matchedImmobile?.id || undefined,
                   tipo: 'messaggio',
                   testo: `[Idealista] ${conv.lastMessage}${conv.date ? ` (${conv.date})` : ''}`,
                   canale: 'idealista',
                   creatoDA: 'cliente'
                 });
+                if (matchedImmobile) {
+                  console.log(`[Idealista Extension] Linked new client to immobile: ${matchedImmobile.titolo || matchedImmobile.indirizzo}`);
+                }
               }
               
               imported++;
