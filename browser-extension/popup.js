@@ -784,4 +784,309 @@ async function init() {
 btnExtract.addEventListener('click', extractFromPage);
 btnSend.addEventListener('click', sendToImmoGest);
 
+// ========== CONVERSATIONS SECTION ==========
+
+let extractedConversations = null;
+
+const listingSectionEl = document.getElementById('listing-section');
+const conversationsSectionEl = document.getElementById('conversations-section');
+const serverUrlConvEl = document.getElementById('server-url-conv');
+const btnExtractConv = document.getElementById('btn-extract-conv');
+const btnSendConv = document.getElementById('btn-send-conv');
+const convPreviewEl = document.getElementById('conv-preview');
+const convPreviewContentEl = document.getElementById('conv-preview-content');
+
+function extractIdealistaConversations() {
+  const conversations = [];
+  
+  // Cerca elementi conversazione nella lista principale
+  const convItems = document.querySelectorAll(
+    '[class*="conversation"], [class*="message-item"], [class*="chat-item"], ' +
+    '[data-conversation], .conversation-list-item, .inbox-conversation, ' +
+    'li[class*="conversation"], div[class*="conversation"]'
+  );
+  
+  convItems.forEach((item, index) => {
+    try {
+      // Estrai nome contatto
+      const nameEl = item.querySelector(
+        '[class*="name"], [class*="user"], [class*="contact"], ' +
+        '.sender-name, .contact-name, h3, h4, strong'
+      );
+      const contactName = nameEl?.textContent?.trim() || `Contatto ${index + 1}`;
+      
+      // Estrai ultimo messaggio/preview
+      const previewEl = item.querySelector(
+        '[class*="preview"], [class*="message"], [class*="text"], ' +
+        '.last-message, .message-preview, p'
+      );
+      const lastMessage = previewEl?.textContent?.trim() || '';
+      
+      // Estrai data
+      const dateEl = item.querySelector(
+        '[class*="date"], [class*="time"], [class*="timestamp"], ' +
+        '.message-date, .time, time'
+      );
+      const date = dateEl?.textContent?.trim() || '';
+      
+      // Estrai link conversazione
+      const linkEl = item.querySelector('a[href*="conversation"]') || 
+                     item.closest('a[href*="conversation"]') ||
+                     item.querySelector('a');
+      const conversationUrl = linkEl?.href || '';
+      
+      // Estrai ID conversazione dall'URL
+      let conversationId = '';
+      if (conversationUrl) {
+        const match = conversationUrl.match(/conversation[s]?\/([a-zA-Z0-9-]+)/);
+        conversationId = match ? match[1] : `conv-${index}`;
+      }
+      
+      // Estrai riferimento immobile se presente
+      const propertyEl = item.querySelector(
+        '[class*="property"], [class*="immobile"], [class*="ref"], ' +
+        '.property-ref, .ad-reference'
+      );
+      const propertyRef = propertyEl?.textContent?.trim() || '';
+      
+      // Estrai telefono se visibile
+      const phoneEl = item.querySelector('a[href^="tel:"], [class*="phone"]');
+      let phone = null;
+      if (phoneEl) {
+        const href = phoneEl.getAttribute('href');
+        if (href?.startsWith('tel:')) {
+          phone = href.replace('tel:', '').replace(/[\s\-+]/g, '');
+        }
+      }
+      
+      // Estrai email se visibile
+      const emailEl = item.querySelector('a[href^="mailto:"], [class*="email"]');
+      let email = null;
+      if (emailEl) {
+        const href = emailEl.getAttribute('href');
+        if (href?.startsWith('mailto:')) {
+          email = href.replace('mailto:', '');
+        }
+      }
+      
+      if (contactName || lastMessage) {
+        conversations.push({
+          conversationId,
+          contactName,
+          contactPhone: phone,
+          contactEmail: email,
+          propertyRef,
+          lastMessage: lastMessage.slice(0, 500),
+          date,
+          url: conversationUrl
+        });
+      }
+    } catch (e) {
+      console.error('Errore estrazione conversazione:', e);
+    }
+  });
+  
+  // Se non abbiamo trovato conversazioni con i selettori, prova un approccio alternativo
+  if (conversations.length === 0) {
+    // Cerca tutti i link che potrebbero essere conversazioni
+    const allLinks = document.querySelectorAll('a[href*="conversation"]');
+    allLinks.forEach((link, index) => {
+      const container = link.closest('li, div, article') || link.parentElement;
+      if (container) {
+        const text = container.textContent?.trim() || '';
+        const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+        
+        if (lines.length > 0) {
+          conversations.push({
+            conversationId: `conv-${index}`,
+            contactName: lines[0]?.slice(0, 100) || `Contatto ${index + 1}`,
+            contactPhone: null,
+            contactEmail: null,
+            propertyRef: '',
+            lastMessage: lines.slice(1).join(' ').slice(0, 500),
+            date: '',
+            url: link.href
+          });
+        }
+      }
+    });
+  }
+  
+  return {
+    conversations,
+    extractedAt: new Date().toISOString(),
+    sourceUrl: window.location.href,
+    pageTitle: document.title
+  };
+}
+
+async function extractConversationsFromPage() {
+  const tab = await getCurrentTab();
+  
+  btnExtractConv.disabled = true;
+  btnExtractConv.innerHTML = '<span class="loading"></span>Estrazione...';
+
+  try {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: extractIdealistaConversations,
+    });
+
+    if (results && results[0] && results[0].result) {
+      extractedConversations = results[0].result;
+      
+      if (extractedConversations.conversations.length > 0) {
+        showConversationsPreview(extractedConversations);
+        setStatus(`Trovate ${extractedConversations.conversations.length} conversazioni!`, 'success');
+        btnSendConv.disabled = false;
+      } else {
+        setStatus('Nessuna conversazione trovata. Assicurati di essere sulla pagina delle conversazioni con la lista visibile.', 'warning');
+      }
+    } else {
+      setStatus('Impossibile estrarre le conversazioni', 'error');
+    }
+  } catch (error) {
+    console.error('Extraction error:', error);
+    setStatus('Errore durante l\'estrazione: ' + error.message, 'error');
+  } finally {
+    btnExtractConv.disabled = false;
+    btnExtractConv.textContent = 'Estrai conversazioni';
+  }
+}
+
+function showConversationsPreview(data) {
+  const convList = data.conversations.slice(0, 5).map(c => `
+    <div class="preview-item">
+      <span class="preview-label">${c.contactName}</span>
+      <span class="preview-value">${c.lastMessage?.slice(0, 30) || '-'}...</span>
+    </div>
+  `).join('');
+  
+  convPreviewContentEl.innerHTML = `
+    <div style="margin-bottom: 8px; font-size: 12px; color: #6b7280;">
+      ${data.conversations.length} conversazioni trovate
+    </div>
+    ${convList}
+    ${data.conversations.length > 5 ? `<div style="font-size: 12px; color: #6b7280; text-align: center; padding-top: 8px;">+ altre ${data.conversations.length - 5}</div>` : ''}
+  `;
+  
+  convPreviewEl.classList.remove('hidden');
+}
+
+async function sendConversationsToImmoGest() {
+  const serverUrl = serverUrlConvEl.value.trim().replace(/\/+$/, '');
+  
+  if (!serverUrl) {
+    setStatus('Inserisci l\'URL di ImmoGest', 'warning');
+    serverUrlConvEl.focus();
+    return;
+  }
+
+  if (!extractedConversations || extractedConversations.conversations.length === 0) {
+    setStatus('Prima estrai le conversazioni dalla pagina', 'warning');
+    return;
+  }
+
+  btnSendConv.disabled = true;
+  btnSendConv.innerHTML = '<span class="loading"></span>Invio...';
+
+  try {
+    const response = await fetch(`${serverUrl}/api/idealista/import-from-extension`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(extractedConversations),
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      setStatus(`Importate ${result.imported || 0} conversazioni!`, 'success');
+      localStorage.setItem('immogest_server_url', serverUrl);
+    } else {
+      const error = await response.text();
+      setStatus('Errore: ' + error, 'error');
+    }
+  } catch (error) {
+    console.error('Send error:', error);
+    setStatus('Errore di connessione: verifica l\'URL', 'error');
+  } finally {
+    btnSendConv.disabled = false;
+    btnSendConv.textContent = 'Invia a ImmoGest';
+  }
+}
+
+// Setup event listeners per conversazioni
+if (btnExtractConv) {
+  btnExtractConv.addEventListener('click', extractConversationsFromPage);
+}
+if (btnSendConv) {
+  btnSendConv.addEventListener('click', sendConversationsToImmoGest);
+}
+
+// Modifica init per gestire pagina conversazioni
+const originalInit = init;
+init = async function() {
+  const tab = await getCurrentTab();
+  const url = tab?.url || '';
+  
+  // Carica URL salvato anche per conversazioni
+  const savedUrl = localStorage.getItem('immogest_server_url');
+  if (savedUrl) {
+    serverUrlEl.value = savedUrl;
+    if (serverUrlConvEl) serverUrlConvEl.value = savedUrl;
+  }
+  
+  // Controlla se siamo sulla pagina conversazioni Idealista
+  if (url.includes('idealista.it/conversations')) {
+    listingSectionEl.classList.add('hidden');
+    conversationsSectionEl.classList.remove('hidden');
+    setStatus('Pagina conversazioni Idealista rilevata. Clicca "Estrai conversazioni"', 'success');
+    return;
+  }
+  
+  // Altrimenti usa la logica originale per annunci
+  listingSectionEl.classList.remove('hidden');
+  conversationsSectionEl.classList.add('hidden');
+  
+  // Chiama logica originale
+  let hostname = '';
+  try {
+    if (url && !url.startsWith('chrome://')) {
+      hostname = new URL(url).hostname;
+    }
+  } catch (e) {
+    hostname = '';
+  }
+  
+  const supportedSites = ['immobiliare.it', 'idealista.it', 'subito.it', 'casa.it', 'clickcase.it'];
+  const isSupported = supportedSites.some(site => hostname.includes(site));
+  
+  if (!url || url.startsWith('chrome://')) {
+    setStatus('Apri una pagina di annuncio immobiliare', 'warning');
+    return;
+  }
+
+  if (!isSupported) {
+    setStatus('Sito non supportato. Vai su Immobiliare.it, Idealista, Subito, Casa.it o ClickCase.it', 'warning');
+    btnExtract.disabled = true;
+    return;
+  }
+
+  const isListingPage = url.includes('/annunci/') || 
+                        url.includes('/immobile/') ||
+                        url.includes('/vendita/') ||
+                        url.includes('/affitto/') ||
+                        (url.includes('clickcase.it') && url.match(/-\d+\.html$/));
+
+  if (!isListingPage) {
+    setStatus('Vai sulla pagina di un annuncio specifico', 'info');
+    btnExtract.disabled = false;
+    return;
+  }
+
+  setStatus('Pagina annuncio rilevata. Clicca "Estrai dati"', 'success');
+  btnExtract.disabled = false;
+};
+
 init();

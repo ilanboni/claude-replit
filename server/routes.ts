@@ -7360,6 +7360,132 @@ FORMATO RISPOSTE:
     }
   });
 
+  // Import conversations from browser extension
+  app.post("/api/idealista/import-from-extension", async (req, res) => {
+    try {
+      const { conversations, extractedAt, sourceUrl } = req.body;
+      
+      if (!conversations || !Array.isArray(conversations)) {
+        return res.status(400).json({ error: "Dati conversazioni non validi" });
+      }
+
+      console.log(`[Idealista Extension] Received ${conversations.length} conversations`);
+      
+      let imported = 0;
+      let matched = 0;
+      const errors: string[] = [];
+
+      for (const conv of conversations) {
+        try {
+          // Try to match client by name
+          const clienti = await storage.getClienti();
+          let matchedCliente = null;
+          
+          // Try phone match
+          if (conv.contactPhone) {
+            const normalizedPhone = conv.contactPhone.replace(/\D/g, '');
+            matchedCliente = clienti.find(c => {
+              const clientPhone = c.telefono?.replace(/\D/g, '') || '';
+              return clientPhone && (clientPhone.endsWith(normalizedPhone) || normalizedPhone.endsWith(clientPhone));
+            });
+          }
+          
+          // Try email match
+          if (!matchedCliente && conv.contactEmail) {
+            matchedCliente = clienti.find(c => 
+              c.email?.toLowerCase() === conv.contactEmail.toLowerCase()
+            );
+          }
+          
+          // Try name match (fuzzy)
+          if (!matchedCliente && conv.contactName) {
+            const nameParts = conv.contactName.toLowerCase().split(/\s+/).filter((p: string) => p.length > 2);
+            if (nameParts.length > 0) {
+              matchedCliente = clienti.find(c => {
+                const clientName = `${c.nome || ''} ${c.cognome || ''}`.toLowerCase();
+                return nameParts.some((part: string) => clientName.includes(part));
+              });
+            }
+          }
+
+          if (matchedCliente) {
+            matched++;
+            
+            // Check if we already have this message
+            const existingComms = await storage.getComunicazioni(matchedCliente.id);
+            const isDuplicate = existingComms.some(c => 
+              c.testo?.includes(conv.lastMessage?.slice(0, 30) || 'xxx')
+            );
+            
+            if (!isDuplicate && conv.lastMessage) {
+              await storage.createComunicazione({
+                clienteId: matchedCliente.id,
+                tipo: 'messaggio',
+                testo: `[Idealista] ${conv.lastMessage}${conv.date ? ` (${conv.date})` : ''}`,
+                canale: 'idealista',
+                creatoDA: 'cliente'
+              });
+              imported++;
+            }
+          } else {
+            // Create new client if we have enough info
+            if (conv.contactName && conv.contactName.length > 2) {
+              const nameParts = conv.contactName.split(/\s+/);
+              const nome = nameParts[0] || 'Contatto';
+              const cognome = nameParts.slice(1).join(' ') || 'Idealista';
+              
+              const newCliente = await storage.createCliente({
+                nome,
+                cognome,
+                telefono: conv.contactPhone || undefined,
+                email: conv.contactEmail || undefined,
+                tipoCliente: 'lead',
+                note: `Importato da conversazione Idealista. Ref: ${conv.propertyRef || '-'}`
+              });
+              
+              if (conv.lastMessage) {
+                await storage.createComunicazione({
+                  clienteId: newCliente.id,
+                  tipo: 'messaggio',
+                  testo: `[Idealista] ${conv.lastMessage}${conv.date ? ` (${conv.date})` : ''}`,
+                  canale: 'idealista',
+                  creatoDA: 'cliente'
+                });
+              }
+              
+              imported++;
+              matched++;
+            }
+          }
+        } catch (convError: any) {
+          errors.push(`${conv.contactName}: ${convError.message}`);
+        }
+      }
+
+      // Create notification
+      if (imported > 0) {
+        await storage.createNotifica({
+          tipo: 'sistema',
+          titolo: 'Conversazioni Idealista importate',
+          messaggio: `Importate ${imported} conversazioni da ${matched} contatti`,
+          priorita: 2,
+          letta: false
+        });
+      }
+
+      res.json({
+        success: true,
+        imported,
+        matched,
+        total: conversations.length,
+        errors
+      });
+    } catch (error: any) {
+      console.error("Idealista extension import error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Import conversations from Idealista (manual trigger)
   app.post("/api/idealista/import", async (req, res) => {
     try {

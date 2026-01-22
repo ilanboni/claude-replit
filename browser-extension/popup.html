@@ -187,23 +187,53 @@
     Verifica della pagina in corso...
   </div>
 
-  <div id="preview" class="preview hidden">
-    <h3>Anteprima annuncio</h3>
-    <div id="preview-content"></div>
+  <!-- Sezione Annunci -->
+  <div id="listing-section">
+    <div id="preview" class="preview hidden">
+      <h3>Anteprima annuncio</h3>
+      <div id="preview-content"></div>
+    </div>
+
+    <div class="config">
+      <label for="server-url">URL ImmoGest</label>
+      <input type="text" id="server-url" placeholder="https://tuo-progetto.replit.app">
+    </div>
+
+    <div class="buttons">
+      <button id="btn-extract" class="btn-secondary" disabled>
+        Estrai dati
+      </button>
+      <button id="btn-send" class="btn-primary" disabled>
+        Invia a ImmoGest
+      </button>
+    </div>
   </div>
 
-  <div class="config">
-    <label for="server-url">URL ImmoGest</label>
-    <input type="text" id="server-url" placeholder="https://tuo-progetto.replit.app">
-  </div>
+  <!-- Sezione Conversazioni Idealista -->
+  <div id="conversations-section" class="hidden">
+    <div class="preview">
+      <h3>Importa conversazioni Idealista</h3>
+      <p style="font-size: 13px; color: #6b7280; margin-bottom: 12px;">
+        Estrai le conversazioni dalla pagina e importale in ImmoGest per sincronizzare le risposte dei proprietari.
+      </p>
+      <div id="conv-preview" class="hidden">
+        <div id="conv-preview-content"></div>
+      </div>
+    </div>
 
-  <div class="buttons">
-    <button id="btn-extract" class="btn-secondary" disabled>
-      Estrai dati
-    </button>
-    <button id="btn-send" class="btn-primary" disabled>
-      Invia a ImmoGest
-    </button>
+    <div class="config">
+      <label for="server-url-conv">URL ImmoGest</label>
+      <input type="text" id="server-url-conv" placeholder="https://tuo-progetto.replit.app">
+    </div>
+
+    <div class="buttons">
+      <button id="btn-extract-conv" class="btn-secondary">
+        Estrai conversazioni
+      </button>
+      <button id="btn-send-conv" class="btn-primary" disabled>
+        Invia a ImmoGest
+      </button>
+    </div>
   </div>
 
   <script src="popup.js"></script>
