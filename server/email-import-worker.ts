@@ -207,36 +207,54 @@ async function importPortalEmails(): Promise<{ imported: number; errors: string[
           }
         }
         
-        // Skip clients with invalid phone numbers (not starting with 3 or +)
-        const telefono = parsed.telefonoCliente || "";
-        const isInvalidPhone = telefono && !/^(\+?39)?3\d{8,9}$/.test(telefono.replace(/[\s.-]/g, ''));
+        // Normalize and validate phone number
+        const telefonoRaw = parsed.telefonoCliente || "";
+        // Remove all non-digits except leading +, then strip + for validation
+        const telefonoNormalized = telefonoRaw.replace(/[\s.-]/g, '').replace(/^\+/, '');
+        // Valid Italian mobile: optional 39 prefix + 3xx xxxxxxx (9-10 digits after 3)
+        const isValidPhone = telefonoNormalized && /^(39)?3\d{8,9}$/.test(telefonoNormalized);
         
-        // Validate name - must not be empty or contain nonsense
+        // Validate name - must not be empty or contain nonsense words
         const nomeCompleto = (parsed.nomeCliente || "").trim();
         const parti = nomeCompleto.split(/\s+/);
         const nome = parti[0] || null;
         const cognome = parti.slice(1).join(" ") || null;
         
-        // Check if we have enough valid data to create a client
-        const hasValidName = nome && nome.length >= 2 && nome.length <= 30;
+        // Stricter name validation matching gmail-service.ts isValidName
+        const excludeNameWords = [
+          'grazie', 'ciao', 'salve', 'buongiorno', 'buonasera', 'cordiali', 'saluti',
+          'offerta', 'residenziale', 'cerca', 'casa', 'appartamento', 'immobile',
+          'trilocale', 'bilocale', 'monolocale', 'quadrilocale', 'attico', 'mansarda',
+          'vendita', 'affitto', 'classe', 'energetica', 'area', 'zone', 'euro',
+          'risposta', 'messaggio', 'attesa', 'nuovo', 'annuncio', 'portale',
+          'contatto', 'richiesta', 'informazioni', 'prezzo', 'mq', 'metri', 'chi'
+        ];
+        const hasValidName = nome && nome.length >= 2 && nome.length <= 30 && 
+          parti.length <= 4 && 
+          !excludeNameWords.some(w => nomeCompleto.toLowerCase().includes(w)) &&
+          /[A-ZÀ-Ÿ]/.test(nomeCompleto);
+        
         const hasValidEmail = parsed.emailCliente && parsed.emailCliente.includes('@');
-        const hasValidPhone = parsed.telefonoCliente && !isInvalidPhone;
         
         // Need at least a valid name OR (valid email AND valid phone)
-        const canCreateClient = hasValidName || (hasValidEmail && hasValidPhone);
+        const canCreateClient = hasValidName || (hasValidEmail && isValidPhone);
         
         if (!cliente && canCreateClient) {
+          // Format phone with 39 prefix for storage
+          const telefonoFormatted = isValidPhone ? 
+            (telefonoNormalized.startsWith('39') ? telefonoNormalized : '39' + telefonoNormalized) : null;
+          
           cliente = await storage.createCliente({
             nome: hasValidName ? nome : null,
             cognome: hasValidName ? cognome : null,
             email: parsed.emailCliente || null,
-            telefono: hasValidPhone ? parsed.telefonoCliente : null,
+            telefono: telefonoFormatted,
             tipoCliente: "compratore",
             note: `Contatto da ${parsed.portale}`,
           });
           console.log(`[EmailImportWorker] Created new client: ${cliente.nome} ${cliente.cognome}`);
         } else if (!cliente && !canCreateClient) {
-          console.log(`[EmailImportWorker] Skipping client creation - insufficient data: name="${nomeCompleto}", email="${parsed.emailCliente}", phone="${telefono}"`);
+          console.log(`[EmailImportWorker] Skipping client creation - insufficient data: name="${nomeCompleto}", email="${parsed.emailCliente}", phone="${telefonoRaw}"`);
         }
 
         let immobile: Awaited<ReturnType<typeof storage.getImmobileByIdPortale>> | undefined;
