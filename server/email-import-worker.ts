@@ -209,25 +209,34 @@ async function importPortalEmails(): Promise<{ imported: number; errors: string[
         
         // Skip clients with invalid phone numbers (not starting with 3 or +)
         const telefono = parsed.telefonoCliente || "";
-        const isInvalidPhone = telefono && /^[15]/.test(telefono);
+        const isInvalidPhone = telefono && !/^(\+?39)?3\d{8,9}$/.test(telefono.replace(/[\s.-]/g, ''));
         
-        if (!cliente && (parsed.nomeCliente || parsed.emailCliente || parsed.telefonoCliente) && !isInvalidPhone) {
-          const nomeCompleto = parsed.nomeCliente || "";
-          const parti = nomeCompleto.split(" ");
-          const nome = parti[0] || null;
-          const cognome = parti.slice(1).join(" ") || null;
-          
+        // Validate name - must not be empty or contain nonsense
+        const nomeCompleto = (parsed.nomeCliente || "").trim();
+        const parti = nomeCompleto.split(/\s+/);
+        const nome = parti[0] || null;
+        const cognome = parti.slice(1).join(" ") || null;
+        
+        // Check if we have enough valid data to create a client
+        const hasValidName = nome && nome.length >= 2 && nome.length <= 30;
+        const hasValidEmail = parsed.emailCliente && parsed.emailCliente.includes('@');
+        const hasValidPhone = parsed.telefonoCliente && !isInvalidPhone;
+        
+        // Need at least a valid name OR (valid email AND valid phone)
+        const canCreateClient = hasValidName || (hasValidEmail && hasValidPhone);
+        
+        if (!cliente && canCreateClient) {
           cliente = await storage.createCliente({
-            nome,
-            cognome,
+            nome: hasValidName ? nome : null,
+            cognome: hasValidName ? cognome : null,
             email: parsed.emailCliente || null,
-            telefono: parsed.telefonoCliente || null,
+            telefono: hasValidPhone ? parsed.telefonoCliente : null,
             tipoCliente: "compratore",
             note: `Contatto da ${parsed.portale}`,
           });
           console.log(`[EmailImportWorker] Created new client: ${cliente.nome} ${cliente.cognome}`);
-        } else if (isInvalidPhone) {
-          console.log(`[EmailImportWorker] Skipping client with invalid phone: ${telefono}`);
+        } else if (!cliente && !canCreateClient) {
+          console.log(`[EmailImportWorker] Skipping client creation - insufficient data: name="${nomeCompleto}", email="${parsed.emailCliente}", phone="${telefono}"`);
         }
 
         let immobile: Awaited<ReturnType<typeof storage.getImmobileByIdPortale>> | undefined;

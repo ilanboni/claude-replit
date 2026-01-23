@@ -267,11 +267,34 @@ export function parsePortalEmail(email: EmailMessage): ParsedPortalEmail {
   
   let nomeCliente: string | undefined;
   
+  // Words to exclude from names - these are not valid names
+  const excludeNameWords = [
+    'grazie', 'ciao', 'salve', 'buongiorno', 'buonasera', 'cordiali', 'saluti',
+    'offerta', 'residenziale', 'cerca', 'casa', 'appartamento', 'immobile',
+    'trilocale', 'bilocale', 'monolocale', 'quadrilocale', 'attico', 'mansarda',
+    'vendita', 'affitto', 'classe', 'energetica', 'area', 'zone', 'euro',
+    'risposta', 'messaggio', 'attesa', 'nuovo', 'annuncio', 'portale',
+    'contatto', 'richiesta', 'informazioni', 'prezzo', 'mq', 'metri', 'chi'
+  ];
+  
+  // Helper function to validate extracted name
+  const isValidName = (name: string): boolean => {
+    if (!name || name.length < 2 || name.length > 50) return false;
+    const words = name.trim().split(/\s+/);
+    if (words.length > 4) return false; // Names don't have more than 4 words
+    if (words.some(w => w.length < 2)) return false;
+    const nameLower = name.toLowerCase();
+    if (excludeNameWords.some(w => nameLower.includes(w))) return false;
+    // Must have at least one uppercase letter (real names are capitalized)
+    if (!/[A-ZÀ-Ÿ]/.test(name)) return false;
+    return true;
+  };
+  
   // Idealista format: nome cognome on its own line, followed by phone and email
   // Pattern: "messaggio in attesa di risposta\n\nNome Cognome\n3xx xxx xxxx\nemail@..."
   const idealistaNamePattern = /(?:messaggio in attesa di risposta|nuovo messaggio)\s*\n+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\s]+)\n\s*(?:\+?3|\d{2,3}[\s.-]?\d)/i;
   const idealistaMatch = body.match(idealistaNamePattern);
-  if (idealistaMatch) {
+  if (idealistaMatch && isValidName(idealistaMatch[1].trim())) {
     nomeCliente = idealistaMatch[1].trim();
   }
   
@@ -284,9 +307,7 @@ export function parsePortalEmail(email: EmailMessage): ParsedPortalEmail {
       // If current line looks like a name (2-3 words, only letters) and next line is phone
       if (/^[A-Za-zÀ-ÿ]+(\s+[A-Za-zÀ-ÿ]+){0,2}$/.test(line) && 
           /^[\d\s+.-]{8,}$/.test(nextLine) &&
-          !line.toLowerCase().includes('grazie') &&
-          !line.toLowerCase().includes('ciao') &&
-          !line.toLowerCase().includes('salve')) {
+          isValidName(line)) {
         nomeCliente = line;
         break;
       }
@@ -296,7 +317,7 @@ export function parsePortalEmail(email: EmailMessage): ParsedPortalEmail {
   // Immobiliare.it format: "Nome: xxx" or "Mittente: xxx"
   if (!nomeCliente) {
     const nomeMatch = body.match(/(?:Nome|Da|From|Mittente)[:\s]+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\s]+?)(?:\n|Email|Telefono|$)/i);
-    if (nomeMatch) {
+    if (nomeMatch && isValidName(nomeMatch[1].trim())) {
       nomeCliente = nomeMatch[1].trim();
     }
   }
@@ -307,13 +328,8 @@ export function parsePortalEmail(email: EmailMessage): ParsedPortalEmail {
     const beforeEmail = body.split(clientEmail)[0];
     // Look for capitalized words (name) right before the email
     const nameBeforeEmail = beforeEmail.match(/([A-ZÀ-Ÿ][a-zà-ÿ]+(?:\s+[A-ZÀ-Ÿ][a-zà-ÿ]+){0,2})\s*$/);
-    if (nameBeforeEmail) {
-      const potentialName = nameBeforeEmail[1].trim();
-      // Exclude common words that aren't names
-      const excludeWords = ['risposta', 'messaggio', 'attesa', 'grazie', 'ciao', 'salve', 'buongiorno'];
-      if (!excludeWords.some(w => potentialName.toLowerCase().includes(w))) {
-        nomeCliente = potentialName;
-      }
+    if (nameBeforeEmail && isValidName(nameBeforeEmail[1].trim())) {
+      nomeCliente = nameBeforeEmail[1].trim();
     }
   }
   
