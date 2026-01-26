@@ -421,7 +421,7 @@ function TabMatching({ immobileId, immobile }: { immobileId: number; immobile: I
   );
 }
 
-function TabComunicazioni({ immobileId }: { immobileId: number }) {
+function TabComunicazioni({ immobileId, immobile }: { immobileId: number; immobile?: Immobile }) {
   const { toast } = useToast();
   const { data: comunicazioni = [], isLoading } = useQuery<Comunicazione[]>({
     queryKey: ["/api/immobili", immobileId, "comunicazioni"],
@@ -491,7 +491,7 @@ function TabComunicazioni({ immobileId }: { immobileId: number }) {
   if (comunicazioni.length === 0) {
     return (
       <div className="space-y-4">
-        <MessaggiDaGestire immobileId={immobileId} />
+        <MessaggiDaGestire immobileId={immobileId} immobile={immobile} />
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <MessageSquare className="h-12 w-12 text-muted-foreground/30 mb-4" />
@@ -507,7 +507,7 @@ function TabComunicazioni({ immobileId }: { immobileId: number }) {
 
   return (
     <div className="space-y-4">
-      <MessaggiDaGestire immobileId={immobileId} />
+      <MessaggiDaGestire immobileId={immobileId} immobile={immobile} />
       {comunicazioni.map((com) => {
         const cliente = getCliente(com.clienteId);
         return (
@@ -566,7 +566,7 @@ interface NotificaArricchita {
   cliente: Cliente | null;
 }
 
-function MessaggiDaGestire({ immobileId }: { immobileId: number }) {
+function MessaggiDaGestire({ immobileId, immobile }: { immobileId: number; immobile?: Immobile }) {
   const { toast } = useToast();
   
   const { data: notifiche = [], isLoading, isError } = useQuery<NotificaArricchita[]>({
@@ -577,6 +577,15 @@ function MessaggiDaGestire({ immobileId }: { immobileId: number }) {
       return res.json();
     },
   });
+
+  const formatMessaggio = (notifica: NotificaArricchita) => {
+    const clienteNome = notifica.cliente ? `${notifica.cliente.nome || ''} ${notifica.cliente.cognome || ''}`.trim() : 'Cliente';
+    const indirizzoImmobile = immobile?.indirizzo || immobile?.titolo || '';
+    if (indirizzoImmobile) {
+      return `${clienteNome} ha richiesto informazioni per ${indirizzoImmobile}`;
+    }
+    return notifica.messaggio;
+  };
 
   const markAsReadMutation = useMutation({
     mutationFn: async (id: number) => {
@@ -635,7 +644,7 @@ function MessaggiDaGestire({ immobileId }: { immobileId: number }) {
                         )}
                       </div>
                       <p className="font-medium mt-2" data-testid={`text-titolo-${notifica.id}`}>{notifica.titolo}</p>
-                      <p className="text-sm text-muted-foreground mt-1" data-testid={`text-messaggio-${notifica.id}`}>{notifica.messaggio}</p>
+                      <p className="text-sm text-muted-foreground mt-1" data-testid={`text-messaggio-${notifica.id}`}>{formatMessaggio(notifica)}</p>
                       <p className="text-xs text-muted-foreground mt-2" data-testid={`text-data-${notifica.id}`}>
                         {format(new Date(notifica.createdAt), "dd MMM yyyy HH:mm", { locale: it })}
                       </p>
@@ -1683,7 +1692,7 @@ export default function ImmobileDetailPage() {
       <PropertyHeader immobile={immobile} />
 
       <div className="p-6">
-        <MessaggiDaGestire immobileId={immobile.id} />
+        <MessaggiDaGestire immobileId={immobile.id} immobile={immobile} />
         
         <Tabs defaultValue="dettagli" className="space-y-6">
           <TabsList className="flex-wrap h-auto gap-1" data-testid="tabs-property-detail">
@@ -1728,7 +1737,7 @@ export default function ImmobileDetailPage() {
             <TabMatching immobileId={immobile.id} immobile={immobile} />
           </TabsContent>
           <TabsContent value="comunicazioni">
-            <TabComunicazioni immobileId={immobile.id} />
+            <TabComunicazioni immobileId={immobile.id} immobile={immobile} />
           </TabsContent>
           <TabsContent value="attivita">
             <TabAttivita immobileId={immobile.id} />
