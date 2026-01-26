@@ -229,13 +229,13 @@ function MessaggiDaGestireCliente({ clienteId, cliente }: { clienteId: number; c
                           <Link href={`/immobili/${immobile.id}`}>
                             <Badge variant="outline" className="cursor-pointer">
                               <Home className="h-3 w-3 mr-1" />
-                              {immobile.indirizzo || immobile.titolo}
+                              {immobile.indirizzo || immobile.titolo || `Immobile #${immobile.id}`}
                             </Badge>
                           </Link>
                         )}
                       </div>
-                      <p className="font-medium mt-2" data-testid={`text-titolo-cliente-${notifica.id}`}>{notifica.titolo}</p>
-                      <p className="text-sm text-muted-foreground mt-1" data-testid={`text-messaggio-cliente-${notifica.id}`}>{notifica.messaggio}</p>
+                      {notifica.titolo && <p className="font-medium mt-2" data-testid={`text-titolo-cliente-${notifica.id}`}>{notifica.titolo}</p>}
+                      {notifica.messaggio && <p className="text-sm text-muted-foreground mt-1" data-testid={`text-messaggio-cliente-${notifica.id}`}>{notifica.messaggio}</p>}
                       <p className="text-xs text-muted-foreground mt-2">
                         {new Date(notifica.createdAt).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                       </p>
