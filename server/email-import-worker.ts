@@ -19,13 +19,13 @@ async function handleAcquisitionResponse(email: EmailMessage): Promise<boolean> 
   
   console.log(`[EmailImportWorker] Acquisition response from "${mittenteNome}" for "${titoloAnnuncio}"`);
   
-  // Cerca l'immobile esterno corrispondente
+  // Cerca l'immobile esterno corrispondente - preferisci quelli con clienteId
   let immobileEsterno = null;
   if (titoloAnnuncio) {
     const allEsterni = await storage.getImmobiliEsterni();
     const searchText = titoloAnnuncio.toLowerCase().replace(/[,.\-\s]+/g, ' ');
     
-    immobileEsterno = allEsterni.find(ie => {
+    const matchingEsterni = allEsterni.filter(ie => {
       // Match con titolo
       if (ie.titolo) {
         const titolo = ie.titolo.toLowerCase().replace(/[,.\-\s]+/g, ' ');
@@ -42,8 +42,11 @@ async function handleAcquisitionResponse(email: EmailMessage): Promise<boolean> 
       return false;
     });
     
+    // Preferisci immobili con clienteId associato
+    immobileEsterno = matchingEsterni.find(ie => ie.clienteId) || matchingEsterni[0] || null;
+    
     if (immobileEsterno) {
-      console.log(`[EmailImportWorker] Matched external property: ${immobileEsterno.titolo} (ID: ${immobileEsterno.id})`);
+      console.log(`[EmailImportWorker] Matched external property: ${immobileEsterno.titolo} (ID: ${immobileEsterno.id}, clienteId: ${immobileEsterno.clienteId || 'null'})`);
     }
   }
   
