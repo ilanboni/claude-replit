@@ -318,7 +318,7 @@ async function importPortalEmails(): Promise<{ imported: number; errors: string[
         await storage.createNotifica({
           tipo: "richiesta_visita",
           titolo: `Nuova richiesta da ${parsed.portale}`,
-          messaggio: `${parsed.nomeCliente || "Cliente"} ha richiesto informazioni${immobile ? ` per ${immobile.titolo || immobile.indirizzo}` : ""}`,
+          messaggio: `${parsed.nomeCliente || "Cliente"} ha richiesto informazioni${immobile ? ` per ${immobile.indirizzo || immobile.titolo}` : ""}`,
           clienteId: cliente?.id || null,
           immobileId: immobile?.id || null,
           emailId: email.id,
