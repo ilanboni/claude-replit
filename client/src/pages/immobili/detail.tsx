@@ -565,7 +565,7 @@ interface NotificaArricchita {
 function MessaggiDaGestire({ immobileId }: { immobileId: number }) {
   const { toast } = useToast();
   
-  const { data: notifiche = [], isLoading } = useQuery<NotificaArricchita[]>({
+  const { data: notifiche = [], isLoading, isError } = useQuery<NotificaArricchita[]>({
     queryKey: ["/api/immobili", immobileId, "notifiche-da-gestire"],
     queryFn: async () => {
       const res = await fetch(`/api/immobili/${immobileId}/notifiche-da-gestire`);
@@ -576,101 +576,115 @@ function MessaggiDaGestire({ immobileId }: { immobileId: number }) {
 
   const markAsReadMutation = useMutation({
     mutationFn: async (id: number) => {
-      return apiRequest("PATCH", `/api/notifiche/${id}`, { letta: true });
+      return apiRequest("PATCH", `/api/notifiche/${id}/letta`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/immobili", immobileId, "notifiche-da-gestire"] });
       queryClient.invalidateQueries({ queryKey: ["/api/notifiche"] });
       toast({ title: "Messaggio gestito" });
     },
+    onError: () => {
+      toast({ title: "Errore", description: "Impossibile aggiornare la notifica", variant: "destructive" });
+    },
   });
 
-  const handleWhatsAppReply = (telefono: string) => {
+  if (isError) return null;
+  if (notifiche.length === 0 && !isLoading) return null;
+
+  const getWhatsAppUrl = (telefono: string) => {
     let phone = telefono.replace(/\D/g, '');
     if (!phone.startsWith('39') && phone.startsWith('3')) {
       phone = '39' + phone;
     }
-    window.open(`https://wa.me/${phone}`, '_blank');
+    return `https://wa.me/${phone}`;
   };
 
-  if (isLoading) return null;
-  if (notifiche.length === 0) return null;
-
   return (
-    <div className="mb-6">
-      <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+    <div className="mb-6" data-testid="section-messaggi-da-gestire">
+      <h3 className="text-lg font-semibold mb-3 flex items-center gap-2" data-testid="title-messaggi-da-gestire">
         <MessageCircle className="h-5 w-5 text-green-600" />
-        Messaggi da Gestire ({notifiche.length})
+        Messaggi da Gestire ({isLoading ? '...' : notifiche.length})
       </h3>
-      <div className="space-y-3">
-        {notifiche.map((notifica) => {
-          const cliente = notifica.cliente;
-          const telefono = cliente?.telefono;
-          
-          return (
-            <Card 
-              key={notifica.id} 
-              className="border-green-300 bg-green-50 dark:bg-green-950/30 dark:border-green-800"
-              data-testid={`card-messaggio-da-gestire-${notifica.id}`}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <Badge className="bg-green-500 text-white">Da gestire</Badge>
-                      {cliente && (
-                        <Link href={`/clienti/${cliente.id}`}>
-                          <Badge variant="outline" className="cursor-pointer">
-                            <Users className="h-3 w-3 mr-1" />
-                            {cliente.nome} {cliente.cognome}
-                          </Badge>
-                        </Link>
-                      )}
+      {isLoading ? (
+        <Card className="border-green-300 bg-green-50 dark:bg-green-950/30 dark:border-green-800">
+          <CardContent className="p-4">
+            <p className="text-sm text-muted-foreground">Caricamento messaggi...</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {notifiche.map((notifica) => {
+            const cliente = notifica.cliente;
+            const telefono = cliente?.telefono;
+            
+            return (
+              <Card 
+                key={notifica.id} 
+                className="border-green-300 bg-green-50 dark:bg-green-950/30 dark:border-green-800"
+                data-testid={`card-messaggio-da-gestire-${notifica.id}`}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge className="bg-green-500 text-white" data-testid={`badge-da-gestire-${notifica.id}`}>Da gestire</Badge>
+                        {cliente && (
+                          <Link href={`/clienti/${cliente.id}`}>
+                            <Badge variant="outline" className="cursor-pointer">
+                              <Users className="h-3 w-3 mr-1" />
+                              {cliente.nome} {cliente.cognome}
+                            </Badge>
+                          </Link>
+                        )}
+                      </div>
+                      <p className="font-medium mt-2" data-testid={`text-titolo-${notifica.id}`}>{notifica.titolo}</p>
+                      <p className="text-sm text-muted-foreground mt-1" data-testid={`text-messaggio-${notifica.id}`}>{notifica.messaggio}</p>
+                      <p className="text-xs text-muted-foreground mt-2" data-testid={`text-data-${notifica.id}`}>
+                        {format(new Date(notifica.createdAt), "dd MMM yyyy HH:mm", { locale: it })}
+                      </p>
                     </div>
-                    <p className="font-medium mt-2">{notifica.titolo}</p>
-                    <p className="text-sm text-muted-foreground mt-1">{notifica.messaggio}</p>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      {format(new Date(notifica.createdAt), "dd MMM yyyy HH:mm", { locale: it })}
-                    </p>
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    {telefono ? (
+                    <div className="flex flex-col gap-2">
+                      {telefono ? (
+                        <Button
+                          size="sm"
+                          asChild
+                          data-testid={`button-whatsapp-reply-${notifica.id}`}
+                        >
+                          <a href={getWhatsAppUrl(telefono)} target="_blank" rel="noopener noreferrer">
+                            <MessageCircle className="h-4 w-4 mr-1" />
+                            Rispondi
+                          </a>
+                        </Button>
+                      ) : cliente?.email ? (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          asChild
+                          data-testid={`button-email-reply-${notifica.id}`}
+                        >
+                          <a href={`mailto:${cliente.email}`}>
+                            <Mail className="h-4 w-4 mr-1" />
+                            Email
+                          </a>
+                        </Button>
+                      ) : null}
                       <Button
                         size="sm"
-                        className="bg-green-600 hover:bg-green-700 text-white"
-                        onClick={() => handleWhatsAppReply(telefono)}
-                        data-testid={`button-whatsapp-reply-${notifica.id}`}
+                        variant="outline"
+                        onClick={() => markAsReadMutation.mutate(notifica.id)}
+                        data-testid={`button-mark-gestito-${notifica.id}`}
                       >
-                        <MessageCircle className="h-4 w-4 mr-1" />
-                        Rispondi
+                        <Check className="h-4 w-4 mr-1" />
+                        Gestito
                       </Button>
-                    ) : cliente?.email ? (
-                      <Button
-                        size="sm"
-                        className="bg-blue-600 hover:bg-blue-700 text-white"
-                        onClick={() => window.open(`mailto:${cliente.email}`, '_blank')}
-                        data-testid={`button-email-reply-${notifica.id}`}
-                      >
-                        <Mail className="h-4 w-4 mr-1" />
-                        Email
-                      </Button>
-                    ) : null}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => markAsReadMutation.mutate(notifica.id)}
-                      data-testid={`button-mark-gestito-${notifica.id}`}
-                    >
-                      <Check className="h-4 w-4 mr-1" />
-                      Gestito
-                    </Button>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
