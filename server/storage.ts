@@ -954,6 +954,21 @@ export class DatabaseStorage implements IStorage {
     return notifica;
   }
 
+  async getNotificheByCliente(clienteId: number, soloNonLette: boolean = false): Promise<Notifica[]> {
+    if (soloNonLette) {
+      return db.select().from(notifiche)
+        .where(and(
+          eq(notifiche.clienteId, clienteId),
+          eq(notifiche.letta, false),
+          eq(notifiche.archiviata, false)
+        ))
+        .orderBy(desc(notifiche.createdAt));
+    }
+    return db.select().from(notifiche)
+      .where(eq(notifiche.clienteId, clienteId))
+      .orderBy(desc(notifiche.createdAt));
+  }
+
   async createNotifica(data: InsertNotifica): Promise<Notifica> {
     const [notifica] = await db.insert(notifiche).values(data).returning();
     return notifica;

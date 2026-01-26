@@ -1587,6 +1587,28 @@ ${analysis.areeSensibili.length > 0 ? analysis.areeSensibili.map(a => `• ${a}`
     }
   });
 
+  // Notifiche da gestire per Cliente (con dati immobile)
+  app.get("/api/clienti/:id/notifiche-da-gestire", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const notificheList = await storage.getNotificheByCliente(id, true);
+      
+      // Arricchisci con dati immobile
+      const enrichedNotifiche = await Promise.all(notificheList.map(async (n) => {
+        const immobile = n.immobileId ? await storage.getImmobile(n.immobileId) : null;
+        return {
+          ...n,
+          immobile,
+        };
+      }));
+      
+      res.json(enrichedNotifiche);
+    } catch (error) {
+      console.error("Get notifiche da gestire per cliente error:", error);
+      res.status(500).json({ error: "Errore nel recupero delle notifiche" });
+    }
+  });
+
   // Matching per Immobile (arricchito con dati cliente)
   app.get("/api/immobili/:id/matching", async (req, res) => {
     try {

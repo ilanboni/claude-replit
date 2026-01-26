@@ -490,20 +490,24 @@ function TabComunicazioni({ immobileId }: { immobileId: number }) {
 
   if (comunicazioni.length === 0) {
     return (
-      <Card>
-        <CardContent className="flex flex-col items-center justify-center py-12">
-          <MessageSquare className="h-12 w-12 text-muted-foreground/30 mb-4" />
-          <h3 className="text-lg font-medium">Nessuna comunicazione</h3>
-          <p className="text-muted-foreground text-sm">
-            Non ci sono comunicazioni relative a questo immobile
-          </p>
-        </CardContent>
-      </Card>
+      <div className="space-y-4">
+        <MessaggiDaGestire immobileId={immobileId} />
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <MessageSquare className="h-12 w-12 text-muted-foreground/30 mb-4" />
+            <h3 className="text-lg font-medium">Nessuna comunicazione</h3>
+            <p className="text-muted-foreground text-sm">
+              Non ci sono comunicazioni relative a questo immobile
+            </p>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
   return (
     <div className="space-y-4">
+      <MessaggiDaGestire immobileId={immobileId} />
       {comunicazioni.map((com) => {
         const cliente = getCliente(com.clienteId);
         return (

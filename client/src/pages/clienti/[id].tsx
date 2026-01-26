@@ -146,6 +146,146 @@ function ClienteHeader({ cliente, onEdit, onDelete, onMerge }: {
   );
 }
 
+interface NotificaArricchitaCliente {
+  id: number;
+  tipo: string;
+  titolo: string | null;
+  messaggio: string | null;
+  letta: boolean;
+  clienteId: number | null;
+  immobileId: number | null;
+  createdAt: string;
+  immobile: Immobile | null;
+}
+
+function MessaggiDaGestireCliente({ clienteId, cliente }: { clienteId: number; cliente: Cliente }) {
+  const { toast } = useToast();
+  
+  const { data: notifiche = [], isLoading, isError } = useQuery<NotificaArricchitaCliente[]>({
+    queryKey: ["/api/clienti", clienteId, "notifiche-da-gestire"],
+    queryFn: async () => {
+      const res = await fetch(`/api/clienti/${clienteId}/notifiche-da-gestire`);
+      if (!res.ok) throw new Error("Failed to fetch");
+      return res.json();
+    },
+  });
+
+  const markAsReadMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return apiRequest("PATCH", `/api/notifiche/${id}/letta`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clienti", clienteId, "notifiche-da-gestire"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/notifiche"] });
+      toast({ title: "Messaggio gestito" });
+    },
+    onError: () => {
+      toast({ title: "Errore", description: "Impossibile aggiornare la notifica", variant: "destructive" });
+    },
+  });
+
+  if (isError) return null;
+  if (notifiche.length === 0 && !isLoading) return null;
+
+  const getWhatsAppUrl = (telefono: string) => {
+    let phone = telefono.replace(/\D/g, '');
+    if (!phone.startsWith('39') && phone.startsWith('3')) {
+      phone = '39' + phone;
+    }
+    return `https://wa.me/${phone}`;
+  };
+
+  const telefono = cliente?.telefono;
+
+  return (
+    <div className="mb-6" data-testid="section-messaggi-da-gestire-cliente">
+      <h3 className="text-lg font-semibold mb-3 flex items-center gap-2" data-testid="title-messaggi-da-gestire-cliente">
+        <MessageCircle className="h-5 w-5 text-green-600" />
+        Messaggi da Gestire ({isLoading ? '...' : notifiche.length})
+      </h3>
+      {isLoading ? (
+        <Card className="border-green-300 bg-green-50 dark:bg-green-950/30 dark:border-green-800">
+          <CardContent className="p-4">
+            <p className="text-sm text-muted-foreground">Caricamento messaggi...</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {notifiche.map((notifica) => {
+            const immobile = notifica.immobile;
+            
+            return (
+              <Card 
+                key={notifica.id} 
+                className="border-green-300 bg-green-50 dark:bg-green-950/30 dark:border-green-800"
+                data-testid={`card-messaggio-cliente-${notifica.id}`}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge className="bg-green-500 text-white">Da gestire</Badge>
+                        {immobile && (
+                          <Link href={`/immobili/${immobile.id}`}>
+                            <Badge variant="outline" className="cursor-pointer">
+                              <Home className="h-3 w-3 mr-1" />
+                              {immobile.indirizzo || immobile.titolo}
+                            </Badge>
+                          </Link>
+                        )}
+                      </div>
+                      <p className="font-medium mt-2" data-testid={`text-titolo-cliente-${notifica.id}`}>{notifica.titolo}</p>
+                      <p className="text-sm text-muted-foreground mt-1" data-testid={`text-messaggio-cliente-${notifica.id}`}>{notifica.messaggio}</p>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        {new Date(notifica.createdAt).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      {telefono ? (
+                        <Button
+                          size="sm"
+                          asChild
+                          data-testid={`button-whatsapp-cliente-${notifica.id}`}
+                        >
+                          <a href={getWhatsAppUrl(telefono)} target="_blank" rel="noopener noreferrer">
+                            <MessageCircle className="h-4 w-4 mr-1" />
+                            Rispondi
+                          </a>
+                        </Button>
+                      ) : cliente?.email ? (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          asChild
+                          data-testid={`button-email-cliente-${notifica.id}`}
+                        >
+                          <a href={`mailto:${cliente.email}`}>
+                            <Mail className="h-4 w-4 mr-1" />
+                            Email
+                          </a>
+                        </Button>
+                      ) : null}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => markAsReadMutation.mutate(notifica.id)}
+                        data-testid={`button-gestito-cliente-${notifica.id}`}
+                      >
+                        <CheckCircle2 className="h-4 w-4 mr-1" />
+                        Gestito
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TabPanoramica({ cliente, onAnalyzePersonality, isAnalyzing }: { 
   cliente: Cliente; 
   onAnalyzePersonality: () => void;
@@ -731,7 +871,8 @@ function TabComunicazioni({ clienteId, cliente }: { clienteId: number; cliente: 
 
   if (comunicazioni.length === 0) {
     return (
-      <div>
+      <div className="space-y-4">
+        <MessaggiDaGestireCliente clienteId={clienteId} cliente={cliente} />
         <CommunicationComposer clienteId={clienteId} cliente={cliente} />
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
@@ -747,7 +888,8 @@ function TabComunicazioni({ clienteId, cliente }: { clienteId: number; cliente: 
   }
 
   return (
-    <div>
+    <div className="space-y-4">
+      <MessaggiDaGestireCliente clienteId={clienteId} cliente={cliente} />
       <CommunicationComposer clienteId={clienteId} cliente={cliente} />
       <div className="space-y-3">
       {comunicazioni.map((com) => {
@@ -1525,6 +1667,8 @@ export default function ClienteDetailPage() {
         onDelete={() => setShowDeleteDialog(true)}
         onMerge={() => setShowMergeDialog(true)}
       />
+
+      <MessaggiDaGestireCliente clienteId={clienteId} cliente={cliente} />
 
       <Tabs defaultValue="panoramica" className="w-full">
         <TabsList className="w-full justify-start border-b rounded-none bg-transparent p-0 h-auto">
