@@ -222,17 +222,10 @@ export async function getEmailsByQuery(query: string, maxResults: number = 20): 
 }
 
 export async function searchPortalEmails(): Promise<EmailMessage[]> {
-  const portalQueries = [
-    'from:immobiliare.it',
-    'from:casa.it', 
-    'from:idealista.it',
-    'from:subito.it',
-    'subject:richiesta informazioni immobile',
-    'subject:contatto annuncio'
-  ];
-  
-  const query = `is:unread (${portalQueries.join(' OR ')})`;
-  return getEmailsByQuery(query, 50);
+  // Use simpler from: queries that work reliably with Gmail search
+  const query = `is:unread newer_than:7d (from:immobiliare.it OR from:messaggi.immobiliare.it OR from:casa.it OR from:idealista.it OR from:subito.it)`;
+  console.log(`[Gmail] Searching with query: ${query}`);
+  return getEmailsByQuery(query, 100);
 }
 
 export interface ParsedPortalEmail {

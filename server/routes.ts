@@ -414,6 +414,29 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
     }
   });
 
+  // Debug endpoint per testare query Gmail
+  app.get("/api/gmail/debug-query", async (req, res) => {
+    try {
+      const query = req.query.q as string || 'is:unread newer_than:3d';
+      const maxResults = parseInt(req.query.max as string) || 20;
+      const emails = await getEmailsByQuery(query, maxResults);
+      res.json({
+        query,
+        count: emails.length,
+        emails: emails.map(e => ({
+          id: e.id,
+          from: e.from,
+          subject: e.subject,
+          date: e.date,
+          snippet: e.snippet?.slice(0, 150)
+        }))
+      });
+    } catch (error) {
+      console.error("Gmail debug error:", error);
+      res.status(500).json({ error: String(error) });
+    }
+  });
+
   app.patch("/api/notifiche/:id/letta", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
