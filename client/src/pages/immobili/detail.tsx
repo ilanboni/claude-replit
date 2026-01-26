@@ -595,13 +595,6 @@ function MessaggiDaGestire({ immobileId }: { immobileId: number }) {
   if (isError) return null;
   if (notifiche.length === 0 && !isLoading) return null;
 
-  const getWhatsAppUrl = (telefono: string) => {
-    let phone = telefono.replace(/\D/g, '');
-    if (!phone.startsWith('39') && phone.startsWith('3')) {
-      phone = '39' + phone;
-    }
-    return `https://wa.me/${phone}`;
-  };
 
   return (
     <div className="mb-6" data-testid="section-messaggi-da-gestire">
@@ -654,10 +647,10 @@ function MessaggiDaGestire({ immobileId }: { immobileId: number }) {
                           asChild
                           data-testid={`button-whatsapp-reply-${notifica.id}`}
                         >
-                          <a href={getWhatsAppUrl(telefono)} target="_blank" rel="noopener noreferrer">
+                          <Link href={`/whatsapp?phone=${encodeURIComponent(telefono)}`}>
                             <MessageCircle className="h-4 w-4 mr-1" />
                             Rispondi
-                          </a>
+                          </Link>
                         </Button>
                       ) : cliente?.email ? (
                         <Button

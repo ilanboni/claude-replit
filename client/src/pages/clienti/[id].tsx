@@ -187,14 +187,6 @@ function MessaggiDaGestireCliente({ clienteId, cliente }: { clienteId: number; c
   if (isError) return null;
   if (notifiche.length === 0 && !isLoading) return null;
 
-  const getWhatsAppUrl = (telefono: string) => {
-    let phone = telefono.replace(/\D/g, '');
-    if (!phone.startsWith('39') && phone.startsWith('3')) {
-      phone = '39' + phone;
-    }
-    return `https://wa.me/${phone}`;
-  };
-
   const telefono = cliente?.telefono;
 
   return (
@@ -247,10 +239,10 @@ function MessaggiDaGestireCliente({ clienteId, cliente }: { clienteId: number; c
                           asChild
                           data-testid={`button-whatsapp-cliente-${notifica.id}`}
                         >
-                          <a href={getWhatsAppUrl(telefono)} target="_blank" rel="noopener noreferrer">
+                          <Link href={`/whatsapp?phone=${encodeURIComponent(telefono)}`}>
                             <MessageCircle className="h-4 w-4 mr-1" />
                             Rispondi
-                          </a>
+                          </Link>
                         </Button>
                       ) : cliente?.email ? (
                         <Button

@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useSearch, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
@@ -125,6 +126,8 @@ function useWhatsAppWebSocket() {
 export default function WhatsAppPage() {
   const { toast } = useToast();
   const { isConnected } = useWhatsAppWebSocket();
+  const searchString = useSearch();
+  const [, setLocation] = useLocation();
   const [selectedConversationId, setSelectedConversationId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [messageText, setMessageText] = useState("");
@@ -133,11 +136,37 @@ export default function WhatsAppPage() {
   const [newPhoneNumber, setNewPhoneNumber] = useState("");
   const [newMessage, setNewMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [phoneFromUrl, setPhoneFromUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(searchString);
+    const phone = params.get("phone");
+    if (phone) {
+      setPhoneFromUrl(phone);
+      setLocation("/whatsapp", { replace: true });
+    }
+  }, [searchString, setLocation]);
 
   const { data: conversations = [], isLoading: loadingConversations } = useQuery<WhatsappConversation[]>({
     queryKey: ["/api/whatsapp/conversations"],
     refetchInterval: isConnected ? false : 5000
   });
+
+  useEffect(() => {
+    if (phoneFromUrl && conversations.length > 0 && !selectedConversationId) {
+      const normalizedPhone = phoneFromUrl.replace(/\D/g, '');
+      const matchingConv = conversations.find(c => {
+        const convPhone = c.phoneNumber.replace(/\D/g, '');
+        return convPhone.endsWith(normalizedPhone) || normalizedPhone.endsWith(convPhone) ||
+               convPhone === normalizedPhone || convPhone === '39' + normalizedPhone ||
+               normalizedPhone === '39' + convPhone;
+      });
+      if (matchingConv) {
+        setSelectedConversationId(matchingConv.id);
+        setPhoneFromUrl(null);
+      }
+    }
+  }, [phoneFromUrl, conversations, selectedConversationId]);
 
   const { data: conversationData, isLoading: loadingMessages } = useQuery<{ 
     conversation: WhatsappConversation; 
