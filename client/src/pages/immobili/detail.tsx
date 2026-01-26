@@ -634,7 +634,7 @@ function MessaggiDaGestire({ immobileId }: { immobileId: number }) {
                     </p>
                   </div>
                   <div className="flex flex-col gap-2">
-                    {telefono && (
+                    {telefono ? (
                       <Button
                         size="sm"
                         className="bg-green-600 hover:bg-green-700 text-white"
@@ -644,7 +644,17 @@ function MessaggiDaGestire({ immobileId }: { immobileId: number }) {
                         <MessageCircle className="h-4 w-4 mr-1" />
                         Rispondi
                       </Button>
-                    )}
+                    ) : cliente?.email ? (
+                      <Button
+                        size="sm"
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                        onClick={() => window.open(`mailto:${cliente.email}`, '_blank')}
+                        data-testid={`button-email-reply-${notifica.id}`}
+                      >
+                        <Mail className="h-4 w-4 mr-1" />
+                        Email
+                      </Button>
+                    ) : null}
                     <Button
                       size="sm"
                       variant="outline"
