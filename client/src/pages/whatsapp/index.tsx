@@ -153,7 +153,7 @@ export default function WhatsAppPage() {
   });
 
   useEffect(() => {
-    if (phoneFromUrl && conversations.length > 0 && !selectedConversationId) {
+    if (phoneFromUrl && !loadingConversations && !selectedConversationId) {
       const normalizedPhone = phoneFromUrl.replace(/\D/g, '');
       const matchingConv = conversations.find(c => {
         const convPhone = c.phoneNumber.replace(/\D/g, '');
@@ -163,10 +163,14 @@ export default function WhatsAppPage() {
       });
       if (matchingConv) {
         setSelectedConversationId(matchingConv.id);
-        setPhoneFromUrl(null);
+      } else {
+        // No existing conversation - open new chat dialog with pre-filled phone
+        setNewPhoneNumber(phoneFromUrl);
+        setNewChatOpen(true);
       }
+      setPhoneFromUrl(null);
     }
-  }, [phoneFromUrl, conversations, selectedConversationId]);
+  }, [phoneFromUrl, conversations, loadingConversations, selectedConversationId]);
 
   const { data: conversationData, isLoading: loadingMessages } = useQuery<{ 
     conversation: WhatsappConversation; 
