@@ -984,6 +984,17 @@ export class DatabaseStorage implements IStorage {
     return true;
   }
 
+  async markNotificheLetteByCliente(clienteId: number): Promise<number> {
+    const result = await db.update(notifiche)
+      .set({ letta: true })
+      .where(and(
+        eq(notifiche.clienteId, clienteId),
+        eq(notifiche.letta, false)
+      ))
+      .returning();
+    return result.length;
+  }
+
   // Tasks (promemoria personali con sync calendario)
   async getTasks(stato?: string): Promise<Task[]> {
     if (stato) {

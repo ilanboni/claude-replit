@@ -1127,6 +1127,16 @@ ${analysis.areeSensibili.length > 0 ? analysis.areeSensibili.map(a => `• ${a}`
         }
       }
       
+      // Mark all unread notifications for this client as read (auto-gestione)
+      try {
+        const markedCount = await storage.markNotificheLetteByCliente(clienteId);
+        if (markedCount > 0) {
+          console.log(`[Comunicazione] Marked ${markedCount} notifications as read for client ${clienteId}`);
+        }
+      } catch (e) {
+        console.error("Errore mark notifiche lette:", e);
+      }
+      
       res.json({ success: true, comunicazione });
     } catch (error) {
       console.error("Send communication error:", error);
@@ -4914,6 +4924,15 @@ FORMATO RISPOSTE:
         creatoDA: "agente",
         esito: null
       });
+
+      // Mark all unread notifications for this client as read (auto-gestione)
+      const clientIdToMark = resolvedClienteId || conversation.clienteId;
+      if (clientIdToMark) {
+        const markedCount = await storage.markNotificheLetteByCliente(clientIdToMark);
+        if (markedCount > 0) {
+          console.log(`[WhatsApp] Marked ${markedCount} notifications as read for client ${clientIdToMark}`);
+        }
+      }
 
       // Send via UltraMsg API
       if (isUltraMsgConfigured()) {
