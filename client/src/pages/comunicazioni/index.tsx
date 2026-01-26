@@ -112,7 +112,7 @@ function ComunicazioneItem({
               <Link href={`/immobili/${immobile.id}`}>
                 <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1 hover:underline cursor-pointer">
                   <Building2 className="h-3 w-3" />
-                  {immobile.titolo}
+                  {immobile.indirizzo || immobile.titolo || `Immobile #${immobile.id}`}
                 </p>
               </Link>
             )}
@@ -207,7 +207,7 @@ function NewComunicazioneForm({ onSuccess }: { onSuccess: () => void }) {
             <SelectContent>
               {immobili.map((i) => (
                 <SelectItem key={i.id} value={i.id.toString()}>
-                  {i.titolo}
+                  {i.indirizzo || i.titolo || `Immobile #${i.id}`}
                 </SelectItem>
               ))}
             </SelectContent>
