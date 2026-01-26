@@ -148,12 +148,16 @@ async function importPortalEmails(): Promise<{ imported: number; errors: string[
     const emails = await searchPortalEmails();
     console.log(`[EmailImportWorker] Found ${emails.length} portal emails`);
 
+    let skipped = 0;
     for (const email of emails) {
       try {
         const existing = await storage.getNotificaByEmailId(email.id);
         if (existing) {
+          skipped++;
           continue;
         }
+        console.log(`[EmailImportWorker] Processing NEW email: ${email.id} - ${email.subject?.substring(0, 60)}`);
+
 
         // Distingui tra richiesta visita e risposta acquisizione
         // "Nuovo messaggio di XXX per l'annuncio" = risposta a nostra email di acquisizione
@@ -330,6 +334,7 @@ async function importPortalEmails(): Promise<{ imported: number; errors: string[
         errors.push(`Email ${email.id}: ${String(emailError)}`);
       }
     }
+    console.log(`[EmailImportWorker] Summary: ${imported} imported, ${skipped} already processed`);
   } catch (error) {
     console.error("[EmailImportWorker] Error fetching emails:", error);
     errors.push(String(error));
