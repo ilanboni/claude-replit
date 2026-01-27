@@ -6680,6 +6680,76 @@ FORMATO RISPOSTE:
     }
   });
 
+  // Estrai telefono da URL usando browser headless (clicca "Mostra numero")
+  app.post("/api/scrape/extract-phone", async (req, res) => {
+    try {
+      const { url } = req.body;
+      
+      if (!url) {
+        return res.status(400).json({ error: "URL richiesto" });
+      }
+
+      console.log('[ExtractPhone] Avvio estrazione telefono per:', url);
+      
+      const { extractPhoneFromUrl } = await import('./phone-scraper');
+      const result = await extractPhoneFromUrl(url);
+      
+      if (result.phone) {
+        console.log('[ExtractPhone] Telefono trovato:', result.phone, 'metodo:', result.method);
+        res.json({ 
+          phone: result.phone, 
+          found: true, 
+          method: result.method 
+        });
+      } else {
+        console.log('[ExtractPhone] Nessun telefono trovato');
+        res.json({ phone: null, found: false });
+      }
+    } catch (error: any) {
+      console.error("Extract phone error:", error);
+      res.status(500).json({ error: error.message || "Errore durante l'estrazione telefono" });
+    }
+  });
+
+  // Aggiorna telefono di un immobile esterno
+  app.post("/api/immobili-esterni/:id/extract-phone", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      
+      const immobile = await storage.getImmobileEsterno(id);
+      if (!immobile) {
+        return res.status(404).json({ error: "Immobile non trovato" });
+      }
+
+      if (!immobile.urlAnnuncio) {
+        return res.status(400).json({ error: "Immobile senza URL annuncio" });
+      }
+
+      console.log('[ExtractPhone] Estrazione telefono per immobile', id, ':', immobile.urlAnnuncio);
+      
+      const { extractPhoneFromUrl } = await import('./phone-scraper');
+      const result = await extractPhoneFromUrl(immobile.urlAnnuncio);
+      
+      if (result.phone) {
+        await storage.updateImmobileEsterno(id, { 
+          contattoTelefono: result.phone 
+        });
+        console.log('[ExtractPhone] Telefono aggiornato:', result.phone);
+        res.json({ 
+          phone: result.phone, 
+          found: true, 
+          method: result.method,
+          updated: true
+        });
+      } else {
+        res.json({ phone: null, found: false, updated: false });
+      }
+    } catch (error: any) {
+      console.error("Extract phone for immobile error:", error);
+      res.status(500).json({ error: error.message || "Errore durante l'estrazione telefono" });
+    }
+  });
+
   // Check for duplicate/similar properties before saving
   app.post("/api/scrape/check-duplicate", async (req, res) => {
     try {
