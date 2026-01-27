@@ -1,5 +1,6 @@
 import puppeteer from 'puppeteer';
 import { extractPhoneFromImage } from './apify-scraper';
+import { execSync } from 'child_process';
 
 interface PhoneExtractionResult {
   phone: string | null;
@@ -11,14 +12,31 @@ async function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+function findChromiumPath(): string {
+  try {
+    const path = execSync('which chromium', { encoding: 'utf-8' }).trim();
+    if (path) return path;
+  } catch (e) {}
+  
+  try {
+    const path = execSync('ls /nix/store/*/bin/chromium 2>/dev/null | head -1', { encoding: 'utf-8', shell: '/bin/bash' }).trim();
+    if (path) return path;
+  } catch (e) {}
+  
+  return '/usr/bin/chromium';
+}
+
 export async function extractPhoneFromUrl(url: string): Promise<PhoneExtractionResult> {
   let browser = null;
   
   try {
+    const chromiumPath = findChromiumPath();
     console.log('[PhoneScraper] Avvio browser headless per:', url);
+    console.log('[PhoneScraper] Chromium path:', chromiumPath);
     
     browser = await puppeteer.launch({
       headless: true,
+      executablePath: chromiumPath,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -39,7 +57,21 @@ export async function extractPhoneFromUrl(url: string): Promise<PhoneExtractionR
       timeout: 30000 
     });
 
-    await delay(2000);
+    await delay(3000);
+    
+    // Gestisci cookie consent popup
+    try {
+      const cookieButtons = await page.$$('button');
+      for (const btn of cookieButtons) {
+        const text = await page.evaluate((el: any) => el.textContent?.toLowerCase() || '', btn);
+        if (text.includes('accett') || text.includes('accept') || text.includes('consent') || text.includes('agree')) {
+          console.log('[PhoneScraper] Accetto cookies...');
+          await btn.click();
+          await delay(1000);
+          break;
+        }
+      }
+    } catch (e) {}
 
     if (url.includes('immobiliare.it')) {
       return await extractFromImmobiliare(page);
@@ -63,111 +95,61 @@ export async function extractPhoneFromUrl(url: string): Promise<PhoneExtractionR
 
 async function extractFromImmobiliare(page: any): Promise<PhoneExtractionResult> {
   try {
-    console.log('[PhoneScraper] Cerco pulsante "Mostra numero" su Immobiliare.it...');
+    console.log('[PhoneScraper] Analisi pagina Immobiliare.it...');
     
-    const phoneButtonSelectors = [
-      'button[data-cy="phone-button"]',
-      '[data-testid="phone-button"]',
-      'button:has-text("Mostra")',
-      '.nd-button--callPhoneNumber',
-      '[class*="phone"]',
-      'a[href^="tel:"]',
-      'button[class*="Phone"]',
-      '[data-action="showPhone"]'
+    // Prima cattura il contenuto testuale della pagina
+    const pageText = await page.evaluate(() => document.body.innerText);
+    console.log('[PhoneScraper] Contenuto pagina estratto, lunghezza:', pageText.length);
+    
+    // Cerca numeri di telefono nel testo usando regex
+    const phonePatterns = [
+      /(?:\+39[\s.-]?)?3[0-9]{2}[\s.-]?[0-9]{3}[\s.-]?[0-9]{4}/g,
+      /(?:\+39[\s.-]?)?0[0-9]{1,3}[\s.-]?[0-9]{5,8}/g,
+      /3[0-9]{9}/g
     ];
-
-    let clicked = false;
     
-    for (const selector of phoneButtonSelectors) {
-      try {
-        const button = await page.$(selector);
-        if (button) {
-          console.log('[PhoneScraper] Trovato pulsante con selector:', selector);
-          await button.click();
-          clicked = true;
-          await delay(2000);
-          break;
-        }
-      } catch (e) {
-        continue;
-      }
-    }
-
-    if (!clicked) {
-      const buttons = await page.$$('button');
-      for (const button of buttons) {
-        const text = await page.evaluate((el: any) => el.textContent, button);
-        if (text && (text.includes('Mostra') || text.includes('telefono') || text.includes('Chiama'))) {
-          console.log('[PhoneScraper] Trovato pulsante tramite testo:', text);
-          await button.click();
-          clicked = true;
-          await delay(2000);
-          break;
-        }
-      }
-    }
-
-    if (!clicked) {
-      console.log('[PhoneScraper] Nessun pulsante trovato, tento scraping diretto...');
-    }
-
-    const phoneFromPage = await page.evaluate(() => {
-      const phonePatterns = [
-        /(?:\+39\s?)?3[0-9]{2}[\s.-]?[0-9]{6,7}/g,
-        /(?:\+39\s?)?0[0-9]{1,3}[\s.-]?[0-9]{5,8}/g
-      ];
-      
-      const phoneElements = document.querySelectorAll('a[href^="tel:"], [class*="phone"], [data-phone]');
-      for (const el of phoneElements) {
-        const href = el.getAttribute('href');
-        if (href?.startsWith('tel:')) {
-          return href.replace('tel:', '').replace(/\D/g, '');
-        }
-        const dataPhone = el.getAttribute('data-phone');
-        if (dataPhone) {
-          return dataPhone.replace(/\D/g, '');
-        }
-      }
-      
-      const bodyText = document.body.innerText;
-      for (const pattern of phonePatterns) {
-        const matches = bodyText.match(pattern);
-        if (matches) {
-          for (const match of matches) {
-            const cleaned = match.replace(/\D/g, '');
-            if (cleaned.length >= 9 && cleaned.length <= 12) {
-              if (cleaned.startsWith('3') || cleaned.startsWith('0')) {
-                return cleaned;
-              }
+    for (const pattern of phonePatterns) {
+      const matches = pageText.match(pattern);
+      if (matches) {
+        for (const match of matches) {
+          const cleaned = match.replace(/\D/g, '');
+          if (cleaned.length >= 9 && cleaned.length <= 12) {
+            if (cleaned.startsWith('3') || cleaned.startsWith('0') || cleaned.startsWith('39')) {
+              console.log('[PhoneScraper] Telefono trovato nel testo:', cleaned);
+              return { phone: cleaned, method: 'text' };
             }
           }
         }
       }
-      
-      return null;
+    }
+    
+    // Se non troviamo nel testo, proviamo OCR dello screenshot
+    console.log('[PhoneScraper] Telefono non trovato nel testo, cattura screenshot per OCR...');
+    
+    // Fai screenshot della pagina intera
+    const screenshot = await page.screenshot({ 
+      encoding: 'base64',
+      fullPage: false // Solo viewport visibile
     });
-
-    if (phoneFromPage) {
-      console.log('[PhoneScraper] Telefono trovato nel DOM:', phoneFromPage);
-      return { phone: phoneFromPage, method: 'click_reveal' };
-    }
-
-    console.log('[PhoneScraper] Telefono non trovato nel DOM, tento OCR...');
     
-    const contactSection = await page.$('[class*="contact"], [class*="agent"], [class*="phone"], .nd-mediaObject');
-    let screenshot: Buffer;
-    
-    if (contactSection) {
-      screenshot = await contactSection.screenshot({ encoding: 'base64' });
-    } else {
-      screenshot = await page.screenshot({ encoding: 'base64' });
-    }
-
     const ocrPhone = await extractPhoneFromImage(screenshot.toString());
     
     if (ocrPhone) {
       console.log('[PhoneScraper] Telefono trovato via OCR:', ocrPhone);
       return { phone: ocrPhone, method: 'ocr', screenshot: screenshot.toString() };
+    }
+    
+    // Ultimo tentativo: cerca link tel: nel DOM
+    const telLinks = await page.$$('a[href^="tel:"]');
+    if (telLinks.length > 0) {
+      const href = await page.evaluate((el: any) => el.getAttribute('href'), telLinks[0]);
+      if (href) {
+        const phone = href.replace('tel:', '').replace(/\D/g, '');
+        if (phone.length >= 9) {
+          console.log('[PhoneScraper] Trovato link tel:', phone);
+          return { phone, method: 'text' };
+        }
+      }
     }
 
     return { phone: null, method: null };
