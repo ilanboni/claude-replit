@@ -206,16 +206,23 @@ REGOLE APERTURA:
 - MAI usare zona/quartiere
 
 REGOLE MIRRORING (la parte centrale):
-- CITA 2-3 caratteristiche SPECIFICHE trovate nell'annuncio
-- USA i dettagli ESATTI: "ristrutturato nel 2020", "terrazzo di 15 mq", "doppia esposizione est-ovest"
+- CITA 2-3 caratteristiche dell'annuncio in modo NATURALE e SOBRIO
+- NON inventare dettagli troppo precisi che sembrano artificiali (es. "esposizione sud-est con vista sullo skyline" suona falso)
+- USA formulazioni morbide e naturali: "l'ottima esposizione", "la recente ristrutturazione", "la presenza del terrazzo"
 - EVITA frasi generiche come "distribuzione interna" o "numero locali" se non hai dettagli specifici
 - Collega le caratteristiche alla domanda di mercato
+- Il tono deve sembrare quello di un professionista che ha letto l'annuncio, NON di un bot che copia dettagli tecnici
+
+LIVELLO DI DETTAGLIO GIUSTO:
+- TROPPO GENERICO: "alcune caratteristiche" / "buona posizione"
+- TROPPO PRECISO (sembra bot): "esposizione sud-est con vista panoramica sullo skyline" / "doppia esposizione est-ovest al terzo piano"
+- GIUSTO: "l'ottima esposizione" / "la ristrutturazione recente" / "la presenza del terrazzo abitabile"
 
 PRIORITÀ CARATTERISTICHE (in ordine):
-1. Ristrutturazione recente con anno ("ristrutturato nel 2022")
-2. Elementi esterni: terrazzo, balcone, giardino con dimensioni
-3. Esposizione: doppia esposizione, vista, luminosità
-4. Stato: nuovo, ristrutturato, da ristrutturare
+1. Ristrutturazione recente ("la recente ristrutturazione")
+2. Elementi esterni: terrazzo, balcone, giardino ("la presenza del terrazzo")
+3. Esposizione/luminosità ("l'ottima esposizione", "la luminosità degli ambienti")
+4. Stato: nuovo, ristrutturato
 5. Dotazioni speciali: cantina, box, posto auto
 6. Servizi stabile: portineria, ascensore
 7. Classe energetica alta (A, B)
@@ -224,24 +231,29 @@ PRIORITÀ CARATTERISTICHE (in ordine):
 STRUTTURA MIRRORING FLESSIBILE:
 - "Ha notato [indirizzo]. La [caratteristica_1] e [caratteristica_2] lo rendono interessante per alcuni clienti che seguiamo."
 - "Ha notato [indirizzo]. [Caratteristica_1], insieme a [caratteristica_2], sono aspetti che stiamo cercando per alcuni acquirenti."
-- "Ha notato [indirizzo]. Elementi come [caratteristica_specifica] sono richiesti in questo momento."
+- "Ha notato [indirizzo]. Elementi come [caratteristica_naturale] sono richiesti in questo momento."
 
 FRASI VIETATE:
 - "alcune caratteristiche" (troppo generico)
-- "distribuzione interna" (troppo generico, usa solo se specifico)
+- "distribuzione interna" (troppo generico)
 - "numero locali" (troppo generico)
 - "soluzione ideale"
 - "particolarmente interessante"
-- "di pregio" / "di lusso"
+- "di pregio" / "di lusso" / "finiture di pregio" / "materiali di pregio"
+- "affacci panoramici" / "vista panoramica" (troppo enfatico)
+- MAI specificare la direzione dell'esposizione (sud-est, nord-ovest, ecc.) - scrivi solo "l'ottima esposizione" o "la buona luminosità"
+- MAI citare dettagli troppo tecnici come direzioni cardinali, numeri di piano specifici, misure esatte
+- Combinazioni troppo dettagliate di esposizione + vista + piano (suona artificiale)
+- NON copiare le parole esatte dell'annuncio - riformula in modo naturale e sobrio
 
-ESEMPI BUONI (nota la specificità):
-- "Ha notato il suo immobile in Via Panizzi 15. Il terrazzo abitabile e la recente ristrutturazione del 2021 lo rendono interessante per clienti che seguiamo in zona."
-- "Ha notato il suo immobile. La doppia esposizione est-ovest e la presenza di box e cantina sono aspetti molto richiesti in questo momento."
-- "Ha notato il suo trilocale in Via Roma 8. L'appartamento al piano alto con ascensore e la classe energetica B sono caratteristiche ricercate dai nostri acquirenti."
+ESEMPI BUONI (naturali e credibili):
+- "Ha notato il suo immobile in Via Panizzi 15. La recente ristrutturazione e il terrazzo abitabile lo rendono interessante per clienti che seguiamo in zona."
+- "Ha notato il suo immobile. L'ottima esposizione e la presenza di box e cantina sono aspetti molto richiesti in questo momento."
+- "Ha notato il suo trilocale in Via Roma 8. Il piano alto con ascensore e la luminosità degli ambienti sono caratteristiche ricercate dai nostri acquirenti."
 
-ESEMPI SBAGLIATI (troppo generici):
+ESEMPI SBAGLIATI:
 - "Dal suo annuncio si notano alcune caratteristiche, come il numero di locali e la distribuzione interna" (VIETATO - troppo generico)
-- "L'immobile presenta buone caratteristiche" (VIETATO - generico)
+- "La doppia esposizione sud-est con vista sullo skyline di Milano" (VIETATO - troppo preciso, sembra bot)
 - "Soluzione ideale per famiglie" (VIETATO - commerciale)`;
 
 // Mirroring configuration for structured calls - v11
