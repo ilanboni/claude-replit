@@ -3119,13 +3119,24 @@ ${analysis.areeSensibili.length > 0 ? analysis.areeSensibili.map(a => `• ${a}`
       } = await import("./bot-config");
       
       // Build mirroring context using the new schema
-      // IMPORTANTE: Se la descrizione è vuota o generica, usa il titolo
-      let testoAnnuncio = immobile.descrizione || '';
-      const descrizioneGenerica = testoAnnuncio.toLowerCase().includes('aggiungi una nota') || 
-                                   testoAnnuncio.toLowerCase().includes('modifica') ||
-                                   testoAnnuncio.trim().length < 50;
+      // PRIORITÀ: testoOriginale > descrizione > titolo
+      // testoOriginale contiene il testo completo dell'annuncio dal portale
+      let testoAnnuncio = '';
       
-      if (descrizioneGenerica) {
+      const descrizione = immobile.descrizione || '';
+      const testoOriginale = (immobile as any).testoOriginale || '';
+      
+      const descrizioneInutile = descrizione.toLowerCase().includes('aggiungi una nota') || 
+                                  descrizione.toLowerCase().includes('modifica') ||
+                                  descrizione.toLowerCase().includes('la tua nota') ||
+                                  descrizione.trim().length < 80;
+      
+      if (testoOriginale && testoOriginale.length > 100) {
+        // Limita a 3000 caratteri per evitare di mandare troppo rumore all'AI
+        testoAnnuncio = testoOriginale.substring(0, 3000);
+      } else if (!descrizioneInutile && descrizione.length > 80) {
+        testoAnnuncio = descrizione;
+      } else {
         testoAnnuncio = immobile.titolo || 'Immobile in vendita';
       }
       
