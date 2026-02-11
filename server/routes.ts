@@ -2006,8 +2006,8 @@ ${analysis.areeSensibili.length > 0 ? analysis.areeSensibili.map(a => `• ${a}`
         }
       }
       
-      // Usa sempre formato corto per tutti i portali
-      const finalMessage = SHORT_ACQUISITION_MESSAGE.replace('{{mirroring}}', mirroringText);
+      // Template unico per tutti i canali (web e WhatsApp)
+      const finalMessage = DEFAULT_ACQUISITION_MESSAGE.replace('{{mirroring}}', mirroringText);
       
       console.log(`[Generate Form Message] Generated ${finalMessage.length} chars (isIdealista: ${isIdealista})`);
       res.json({ message: finalMessage, charCount: finalMessage.length });
@@ -3205,8 +3205,8 @@ ${analysis.areeSensibili.length > 0 ? analysis.areeSensibili.map(a => `• ${a}`
         baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
       });
       
-      // Usa SEMPRE lo stesso prompt di qualità, cambia solo il template
-      const messageTemplate = isShort ? SHORT_ACQUISITION_MESSAGE : DEFAULT_ACQUISITION_MESSAGE;
+      // Template unico per tutti i canali (web e WhatsApp)
+      const messageTemplate = DEFAULT_ACQUISITION_MESSAGE;
       
       const mirroringResponse = await openaiClient.chat.completions.create({
         model: "gpt-4o",
@@ -3231,7 +3231,7 @@ ${analysis.areeSensibili.length > 0 ? analysis.areeSensibili.map(a => `• ${a}`
         }
       }
 
-      // Build the complete message using the appropriate template (stesso placeholder per entrambi)
+      // Build the complete message using template unico
       const message = messageTemplate.replace(/\{\{mirroring\}\}/g, mirroringText);
       
       console.log(`[Generate Message] Generated ${message.length} chars (format: ${format})`);
@@ -4490,9 +4490,8 @@ Assistente del Dott. Ilan Boni`;
         baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
       });
       
-      // Usa SEMPRE lo stesso prompt di qualità, cambia solo il template
-      const isShort = format === "idealista";
-      const messageTemplate = isShort ? SHORT_ACQUISITION_MESSAGE : DEFAULT_ACQUISITION_MESSAGE;
+      // Template unico per tutti i canali (web e WhatsApp)
+      const messageTemplate = DEFAULT_ACQUISITION_MESSAGE;
       
       // Generate mirroring phrases with JSON response format
       const mirroringResponse = await openaiClient.chat.completions.create({
