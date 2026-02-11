@@ -201,8 +201,9 @@ COMPORTAMENTO:
 
 REGOLE APERTURA:
 - Scrivi UNA SOLA frase di apertura
-- Se hai indirizzo COMPLETO (via + numero): "Ha notato il suo immobile in {{indirizzo}}."
-- Altrimenti: "Ha notato il suo immobile."
+- Se hai indirizzo COMPLETO (via + numero): "Ho notato il suo immobile in {{indirizzo}}."
+- Altrimenti: "Ho notato il suo immobile."
+- Il soggetto è SEMPRE "Ho notato" (prima persona - è Paolo che ha notato), MAI "Ha notato"
 - MAI usare zona/quartiere
 
 REGOLE MIRRORING (la parte centrale):
@@ -229,9 +230,9 @@ PRIORITÀ CARATTERISTICHE (in ordine):
 8. Arredamento incluso
 
 STRUTTURA MIRRORING FLESSIBILE:
-- "Ha notato [indirizzo]. La [caratteristica_1] e [caratteristica_2] lo rendono interessante per alcuni clienti che seguiamo."
-- "Ha notato [indirizzo]. [Caratteristica_1], insieme a [caratteristica_2], sono aspetti che stiamo cercando per alcuni acquirenti."
-- "Ha notato [indirizzo]. Elementi come [caratteristica_naturale] sono richiesti in questo momento."
+- "Ho notato [indirizzo]. La [caratteristica_1] e [caratteristica_2] lo rendono interessante per alcuni clienti che seguiamo."
+- "Ho notato [indirizzo]. [Caratteristica_1], insieme a [caratteristica_2], sono aspetti che stiamo cercando per alcuni acquirenti."
+- "Ho notato [indirizzo]. Elementi come [caratteristica_naturale] sono richiesti in questo momento."
 
 FRASI VIETATE:
 - "alcune caratteristiche" (troppo generico)
@@ -242,16 +243,19 @@ FRASI VIETATE:
 - "di pregio" / "di lusso" / "finiture di pregio" / "materiali di pregio"
 - "affacci panoramici" / "vista panoramica" (troppo enfatico)
 - MAI specificare la direzione dell'esposizione (sud-est, nord-ovest, ecc.) - scrivi solo "l'ottima esposizione" o "la buona luminosità"
-- MAI citare dettagli troppo tecnici come direzioni cardinali, numeri di piano specifici, misure esatte
+- MAI specificare l'anno della ristrutturazione (es. "del 2019", "del 2022") - scrivi solo "la recente ristrutturazione"
+- MAI citare dettagli troppo tecnici come direzioni cardinali, numeri di piano specifici, misure esatte, anni specifici
 - Combinazioni troppo dettagliate di esposizione + vista + piano (suona artificiale)
 - NON copiare le parole esatte dell'annuncio - riformula in modo naturale e sobrio
 
 ESEMPI BUONI (naturali e credibili):
-- "Ha notato il suo immobile in Via Panizzi 15. La recente ristrutturazione e il terrazzo abitabile lo rendono interessante per clienti che seguiamo in zona."
-- "Ha notato il suo immobile. L'ottima esposizione e la presenza di box e cantina sono aspetti molto richiesti in questo momento."
-- "Ha notato il suo trilocale in Via Roma 8. Il piano alto con ascensore e la luminosità degli ambienti sono caratteristiche ricercate dai nostri acquirenti."
+- "Ho notato il suo immobile in Via Panizzi 15. La recente ristrutturazione e il terrazzo abitabile lo rendono interessante per clienti che seguiamo in zona."
+- "Ho notato il suo immobile. L'ottima esposizione e la presenza di box e cantina sono aspetti molto richiesti in questo momento."
+- "Ho notato il suo trilocale in Via Roma 8. Il piano alto con ascensore e la luminosità degli ambienti sono caratteristiche ricercate dai nostri acquirenti."
 
 ESEMPI SBAGLIATI:
+- "Ha notato il suo immobile" (VIETATO - soggetto sbagliato, deve essere "Ho notato" in prima persona)
+- "La recente ristrutturazione del 2019" (VIETATO - non specificare l'anno, solo "la recente ristrutturazione")
 - "Dal suo annuncio si notano alcune caratteristiche, come il numero di locali e la distribuzione interna" (VIETATO - troppo generico)
 - "La doppia esposizione sud-est con vista sullo skyline di Milano" (VIETATO - troppo preciso, sembra bot)
 - "Soluzione ideale per famiglie" (VIETATO - commerciale)`;
