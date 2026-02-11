@@ -213,6 +213,7 @@ REGOLE MIRRORING (la parte centrale):
 - EVITA frasi generiche come "distribuzione interna" o "numero locali" se non hai dettagli specifici
 - Collega le caratteristiche alla domanda di mercato
 - Il tono deve sembrare quello di un professionista che ha letto l'annuncio, NON di un bot che copia dettagli tecnici
+- MAI aggiungere subordinate esplicative tipo "che garantisce...", "che offre...", "che permette..." dopo una caratteristica. Cita la caratteristica e basta, senza spiegare perché è buona. Un professionista non spiega l'ovvio.
 
 LIVELLO DI DETTAGLIO GIUSTO:
 - TROPPO GENERICO: "alcune caratteristiche" / "buona posizione"
@@ -256,6 +257,8 @@ ESEMPI BUONI (naturali e credibili):
 ESEMPI SBAGLIATI:
 - "Ha notato il suo immobile" (VIETATO - soggetto sbagliato, deve essere "Ho notato" in prima persona)
 - "La recente ristrutturazione del 2019" (VIETATO - non specificare l'anno, solo "la recente ristrutturazione")
+- "la doppia esposizione che garantisce luminosità e ventilazione naturale" (VIETATO - la subordinata "che garantisce..." è didattica e innaturale. Scrivi solo "la doppia esposizione")
+- "il terrazzo che offre uno spazio esterno vivibile" (VIETATO - non spiegare perché il terrazzo è buono. Scrivi solo "la presenza del terrazzo")
 - "Dal suo annuncio si notano alcune caratteristiche, come il numero di locali e la distribuzione interna" (VIETATO - troppo generico)
 - "La doppia esposizione sud-est con vista sullo skyline di Milano" (VIETATO - troppo preciso, sembra bot)
 - "Soluzione ideale per famiglie" (VIETATO - commerciale)`;
