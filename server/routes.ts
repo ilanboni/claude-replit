@@ -1946,8 +1946,21 @@ ${analysis.areeSensibili.length > 0 ? analysis.areeSensibili.map(a => `• ${a}`
         SHORT_ACQUISITION_MESSAGE 
       } = await import("./bot-config");
       
-      // Usa testoOriginale che contiene la descrizione completa dell'annuncio
-      const testoAnnuncio = immobile.testoOriginale || immobile.descrizione || immobile.titolo || 'Nessun testo disponibile';
+      // PRIORITÀ: testoOriginale > descrizione > titolo (filtra testo inutile del portale)
+      const descr = immobile.descrizione || '';
+      const testoOrig = immobile.testoOriginale || '';
+      const descrInutile = descr.toLowerCase().includes('aggiungi una nota') || 
+                            descr.toLowerCase().includes('la tua nota') ||
+                            descr.toLowerCase().includes('modifica') ||
+                            descr.trim().length < 80;
+      let testoAnnuncio: string;
+      if (testoOrig && testoOrig.length > 100) {
+        testoAnnuncio = testoOrig.substring(0, 3000);
+      } else if (!descrInutile && descr.length > 80) {
+        testoAnnuncio = descr;
+      } else {
+        testoAnnuncio = immobile.titolo || 'Nessun testo disponibile';
+      }
       
       let tipoUnita: string | null = null;
       if (immobile.camere) {
@@ -1993,14 +2006,8 @@ ${analysis.areeSensibili.length > 0 ? analysis.areeSensibili.map(a => `• ${a}`
         }
       }
       
-      // Build the final message using appropriate template
-      let finalMessage: string;
-      if (isIdealista) {
-        // Per Idealista: template compatto con stesso mirroring di qualità
-        finalMessage = SHORT_ACQUISITION_MESSAGE.replace('{{mirroring}}', mirroringText);
-      } else {
-        finalMessage = DEFAULT_ACQUISITION_MESSAGE.replace('{{mirroring}}', mirroringText);
-      }
+      // Usa sempre formato corto per tutti i portali
+      const finalMessage = SHORT_ACQUISITION_MESSAGE.replace('{{mirroring}}', mirroringText);
       
       console.log(`[Generate Form Message] Generated ${finalMessage.length} chars (isIdealista: ${isIdealista})`);
       res.json({ message: finalMessage, charCount: finalMessage.length });
@@ -3102,11 +3109,9 @@ ${analysis.areeSensibili.length > 0 ? analysis.areeSensibili.map(a => `• ${a}`
         return res.status(404).json({ error: "Immobile non trovato" });
       }
 
-      // Determine format based on fonte/portale - Idealista needs short messages (max 400 chars)
-      const isIdealista = (immobile.fonte || "").toLowerCase().includes("idealista") || 
-                          (immobile.portale || "").toLowerCase().includes("idealista");
-      const format = requestedFormat || (isIdealista ? "idealista" : "standard");
-      const isShort = format === "idealista";
+      // Usa sempre formato corto per tutti i portali
+      const format = requestedFormat || "idealista";
+      const isShort = true;
       
       console.log(`[Generate Message] ID: ${id}, fonte: ${immobile.fonte}, format: ${format}, isShort: ${isShort}`);
 

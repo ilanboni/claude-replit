@@ -1504,15 +1504,10 @@ function ImmobileEsternoCard({
               variant="outline" 
               size="icon"
               onClick={() => {
-                // PRIMA apri l'URL (deve essere sincrono nel contesto click)
-                if (immobile.urlAnnuncio) {
-                  window.open(immobile.urlAnnuncio, "_blank");
-                }
-                // POI genera il messaggio in background
                 generateFormMessageMutation.mutate();
               }}
               disabled={generateFormMessageMutation.isPending}
-              title="Genera messaggio e apri form"
+              title="Genera messaggio"
               data-testid={`button-form-message-${immobile.id}`}
             >
               {generateFormMessageMutation.isPending ? (
