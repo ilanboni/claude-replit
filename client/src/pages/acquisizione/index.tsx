@@ -1173,10 +1173,20 @@ function ImmobileEsternoCard({
     },
     onSuccess: (data) => {
       setFormMessageGenerated(data.message);
-      // Mostra dialog con messaggio per copia manuale
-      setShowMessageDialog(true);
-      toast({ title: "Messaggio generato!", description: "Copia dal dialog e incolla nel form" });
-      // URL già aperto nel click handler (sincrono)
+      const msg = data.message || "";
+      const textArea = document.createElement("textarea");
+      textArea.value = msg;
+      textArea.style.position = "fixed";
+      textArea.style.left = "-999999px";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      if (immobile.urlAnnuncio) {
+        window.open(immobile.urlAnnuncio, "_blank");
+      }
+      toast({ title: "Messaggio copiato!", description: "Incolla nell'annuncio e invia" });
     },
     onError: () => {
       toast({ title: "Errore", description: "Impossibile generare il messaggio", variant: "destructive" });
