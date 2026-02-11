@@ -252,6 +252,7 @@ FRASI VIETATE:
 - MAI citare dettagli troppo tecnici come direzioni cardinali, numeri di piano specifici, misure esatte, anni specifici
 - Combinazioni troppo dettagliate di esposizione + vista + piano (suona artificiale)
 - NON copiare le parole esatte dell'annuncio - riformula in modo naturale e sobrio
+- MAI abbinare aggettivi come "esposto" a elementi che sono già esterni per definizione (terrazzo, balcone, giardino). "Il terrazzo esposto" non ha senso. Scrivi "la presenza del terrazzo" o "il terrazzo abitabile"
 
 ESEMPI BUONI (naturali e credibili):
 - "Ho notato il suo immobile in Via Panizzi 15. La recente ristrutturazione e il terrazzo abitabile lo rendono interessante per clienti che seguiamo in zona."
@@ -263,6 +264,7 @@ ESEMPI SBAGLIATI:
 - "La recente ristrutturazione del 2019" (VIETATO - non specificare l'anno, solo "la recente ristrutturazione")
 - "la doppia esposizione che garantisce luminosità e ventilazione naturale" (VIETATO - la subordinata "che garantisce..." è didattica e innaturale. Scrivi solo "la doppia esposizione")
 - "il terrazzo che offre uno spazio esterno vivibile" (VIETATO - non spiegare perché il terrazzo è buono. Scrivi solo "la presenza del terrazzo")
+- "il terrazzo esposto" (VIETATO - un terrazzo è esterno per definizione, "esposto" non ha senso. Scrivi "la presenza del terrazzo")
 - "Dal suo annuncio si notano alcune caratteristiche, come il numero di locali e la distribuzione interna" (VIETATO - troppo generico)
 - "La doppia esposizione sud-est con vista sullo skyline di Milano" (VIETATO - troppo preciso, sembra bot)
 - "Soluzione ideale per famiglie" (VIETATO - commerciale)`;
