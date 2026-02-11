@@ -191,11 +191,15 @@ export function checkForObjection(message: string): { found: boolean; handler?: 
 
 // Prompt per generare frasi di mirroring dall'annuncio - v11
 // Versione flessibile: estrae caratteristiche SPECIFICHE dall'annuncio
-export const MIRRORING_PROMPT = `Genera il blocco di mirroring del messaggio WhatsApp rivolto a proprietari privati. Il mirroring deve menzionare caratteristiche SPECIFICHE e CONCRETE presenti nell'annuncio.
+export const MIRRORING_PROMPT = `Genera il blocco di mirroring del messaggio rivolto a proprietari privati. Il mirroring deve menzionare caratteristiche SPECIFICHE e CONCRETE presenti nell'annuncio.
+
+VINCOLO LUNGHEZZA:
+- Il mirroring DEVE essere massimo 200 caratteri (2 frasi brevi al massimo)
+- Conta i caratteri: se superi 200, accorcia
 
 COMPORTAMENTO:
 - Tono: istituzionale, sobrio, rispettoso
-- Stile: italiano naturale, frasi semplici
+- Stile: italiano naturale, frasi semplici e brevi
 - Persona: assistente del Dott. Ilan Boni
 - Priorità: SPECIFICITÀ - cita dettagli reali, mai frasi generiche
 
@@ -266,7 +270,7 @@ ESEMPI SBAGLIATI:
 // Mirroring configuration for structured calls - v11
 export const MIRRORING_CONFIG = {
   temperature: 0.3,  // Leggera variazione per evitare ripetizioni
-  max_tokens: 400
+  max_tokens: 200
 };
 
 // ============================================================
@@ -665,26 +669,14 @@ RICORDA:
 - Nessuna pressione, solo disponibilità`;
 
 // Default acquisition message template - usa {{mirroring}} per il blocco di mirroring generato da AI
-export const DEFAULT_ACQUISITION_MESSAGE = `Gentile Proprietario,
-sono l'assistente del Dott. Ilan Boni.
-
-Il Dott. Boni è agente immobiliare da oltre trent'anni, proprietario di due agenzie a Milano e Vicepresidente della Comunità Ebraica di Milano. La sua attività lo porta ogni giorno a confrontarsi con investitori italiani e stranieri che guardano a Milano come a un'opportunità concreta, spesso legata alla flat tax.
+export const DEFAULT_ACQUISITION_MESSAGE = `Buongiorno,
+sono Paolo, assistente del Dott. Boni, agente immobiliare da oltre 30 anni e Vice Presidente della Comunità ebraica di Milano.
 
 {{mirroring}}
 
-Il Dott. Boni vorrebbe capire se il suo immobile può inserirsi in un percorso di lavoro molto preciso.
-Nel 2025 ha concluso 14 vendite e, negli ultimi anni, il suo metodo gli ha permesso di chiudere positivamente il 94% dei mandati affidati, mettendo gli acquirenti in concorrenza tra loro e non al ribasso contro il proprietario.
+Il Dott. Boni è disponibile per un incontro presso l'immobile, senza impegno. Può rispondermi qui o al 02 35981509.
 
-Se per Lei può essere utile, il Dott. Boni è disponibile per un breve incontro direttamente presso l'immobile: una decina di minuti per ascoltare la sua situazione, vedere l'appartamento e mostrarle la domanda reale sulla zona.
-
-Nel frattempo può trovare informazioni sulla sua attività immobiliare e istituzionale anche online.
-
-Può rispondere direttamente a questo messaggio, oppure contattarci allo 02 35981509 o a info@cavourimmobiliare.it.
-
-Un cordiale saluto,
-
-Paolo
-Assistente del Dott. Ilan Boni`;
+Paolo`;
 
 // ==================== MESSAGGIO IDEALISTA (max 550 caratteri) ====================
 
