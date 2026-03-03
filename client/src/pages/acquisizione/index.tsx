@@ -1693,11 +1693,26 @@ export default function AcquisizionePage() {
 
     setSendingWhatsapp(true);
     try {
-      const res = await apiRequest("POST", `/api/acquisizione/${selectedImmobileId}/send-whatsapp`, {
-        message: generatedMessage,
-        phone: immobile.contattoTelefono,
+      const res = await fetch(`/api/acquisizione/${selectedImmobileId}/send-whatsapp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: generatedMessage,
+          phone: immobile.contattoTelefono,
+        }),
       });
-      const result = await res.json();
+      
+      let result: any;
+      const rawText = await res.text();
+      try {
+        result = JSON.parse(rawText);
+      } catch {
+        throw new Error(rawText || "Risposta non valida dal server");
+      }
+      
+      if (!res.ok) {
+        throw new Error(result.error || `Errore ${res.status}`);
+      }
       
       if (result.success) {
         toast({ 

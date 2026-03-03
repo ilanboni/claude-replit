@@ -63,7 +63,16 @@ export async function sendWhatsAppMessage(to: string, body: string): Promise<{ s
       }),
     });
 
-    const data = await response.json() as UltraMsgResponse;
+    const rawText = await response.text();
+    console.log(`[WhatsApp] API response status=${response.status}, body=${rawText.slice(0, 500)}`);
+
+    let data: UltraMsgResponse;
+    try {
+      data = JSON.parse(rawText) as UltraMsgResponse;
+    } catch (parseErr) {
+      console.error(`[WhatsApp] Non-JSON response from UltraMsg: ${rawText.slice(0, 200)}`);
+      return { success: false, error: `Risposta non valida da UltraMsg: ${rawText.slice(0, 100)}` };
+    }
     
     if (data.sent === 'true' || data.sent === true as any) {
       console.log(`WhatsApp message sent to ${phoneNumber}:`, data);
