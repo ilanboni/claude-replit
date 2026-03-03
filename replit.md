@@ -44,7 +44,7 @@ A background worker (`server/email-import-worker.ts`) polls Gmail for portal ema
 
 ### AI Integration
 
-OpenAI API powers the AI capabilities, including natural language parsing for buyer requests, property matching, a WhatsApp chatbot (Dott. Ilan Boni persona) for acquisition, intent analysis, AI coaching, and image generation. The WhatsApp bot features dual configurations for initial outreach and follow-up (EARA framework), handles common objections, and includes handoff rules. A persistent delay system schedules bot messages to simulate human timing. Google Calendar integration is implemented via OAuth 2.0 for event syncing.
+AI services power the system capabilities. The WhatsApp chatbot (Dott. Ilan Boni persona) uses **Anthropic Claude** (claude-sonnet-4-20250514) for acquisition conversations, intent analysis, and follow-up (EARA framework), handling common objections with handoff rules. **OpenAI API** (GPT-4o) is used for natural language parsing, buyer request processing, property matching, AI coaching, mirroring generation, and image generation (gpt-image-1). A persistent delay system schedules bot messages to simulate human timing. Google Calendar integration is implemented via OAuth 2.0 for event syncing.
 
 ### Build System
 
@@ -58,7 +58,8 @@ Vite is used for frontend development (HMR) and production builds, while esbuild
 - **connect-pg-simple** (PostgreSQL session store)
 
 ### AI Services
-- **OpenAI API** (GPT-4o for text, gpt-image-1 for images)
+- **Anthropic Claude** (claude-sonnet-4-20250514 for WhatsApp chatbot conversations)
+- **OpenAI API** (GPT-4o for text parsing/matching/coaching, gpt-image-1 for images)
 
 ### Communication Integrations
 - **UltraMsg WhatsApp Integration** (Instance 87870) for bidirectional sync, webhooks, and real-time updates.

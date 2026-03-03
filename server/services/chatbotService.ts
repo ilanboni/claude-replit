@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 import { storage } from "../storage";
 import type { WhatsappCampaign, CampaignMessage, BotConversationLog, ImmobileEsterno } from "@shared/schema";
 import { BOT_CONFIG, FOLLOWUP_BOT_CONFIG, checkForObjection, generateBotSystemPrompt } from "../bot-config";
@@ -242,78 +242,69 @@ export async function generateBotResponse(
   context: BotContext
 ): Promise<BotResponse> {
   try {
-    const openai = new OpenAI({
-      baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-      apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY
+    const anthropic = new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY,
     });
 
-    const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-      { role: "system", content: buildSystemPrompt(context, userMessage) }
-    ];
+    const systemPrompt = buildSystemPrompt(context, userMessage);
 
+    const claudeMessages: Anthropic.MessageParam[] = [];
     for (const log of context.conversationHistory) {
-      messages.push(
+      claudeMessages.push(
         { role: "user", content: log.userMessage },
         { role: "assistant", content: log.botResponse }
       );
     }
-    messages.push({ role: "user", content: userMessage });
+    claudeMessages.push({ role: "user", content: userMessage });
 
-    const intentCompletion = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages,
-      temperature: 0.7,
+    const intentPrompt = `Analizza il seguente messaggio del cliente e rispondi SOLO con un JSON valido (nessun testo aggiuntivo):
+{
+  "intent": "(schedule_visit|ask_price|ask_details|not_interested|already_sold|wants_callback|negotiation|general_question|unclear)",
+  "confidence": (0-100),
+  "should_end": (true|false),
+  "suggested_actions": ["azione1", "azione2"]
+}
+
+Messaggio del cliente: "${userMessage}"`;
+
+    const intentResult = await anthropic.messages.create({
+      model: "claude-sonnet-4-20250514",
       max_tokens: 200,
-      tools: [{
-        type: "function",
-        function: {
-          name: "analyze_intent",
-          parameters: {
-            type: "object",
-            properties: {
-              intent: {
-                type: "string",
-                enum: ["schedule_visit", "ask_price", "ask_details", "not_interested", 
-                       "already_sold", "wants_callback", "negotiation", "general_question", "unclear"]
-              },
-              confidence: { type: "number", minimum: 0, maximum: 100 },
-              should_end: { type: "boolean" },
-              suggested_actions: { type: "array", items: { type: "string" } }
-            },
-            required: ["intent", "confidence", "should_end", "suggested_actions"]
-          }
-        }
-      }],
-      tool_choice: { type: "function", function: { name: "analyze_intent" } }
+      temperature: 0,
+      messages: [{ role: "user", content: intentPrompt }],
     });
 
     let intent = null, confidence = null, shouldEnd = false, suggestedActions: string[] = [];
-    const toolCall = intentCompletion.choices[0]?.message?.tool_calls?.[0] as any;
-    if (toolCall?.function?.arguments) {
-      try {
-        const analysis = JSON.parse(toolCall.function.arguments);
+    const intentText = intentResult.content[0]?.type === "text" ? intentResult.content[0].text : "";
+    try {
+      const jsonMatch = intentText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const analysis = JSON.parse(jsonMatch[0]);
         intent = analysis.intent;
         confidence = analysis.confidence;
         shouldEnd = analysis.should_end;
         suggestedActions = analysis.suggested_actions || [];
-      } catch (e) {
-        console.error("[ChatBot] Error parsing intent analysis:", e);
       }
+    } catch (e) {
+      console.error("[ChatBot] Error parsing Claude intent analysis:", e);
     }
 
-    const textCompletion = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages,
+    const textResult = await anthropic.messages.create({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 200,
       temperature: 0.7,
-      max_tokens: 200
+      system: systemPrompt,
+      messages: claudeMessages,
     });
 
-    const botMessage = textCompletion.choices[0]?.message?.content?.trim() 
+    const botMessage = (textResult.content[0]?.type === "text" ? textResult.content[0].text.trim() : "")
       || "Grazie per il messaggio. Un nostro agente ti contatterà a breve.";
+
+    console.log(`[ChatBot] Claude response generated - intent: ${intent}, confidence: ${confidence}`);
 
     return { message: botMessage, intent, confidence, shouldEndConversation: shouldEnd, suggestedActions };
   } catch (error) {
-    console.error("[ChatBot] Error generating response:", error);
+    console.error("[ChatBot] Error generating Claude response:", error);
     return {
       message: "Grazie per il messaggio. Un nostro agente ti contatterà a breve.",
       intent: "unclear", 
