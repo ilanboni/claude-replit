@@ -443,9 +443,10 @@ export const scheduledBotMessages = pgTable("scheduled_bot_messages", {
   campaignMessageId: integer("campaign_message_id").notNull().references(() => campaignMessages.id, { onDelete: "cascade" }),
   conversationId: integer("conversation_id").notNull().references(() => whatsappConversations.id, { onDelete: "cascade" }),
   phoneNumber: text("phone_number").notNull(),
-  userMessage: text("user_message").notNull(), // Il messaggio del cliente a cui rispondere
-  scheduledAt: timestamp("scheduled_at").notNull(), // Quando inviare la risposta
-  status: text("status").default("pending").notNull(), // pending, processing, sent, failed
+  userMessage: text("user_message").notNull(),
+  scheduledAt: timestamp("scheduled_at").notNull(),
+  status: text("status").default("pending").notNull(), // pending, processing, sent, failed, pending_approval, rejected
+  botResponse: text("bot_response"),
   attempts: integer("attempts").default(0),
   lastError: text("last_error"),
   sentAt: timestamp("sent_at"),

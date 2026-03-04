@@ -6,6 +6,28 @@ import { whatsappWS } from "../websocket";
 let isProcessing = false;
 let workerInterval: NodeJS.Timeout | null = null;
 
+const APPOINTMENT_PATTERNS = [
+  /\b(\d{1,2}[:.]\d{2})\b/,
+  /\b(luned[iì]|marted[iì]|mercoled[iì]|gioved[iì]|venerd[iì]|sabato|domenica)\b/i,
+  /\b(mattina|pomeriggio|sera)\b/i,
+  /\b(ore\s+\d{1,2})\b/i,
+  /\b(alle\s+\d{1,2})\b/i,
+  /\b(tra le\s+\d{1,2})\b/i,
+  /\b(fascia|orario|appuntamento|visita|incontro|fissare|confermare)\b/i,
+  /\b(disponibil[ei]|preferisce|andrebbe bene|va bene)\b/i,
+];
+
+function containsAppointmentProposal(text: string): boolean {
+  const lowerText = text.toLowerCase();
+  let matchCount = 0;
+  for (const pattern of APPOINTMENT_PATTERNS) {
+    if (pattern.test(lowerText)) {
+      matchCount++;
+    }
+  }
+  return matchCount >= 2;
+}
+
 export async function processScheduledMessages(): Promise<void> {
   if (isProcessing) {
     return;
@@ -24,7 +46,6 @@ export async function processScheduledMessages(): Promise<void> {
       const currentAttempts = (scheduled.attempts || 0) + 1;
       
       try {
-        // Mark as processing (don't increment attempts yet - will do after processing)
         await storage.updateScheduledBotMessage(scheduled.id, { 
           status: "processing"
         });
@@ -39,6 +60,42 @@ export async function processScheduledMessages(): Promise<void> {
         
         if (botResponse) {
           console.log(`[ScheduledWorker] Generated response: ${botResponse.substring(0, 100)}...`);
+          
+          if (containsAppointmentProposal(botResponse)) {
+            console.log(`[ScheduledWorker] ⚠️ Response contains appointment/time proposal - holding for approval`);
+            
+            await storage.updateScheduledBotMessage(scheduled.id, {
+              status: "pending_approval",
+              botResponse: botResponse,
+              attempts: currentAttempts
+            });
+            
+            const conversation = await storage.getWhatsappConversation(scheduled.conversationId);
+            const contactName = conversation?.nome || scheduled.phoneNumber;
+            
+            await storage.createNotifica({
+              tipo: "sistema",
+              titolo: `🤖 Bot: risposta da approvare per ${contactName}`,
+              messaggio: `Il bot ha generato una risposta che propone orari/appuntamenti per ${contactName} (${scheduled.phoneNumber}).\n\nRisposta proposta:\n"${botResponse}"\n\nMessaggio del cliente:\n"${scheduled.userMessage}"\n\nVai su WhatsApp per approvare o modificare la risposta.`,
+              letta: false,
+              archiviata: false,
+              priorita: 1,
+            });
+            
+            if (whatsappWS) {
+              whatsappWS.broadcast({
+                type: "bot_approval_needed",
+                scheduledMessageId: scheduled.id,
+                conversationId: scheduled.conversationId,
+                phoneNumber: scheduled.phoneNumber,
+                contactName,
+                botResponse,
+                userMessage: scheduled.userMessage,
+              });
+            }
+            
+            continue;
+          }
           
           const sendResult = await sendWhatsAppMessage(scheduled.phoneNumber, botResponse);
           
@@ -71,6 +128,7 @@ export async function processScheduledMessages(): Promise<void> {
             await storage.updateScheduledBotMessage(scheduled.id, {
               status: "sent",
               sentAt: new Date(),
+              botResponse: botResponse,
               attempts: currentAttempts
             });
             
@@ -89,7 +147,6 @@ export async function processScheduledMessages(): Promise<void> {
         const errorMessage = error instanceof Error ? error.message : "Unknown error";
         console.error(`[ScheduledWorker] Error processing message ${scheduled.id}:`, errorMessage);
         
-        // Check if we've exceeded max retries (3 attempts)
         if (currentAttempts >= 3) {
           await storage.updateScheduledBotMessage(scheduled.id, {
             status: "failed",
@@ -98,7 +155,6 @@ export async function processScheduledMessages(): Promise<void> {
           });
           console.log(`[ScheduledWorker] Message ${scheduled.id} marked as failed after ${currentAttempts} attempts`);
         } else {
-          // Requeue for retry
           await storage.updateScheduledBotMessage(scheduled.id, {
             status: "pending",
             lastError: errorMessage,

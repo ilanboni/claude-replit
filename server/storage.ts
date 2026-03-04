@@ -158,6 +158,8 @@ export interface IStorage {
 
   // Scheduled Bot Messages (for delayed responses)
   getScheduledBotMessages(): Promise<ScheduledBotMessage[]>;
+  getScheduledBotMessage(id: number): Promise<ScheduledBotMessage | undefined>;
+  getScheduledMessagesByStatus(status: string): Promise<ScheduledBotMessage[]>;
   getPendingScheduledMessages(): Promise<ScheduledBotMessage[]>;
   createScheduledBotMessage(data: InsertScheduledBotMessage): Promise<ScheduledBotMessage>;
   updateScheduledBotMessage(id: number, data: Partial<InsertScheduledBotMessage>): Promise<ScheduledBotMessage | undefined>;
@@ -759,6 +761,17 @@ export class DatabaseStorage implements IStorage {
   // Scheduled Bot Messages
   async getScheduledBotMessages(): Promise<ScheduledBotMessage[]> {
     return db.select().from(scheduledBotMessages).orderBy(desc(scheduledBotMessages.createdAt));
+  }
+
+  async getScheduledBotMessage(id: number): Promise<ScheduledBotMessage | undefined> {
+    const [message] = await db.select().from(scheduledBotMessages).where(eq(scheduledBotMessages.id, id));
+    return message;
+  }
+
+  async getScheduledMessagesByStatus(status: string): Promise<ScheduledBotMessage[]> {
+    return db.select().from(scheduledBotMessages)
+      .where(eq(scheduledBotMessages.status, status))
+      .orderBy(desc(scheduledBotMessages.createdAt));
   }
 
   async getPendingScheduledMessages(): Promise<ScheduledBotMessage[]> {

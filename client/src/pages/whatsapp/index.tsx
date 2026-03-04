@@ -53,7 +53,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Trash2 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Trash2, ShieldAlert, CheckCircle, XCircle, Edit } from "lucide-react";
 import type { WhatsappConversation, WhatsappMessage, Cliente } from "@shared/schema";
 
 function useWhatsAppWebSocket() {
@@ -92,6 +93,8 @@ function useWhatsAppWebSocket() {
               queryKey: ["/api/whatsapp/conversations", convId] 
             });
           }
+        } else if (data.type === "bot_approval_needed") {
+          queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/pending-approvals"] });
         }
       } catch (e) {
         console.error("WebSocket message parse error:", e);
@@ -281,6 +284,48 @@ export default function WhatsAppPage() {
         description: "Impossibile modificare lo stato del bot",
         variant: "destructive"
       });
+    }
+  });
+
+  const { data: pendingApprovals = [] } = useQuery<any[]>({
+    queryKey: ["/api/whatsapp/pending-approvals"],
+    refetchInterval: 30000
+  });
+
+  const [editingApproval, setEditingApproval] = useState<{ id: number; text: string } | null>(null);
+
+  const currentApproval = useMemo(() => {
+    if (!selectedConversationId) return null;
+    return pendingApprovals.find((a: any) => a.conversationId === selectedConversationId);
+  }, [pendingApprovals, selectedConversationId]);
+
+  const approveMutation = useMutation({
+    mutationFn: async ({ id, editedResponse }: { id: number; editedResponse?: string }) => {
+      const res = await apiRequest("POST", `/api/whatsapp/scheduled-messages/${id}/approve`, { editedResponse });
+      return res.json();
+    },
+    onSuccess: () => {
+      setEditingApproval(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/pending-approvals"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/conversations"] });
+      if (selectedConversationId) {
+        queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/conversations", selectedConversationId] });
+      }
+      toast({ title: "Risposta approvata", description: "Il messaggio è stato inviato" });
+    },
+    onError: () => {
+      toast({ title: "Errore", description: "Impossibile inviare la risposta", variant: "destructive" });
+    }
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("POST", `/api/whatsapp/scheduled-messages/${id}/reject`, {});
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/pending-approvals"] });
+      toast({ title: "Risposta rifiutata", description: "Puoi rispondere manualmente" });
     }
   });
 
@@ -651,6 +696,82 @@ export default function WhatsAppPage() {
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
+
+            {currentApproval && (
+              <div className="mx-4 mt-2 p-3 bg-amber-50 dark:bg-amber-950 border border-amber-300 dark:border-amber-700 rounded-lg" data-testid="approval-banner">
+                <div className="flex items-center gap-2 mb-2">
+                  <ShieldAlert className="h-4 w-4 text-amber-600" />
+                  <span className="font-medium text-sm text-amber-800 dark:text-amber-200">
+                    Risposta bot in attesa di approvazione
+                  </span>
+                </div>
+                <div className="text-xs text-muted-foreground mb-2">
+                  Il cliente ha scritto: "{currentApproval.userMessage}"
+                </div>
+                {editingApproval?.id === currentApproval.id ? (
+                  <div className="space-y-2">
+                    <Textarea
+                      value={editingApproval.text}
+                      onChange={(e) => setEditingApproval({ ...editingApproval, text: e.target.value })}
+                      className="text-sm min-h-[80px]"
+                      data-testid="textarea-edit-approval"
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => approveMutation.mutate({ id: currentApproval.id, editedResponse: editingApproval.text })}
+                        disabled={approveMutation.isPending}
+                        data-testid="button-send-edited"
+                      >
+                        <Send className="h-3 w-3 mr-1" /> Invia modificato
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setEditingApproval(null)}
+                        data-testid="button-cancel-edit"
+                      >
+                        Annulla
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="bg-white dark:bg-gray-800 rounded p-2 mb-2 text-sm whitespace-pre-wrap border">
+                      {currentApproval.botResponse}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => approveMutation.mutate({ id: currentApproval.id })}
+                        disabled={approveMutation.isPending}
+                        data-testid="button-approve-response"
+                      >
+                        <CheckCircle className="h-3 w-3 mr-1" /> Approva e invia
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setEditingApproval({ id: currentApproval.id, text: currentApproval.botResponse })}
+                        data-testid="button-edit-response"
+                      >
+                        <Edit className="h-3 w-3 mr-1" /> Modifica
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-destructive"
+                        onClick={() => rejectMutation.mutate(currentApproval.id)}
+                        disabled={rejectMutation.isPending}
+                        data-testid="button-reject-response"
+                      >
+                        <XCircle className="h-3 w-3 mr-1" /> Rifiuta
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
 
             <ScrollArea className="flex-1 p-4">
               <div className="space-y-3 max-w-3xl mx-auto">

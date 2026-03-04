@@ -5373,6 +5373,84 @@ FORMATO RISPOSTE:
     }
   });
 
+  app.get("/api/whatsapp/pending-approvals", async (req, res) => {
+    try {
+      const pending = await storage.getScheduledMessagesByStatus("pending_approval");
+      res.json(pending);
+    } catch (error) {
+      console.error("Get pending approvals error:", error);
+      res.status(500).json({ error: "Errore" });
+    }
+  });
+
+  app.post("/api/whatsapp/scheduled-messages/:id/approve", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { editedResponse } = req.body;
+      
+      const scheduled = await storage.getScheduledBotMessage(id);
+      if (!scheduled || scheduled.status !== "pending_approval") {
+        return res.status(404).json({ error: "Messaggio non trovato o già processato" });
+      }
+      
+      const finalResponse = editedResponse || scheduled.botResponse;
+      if (!finalResponse) {
+        return res.status(400).json({ error: "Nessuna risposta da inviare" });
+      }
+      
+      const sendResult = await sendWhatsAppMessage(scheduled.phoneNumber, finalResponse);
+      
+      if (sendResult.success) {
+        const botMessage = await storage.createWhatsappMessage({
+          conversationId: scheduled.conversationId,
+          whatsappMessageId: sendResult.messageId || null,
+          direction: "outbound",
+          messageType: "chat",
+          content: finalResponse,
+          mediaUrl: null,
+          status: "sent"
+        });
+        
+        await storage.updateWhatsappConversation(scheduled.conversationId, {
+          ultimoMessaggio: finalResponse.substring(0, 100),
+          ultimoMessaggioData: new Date()
+        });
+        
+        if (whatsappWS) {
+          const finalConversation = await storage.getWhatsappConversation(scheduled.conversationId);
+          whatsappWS.notifyNewMessage(scheduled.conversationId, { ...botMessage, conversationId: scheduled.conversationId });
+          if (finalConversation) {
+            whatsappWS.notifyConversationUpdate({ ...finalConversation, conversationId: finalConversation.id });
+          }
+        }
+        
+        await storage.updateScheduledBotMessage(id, {
+          status: "sent",
+          botResponse: finalResponse,
+          sentAt: new Date()
+        });
+        
+        res.json({ success: true, message: "Risposta approvata e inviata" });
+      } else {
+        res.status(500).json({ error: `Errore invio: ${sendResult.error}` });
+      }
+    } catch (error) {
+      console.error("Approve scheduled message error:", error);
+      res.status(500).json({ error: "Errore" });
+    }
+  });
+
+  app.post("/api/whatsapp/scheduled-messages/:id/reject", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.updateScheduledBotMessage(id, { status: "rejected" });
+      res.json({ success: true, message: "Risposta rifiutata" });
+    } catch (error) {
+      console.error("Reject scheduled message error:", error);
+      res.status(500).json({ error: "Errore" });
+    }
+  });
+
   // Link conversation to client/property
   app.patch("/api/whatsapp/conversations/:id", async (req, res) => {
     try {
