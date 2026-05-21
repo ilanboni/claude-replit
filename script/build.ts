@@ -7,7 +7,7 @@ import { rm, readFile } from "fs/promises";
 const allowlist = [
   "@google/generative-ai",
   "axios",
-  "connect-pg-simple",
+  // "connect-pg-simple", // moved to externals: needs table.sql at runtime
   "cors",
   "date-fns",
   "drizzle-orm",
