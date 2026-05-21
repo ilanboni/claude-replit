@@ -1,5 +1,5 @@
 import { sql, relations } from "drizzle-orm";
-import { pgTable, text, varchar, serial, integer, boolean, timestamp, decimal, json } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, serial, integer, boolean, timestamp, decimal, json, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -75,73 +75,59 @@ export const richieste = pgTable("richieste", {
 });
 
 // IMMOBILI - Properties (unificato: mandato + acquisizione)
+// Aggiornato 2026-05-21: schema allineato al DB Paolo reale (49 colonne).
+// Aggiunte colonne DB-only: tipoContratto, riferimentoInterno, rating, categoria, canoneMensile, buonauscita, faq.
+// Rimosse colonne ghost: idWeb, idPortale, esclusiva, multiagenzia, fonte, origine, contattoNome/Telefono/Email, urlAnnuncio, testoOriginale, riferimentoAnnuncio, dataPubblicazione, statoContatto, messaggioInviato, dataContatto, contattoMetodo, formUrl, ultimoTentativoForm, rispostaRicevuta.
 export const immobili = pgTable("immobili", {
   id: serial("id").primaryKey(),
-  idWeb: text("id_web").unique(), // ID univoco per identificazione via email/web
-  idPortale: text("id_portale"), // ID breve per matching richieste portali (es. "Prima" per Primaticcio)
   proprietarioId: integer("proprietario_id").references(() => clienti.id, { onDelete: "set null" }),
   titolo: text("titolo").notNull(),
   descrizione: text("descrizione"),
+  riferimentoInterno: text("riferimento_interno"),
+  tipoContratto: text("tipo_contratto"), // vendita | affitto | mandato | locazione_commerciale
   indirizzo: text("indirizzo"),
   zona: text("zona"),
   citta: text("citta"),
+  latitudine: decimal("latitudine", { precision: 10, scale: 7 }),
+  longitudine: decimal("longitudine", { precision: 10, scale: 7 }),
   mq: integer("mq"),
-  prezzo: decimal("prezzo", { precision: 12, scale: 2 }),
   piano: integer("piano"),
   pianiEdificio: integer("piani_edificio"),
-  statoVendita: text("stato_vendita").default("disponibile"), // disponibile, in_trattativa, venduto, ritirato
-  statoNuovo: boolean("stato_nuovo").default(false),
-  statoRistrutturato: boolean("stato_ristrutturato").default(false),
-  statoBuono: boolean("stato_buono").default(false),
-  statoDaRistrutturare: boolean("stato_da_ristrutturare").default(false),
+  camere: integer("camere"),
+  bagni: integer("bagni"),
+  prezzo: decimal("prezzo", { precision: 12, scale: 2 }),
+  ascensore: boolean("ascensore").default(false),
   balcone: boolean("balcone").default(false),
   terrazzo: boolean("terrazzo").default(false),
-  ascensore: boolean("ascensore").default(false),
   box: boolean("box").default(false),
   cantina: boolean("cantina").default(false),
   giardino: boolean("giardino").default(false),
   arredato: boolean("arredato").default(false),
-  camere: integer("camere"),
-  bagni: integer("bagni"),
-  // Informazioni aggiuntive
+  statoNuovo: boolean("stato_nuovo").default(false),
+  statoRistrutturato: boolean("stato_ristrutturato").default(false),
+  statoBuono: boolean("stato_buono").default(false),
+  statoDaRistrutturare: boolean("stato_da_ristrutturare").default(false),
   classeEnergetica: text("classe_energetica"),
   prestazioneEnergetica: text("prestazione_energetica"),
   speseCondominiali: decimal("spese_condominiali", { precision: 10, scale: 2 }),
   riscaldamento: text("riscaldamento"),
   esposizione: text("esposizione"),
   annoCostruzione: integer("anno_costruzione"),
-  // Contatto proprietario (per acquisizioni)
-  contattoNome: text("contatto_nome"),
-  contattoTelefono: text("contatto_telefono"),
-  contattoEmail: text("contatto_email"),
-  // Meta acquisizione
-  urlAnnuncio: text("url_annuncio"),
-  testoOriginale: text("testo_originale"),
-  riferimentoAnnuncio: text("riferimento_annuncio"),
-  dataPubblicazione: text("data_pubblicazione"),
-  // Stato contatto acquisizione
-  statoContatto: text("stato_contatto").default("nuovo"), // nuovo, contattato, interessato, scartato
-  messaggioInviato: text("messaggio_inviato"),
-  dataContatto: timestamp("data_contatto"),
-  preferito: boolean("preferito").default(false),
-  // Contatto via form (quando non c'è telefono)
-  contattoMetodo: text("contatto_metodo").default("telefono"), // telefono, email, form, whatsapp
-  formUrl: text("form_url"), // URL del form di contatto sul portale
-  ultimoTentativoForm: timestamp("ultimo_tentativo_form"),
-  rispostaRicevuta: boolean("risposta_ricevuta").default(false),
-  // Origine e gestione
-  origine: text("origine").default("mandato"), // mandato, acquisizione
-  noteInterne: text("note_interne"),
-  latitudine: decimal("latitudine", { precision: 10, scale: 7 }),
-  longitudine: decimal("longitudine", { precision: 10, scale: 7 }),
-  esclusiva: boolean("esclusiva").default(false),
-  multiagenzia: boolean("multiagenzia").default(false),
-  fonte: text("fonte").default("privato"), // privato, agenzia, immobiliare.it, idealista, etc.
+  statoVendita: text("stato_vendita").default("disponibile"), // disponibile | in_trattativa | venduto | ritirato
   immagini: json("immagini").$type<string[]>().default([]),
+  noteInterne: text("note_interne"),
   caratteristiche: json("caratteristiche").$type<Record<string, any>>().default({}),
+  preferito: boolean("preferito").default(false),
   attivo: boolean("attivo").default(true),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  rating: integer("rating"),
+  categoria: text("categoria"), // residenziale | commerciale | ufficio | box | terreno
+  canoneMensile: decimal("canone_mensile", { precision: 10, scale: 2 }),
+  buonauscita: decimal("buonauscita", { precision: 12, scale: 2 }),
+  faq: jsonb("faq").$type<Record<string, any>>(),
+  createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  createdByApiKeyId: integer("created_by_api_key_id").references(() => apiKeys.id, { onDelete: "set null" }),
 });
 
 // WHATSAPP CONVERSATIONS - Conversazioni WhatsApp per numero
