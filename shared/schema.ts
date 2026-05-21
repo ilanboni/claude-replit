@@ -1078,3 +1078,59 @@ export type InsertDocumentoOpportunita = z.infer<typeof insertDocumentiOpportuni
 export const insertMatchingOpportunitaSchema = createInsertSchema(matchingOpportunita).omit({ id: true, createdAt: true });
 export type MatchingOpportunita = typeof matchingOpportunita.$inferSelect;
 export type InsertMatchingOpportunita = z.infer<typeof insertMatchingOpportunitaSchema>;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AUTH — utenti (Google SSO) e service accounts (API key per Paolo agent)
+// Aggiunte 2026-05-21, compatibili con schema_update.sql applicato su Supabase
+// ═══════════════════════════════════════════════════════════════════════════
+
+// USERS — login Google SSO
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  googleSub: text("google_sub").unique(),
+  email: text("email").notNull().unique(),
+  nome: text("nome"),
+  avatarUrl: text("avatar_url"),
+  role: text("role").notNull().default("viewer"), // admin | agent | viewer
+  attivo: boolean("attivo").notNull().default(true),
+  lastLoginAt: timestamp("last_login_at"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// API KEYS — service accounts (es. Paolo agent)
+export const apiKeys = pgTable("api_keys", {
+  id: serial("id").primaryKey(),
+  nome: text("nome").notNull(),
+  keyHash: text("key_hash").notNull().unique(),
+  keyPrefix: text("key_prefix").notNull(),
+  role: text("role").notNull().default("agent"),
+  attivo: boolean("attivo").notNull().default(true),
+  lastUsedAt: timestamp("last_used_at"),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+});
+
+export const insertUserSchema = createInsertSchema(users).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  lastLoginAt: true,
+});
+export type User = typeof users.$inferSelect;
+export type InsertUser = z.infer<typeof insertUserSchema>;
+
+export const insertApiKeySchema = createInsertSchema(apiKeys).omit({
+  id: true,
+  createdAt: true,
+  lastUsedAt: true,
+});
+export type ApiKey = typeof apiKeys.$inferSelect;
+export type InsertApiKey = z.infer<typeof insertApiKeySchema>;
+
+// Auth principal: rappresenta chi sta facendo la richiesta (utente OAuth o service account API key)
+export type AuthPrincipal =
+  | { type: "user"; userId: number; email: string; role: string }
+  | { type: "api_key"; apiKeyId: number; nome: string; role: string };
+
