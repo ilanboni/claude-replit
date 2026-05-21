@@ -89,7 +89,7 @@ matchingRouter.post("/proponi-immobile-a-cliente", async (req: Request, res: Res
       }
 
       // Stato immobile in caratteristiche obbligatorie
-      const obblig = (richiesta.caratteristicheObbligatorie as string[] | null) || [];
+      const obblig: string[] = []; // caratteristicheObbligatorie non esiste nel DB reale Paolo
       for (const tag of obblig) {
         const t = tag.toLowerCase();
         if (
@@ -109,15 +109,15 @@ matchingRouter.post("/proponi-immobile-a-cliente", async (req: Request, res: Res
       }
 
       // Bonus rating cliente
-      if (cliente.ratingCliente) {
-        score += cliente.ratingCliente / 5;
+      if (cliente.rating) {
+        score += cliente.rating / 5;
       }
 
       return {
         clienteId: cliente.id,
         clienteNome: `${cliente.nome || ""} ${cliente.cognome || ""}`.trim() || cliente.telefono,
         clienteTelefono: cliente.telefono,
-        clienteRating: cliente.ratingCliente,
+        clienteRating: cliente.rating,
         richiestaId: richiesta.id,
         richiestaDescrizione: richiesta.descrizioneLibera,
         score: Math.round(score * 100) / 100,

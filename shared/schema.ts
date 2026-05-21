@@ -21,23 +21,25 @@ export const messages = pgTable("messages", {
 // CLIENTI - Clients table
 export const clienti = pgTable("clienti", {
   id: serial("id").primaryKey(),
-  appellativo: text("appellativo"), // Gent.mo Sig., Egr. Dott., Egr. Avv.to, Gent.ma Sig.ra, Ciao
-  nome: text("nome"), // opzionale
-  cognome: text("cognome"), // opzionale
+  appellativo: text("appellativo"),
+  nome: text("nome"),
+  cognome: text("cognome"),
   telefono: text("telefono"),
   email: text("email"),
-  compleanno: text("compleanno"), // stored as string for simplicity
+  compleanno: text("compleanno"),
   religione: text("religione"),
+  linguaPreferita: text("lingua_preferita"),
   note: text("note"),
-  tipoCliente: text("tipo_cliente").notNull().default("compratore"), // compratore, venditore, entrambi
-  ratingCliente: integer("rating_cliente").default(3), // 1-5
-  clienteAmico: boolean("cliente_amico").default(false), // Per tono messaggi: amico = informale, non amico = formale
-  linkImmobile: text("link_immobile"), // Link all'annuncio immobile per proprietari
-  personalitaAi: text("personalita_ai"), // AI-generated personality profile based on WhatsApp conversations
-  personalitaAiUpdatedAt: timestamp("personalita_ai_updated_at"), // Last update of AI personality analysis
+  ruolo: text("ruolo"),
+  fonteAcquisizione: text("fonte_acquisizione"),
+  statoTrattativa: text("stato_trattativa"),
+  rating: integer("rating").default(3),
+  clienteAmico: boolean("cliente_amico").default(false),
   attivo: boolean("attivo").default(true),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  createdByUserId: integer("created_by_user_id"),
+  createdByApiKeyId: integer("created_by_api_key_id"),
 });
 
 // RICHIESTE - Buyer requests
