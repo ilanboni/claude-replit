@@ -41,3 +41,18 @@ authRouter.post("/logout", (req: Request, res: Response, next) => {
     });
   });
 });
+
+/** DEBUG: stato session/cookie/passport — rimuovere in produzione */
+authRouter.get("/debug-session", (req: Request, res: Response) => {
+  res.json({
+    has_session: !!req.session,
+    session_id: req.sessionID,
+    is_authenticated: req.isAuthenticated ? req.isAuthenticated() : null,
+    user: req.user || null,
+    cookies_received: Object.keys(req.cookies || {}),
+    headers_cookie_present: !!req.headers.cookie,
+    node_env: process.env.NODE_ENV,
+    protocol: req.protocol,
+    secure: req.secure,
+  });
+});

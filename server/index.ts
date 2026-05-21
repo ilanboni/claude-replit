@@ -9,6 +9,7 @@ import { startEmailImportWorker } from "./email-import-worker";
 import { startCalendarMonitorWorker } from "./calendar-monitor-worker";
 
 const app = express();
+app.set("trust proxy", 1);
 const httpServer = createServer(app);
 
 whatsappWS.initialize(httpServer);
