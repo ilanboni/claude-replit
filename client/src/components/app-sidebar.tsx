@@ -14,6 +14,7 @@ import {
   Phone,
   ClipboardList,
   TrendingUp,
+  Inbox,
 } from "lucide-react";
 import {
   Sidebar,
@@ -42,6 +43,7 @@ const menuItems = [
   { title: "Mercato", url: "/mercato", icon: TrendingUp },
   { title: "Bot WhatsApp", url: "/bot", icon: Bot },
   { title: "WhatsApp Chat", url: "/whatsapp", icon: Phone },
+  { title: "Bozze in attesa", url: "/bozze", icon: Inbox },
 ];
 
 export function AppSidebar() {

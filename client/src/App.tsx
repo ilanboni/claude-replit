@@ -31,6 +31,7 @@ import WhatsAppPage from "@/pages/whatsapp";
 import AttivitaPage from "@/pages/attivita";
 import ConfermaAppuntamentiPage from "@/pages/conferma-appuntamenti";
 import ImpostazioniPage from "@/pages/impostazioni";
+import BozzePage from "@/pages/bozze";
 
 function Router() {
   return (
@@ -56,6 +57,7 @@ function Router() {
       <Route path="/whatsapp" component={WhatsAppPage} />
       <Route path="/attivita" component={AttivitaPage} />
       <Route path="/impostazioni" component={ImpostazioniPage} />
+      <Route path="/bozze" component={BozzePage} />
       <Route component={NotFound} />
     </Switch>
   );

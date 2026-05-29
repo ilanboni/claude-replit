@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
+import { pool } from "./db";
 import { 
   insertClienteSchema, insertRichiestaSchema, insertImmobileSchema,
   insertComunicazioneSchema, insertAppuntamentoSchema, insertMatchingSchema,
@@ -278,6 +279,76 @@ function getItalyTimezoneOffset(date: Date): number {
 export async function registerRoutes(server: Server, app: Express): Promise<void> {
   // ==================== OBJECT STORAGE ROUTES ====================
   registerObjectStorageRoutes(app);
+
+  // ==================== BOZZE CASAFARI OUTREACH (raw SQL: tabella gestita da Cavour-Meta) ====================
+  app.get("/api/casafari-bozze", async (_req, res) => {
+    try {
+      const result = await pool.query(`
+        SELECT
+          o.id::text AS id,
+          o.tipo,
+          o.stato,
+          o.destinatario_nome,
+          o.destinatario_telefono,
+          o.destinatario_email,
+          o.testo_proposto,
+          o.scenario,
+          o.created_at,
+          t.indirizzo,
+          t.civico,
+          t.zona,
+          t.mq,
+          t.prezzo_corrente,
+          t.url_casafari
+        FROM casafari_outreach o
+        LEFT JOIN casafari_target_immobili t ON t.id = o.target_immobile_id
+        WHERE o.stato IN ('proposto', 'approvato', 'attesa_invio')
+        ORDER BY o.created_at DESC
+        LIMIT 200
+      `);
+      res.json(result.rows);
+    } catch (error: any) {
+      console.error("Get casafari-bozze error:", error);
+      res.status(500).json({ error: "Errore nel recupero delle bozze", detail: error.message });
+    }
+  });
+
+  app.post("/api/casafari-bozze/:id/approva", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { testo } = req.body || {};
+      const fields = testo
+        ? [`stato = 'approvato'`, `testo_proposto = $2`]
+        : [`stato = 'approvato'`];
+      const params: any[] = [id];
+      if (testo) params.push(String(testo));
+      const r = await pool.query(
+        `UPDATE casafari_outreach SET ${fields.join(", ")} WHERE id::text = $1 RETURNING id, stato`,
+        params,
+      );
+      if (r.rowCount === 0) return res.status(404).json({ error: "Bozza non trovata" });
+      res.json({ ok: true, id: r.rows[0].id, stato: r.rows[0].stato });
+    } catch (error: any) {
+      console.error("Approva bozza error:", error);
+      res.status(500).json({ error: "Errore approva bozza", detail: error.message });
+    }
+  });
+
+  app.post("/api/casafari-bozze/:id/scarta", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { motivo } = req.body || {};
+      const r = await pool.query(
+        `UPDATE casafari_outreach SET stato = 'scartato' WHERE id::text = $1 RETURNING id`,
+        [id],
+      );
+      if (r.rowCount === 0) return res.status(404).json({ error: "Bozza non trovata" });
+      res.json({ ok: true, id: r.rows[0].id, stato: "scartato", motivo: motivo || null });
+    } catch (error: any) {
+      console.error("Scarta bozza error:", error);
+      res.status(500).json({ error: "Errore scarta bozza", detail: error.message });
+    }
+  });
 
   // ==================== RICERCA GLOBALE ====================
   app.get("/api/search", async (req, res) => {
