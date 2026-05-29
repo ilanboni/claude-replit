@@ -342,26 +342,23 @@ REGOLE OUTPUT:
 
 Scrivi ORA il messaggio finito.`;
 
-      // Check storico contatti per evitare duplicati
+      // Check storico contatti per evitare duplicati (cerca cliente associato al telefono)
       let ultimoContatto: any = null;
       try {
-        const tel = (immobile.contattoTelefono || "").replace(/\D/g, "");
-        const indirizzoChiave = (immobile.indirizzo || "").split(",")[0].slice(0, 60);
+        const tel9 = (immobile.contattoTelefono || "").replace(/\D/g, "").slice(-9);
         const r = await pool.query(
-          `SELECT data_ora, canale, tipo, creato_da, LEFT(testo, 200) AS testo
-           FROM comunicazioni
-           WHERE (
-             ($1 != '' AND testo ILIKE $2)
-             OR ($3 != '' AND testo ILIKE $4)
-             OR ($5::int IS NOT NULL AND immobile_esterno_id = $5::int)
-           )
-           ORDER BY data_ora DESC NULLS LAST
+          `SELECT c.data_ora, c.canale, c.tipo, c.creato_da, LEFT(c.testo, 200) AS testo,
+                  cl.id AS cliente_id, cl.nome, cl.cognome
+           FROM comunicazioni c
+           LEFT JOIN clienti cl ON cl.id = c.cliente_id
+           WHERE c.data_ora IS NOT NULL
+             AND (
+               c.immobile_esterno_id = $1
+               OR (cl.telefono IS NOT NULL AND $2 != '' AND regexp_replace(cl.telefono, '\\D', '', 'g') ILIKE '%' || $2 || '%')
+             )
+           ORDER BY c.data_ora DESC
            LIMIT 3`,
-          [
-            tel, tel ? `%${tel.slice(-9)}%` : "",
-            indirizzoChiave, indirizzoChiave ? `%${indirizzoChiave}%` : "",
-            immobile.id,
-          ],
+          [immobile.id, tel9],
         );
         if (r.rowCount && r.rowCount > 0) {
           ultimoContatto = r.rows[0];
@@ -411,18 +408,24 @@ Scrivi ORA il messaggio finito.`;
       const telefono = normalizeItalianPhone(telefonoRaw);
       if (!telefono) return res.status(400).json({ error: "Numero di telefono non disponibile" });
 
-      // Anti-duplicato: blocca se c'è stato un contatto outbound negli ultimi 30 giorni
+      // Anti-duplicato: blocca se c'è stato un contatto negli ultimi 30 giorni
       // (override possibile passando { force: true } nel body)
       const forceOverride = !!(req.body && req.body.force);
       if (!forceOverride) {
         try {
           const tel9 = telefono.replace(/\D/g, "").slice(-9);
           const dup = await pool.query(
-            `SELECT data_ora, canale FROM comunicazioni
-             WHERE testo ILIKE $1
-               AND data_ora > NOW() - INTERVAL '30 days'
-             ORDER BY data_ora DESC LIMIT 1`,
-            [`%${tel9}%`],
+            `SELECT c.data_ora, c.canale, c.tipo, LEFT(c.testo, 200) AS testo, cl.nome, cl.cognome
+             FROM comunicazioni c
+             LEFT JOIN clienti cl ON cl.id = c.cliente_id
+             WHERE c.data_ora IS NOT NULL
+               AND c.data_ora > NOW() - INTERVAL '30 days'
+               AND (
+                 c.immobile_esterno_id = $1
+                 OR (cl.telefono IS NOT NULL AND $2 != '' AND regexp_replace(cl.telefono, '\\D', '', 'g') ILIKE '%' || $2 || '%')
+               )
+             ORDER BY c.data_ora DESC LIMIT 1`,
+            [id, tel9],
           );
           if (dup.rowCount && dup.rowCount > 0) {
             const c = dup.rows[0];

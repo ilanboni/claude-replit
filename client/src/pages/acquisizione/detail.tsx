@@ -847,15 +847,46 @@ function TabDettagli({ immobile }: { immobile: ImmobileEsterno }) {
             <CardTitle>Posizione</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="aspect-video bg-muted rounded-md flex items-center justify-center">
-              <div className="text-center text-muted-foreground">
-                <MapPin className="h-8 w-8 mx-auto mb-2" />
-                <p className="text-sm">Mappa non disponibile</p>
-                <p className="text-xs">
-                  {[immobile.indirizzo, immobile.zona, immobile.citta].filter(Boolean).join(", ")}
-                </p>
-              </div>
-            </div>
+            {(() => {
+              const queryParts = [immobile.indirizzo, immobile.zona, immobile.citta || "Milano"].filter(Boolean);
+              const query = queryParts.join(", ");
+              if (!query.trim()) {
+                return (
+                  <div className="aspect-video bg-muted rounded-md flex items-center justify-center text-muted-foreground">
+                    <div className="text-center">
+                      <MapPin className="h-8 w-8 mx-auto mb-2" />
+                      <p className="text-sm">Indirizzo non specificato</p>
+                    </div>
+                  </div>
+                );
+              }
+              const encoded = encodeURIComponent(query);
+              return (
+                <div className="space-y-2">
+                  <iframe
+                    title="Mappa immobile"
+                    src={`https://www.google.com/maps?q=${encoded}&output=embed`}
+                    className="w-full aspect-video rounded-md border"
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                  />
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <MapPin className="h-3 w-3" />
+                      {query}
+                    </span>
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${encoded}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline"
+                    >
+                      Apri in Google Maps
+                    </a>
+                  </div>
+                </div>
+              );
+            })()}
           </CardContent>
         </Card>
 
