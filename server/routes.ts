@@ -2796,6 +2796,32 @@ ${analysis.areeSensibili.length > 0 ? analysis.areeSensibili.map(a => `• ${a}`
         parsedData.contattoTelefono = data.contatto.telefono;
       }
       
+      // Sanitizzazione testo titolo/descrizione (rimuove noise UI dei portali)
+      const cleanText = (raw: any): string => {
+        if (!raw) return "";
+        let s = String(raw);
+        const junkPatterns = [
+          /vedi mappa/gi,
+          /aggiungi una nota/gi,
+          /la tua nota/gi,
+          /modifica/gi,
+          /salva ricerca/gi,
+          /condividi/gi,
+          /segnala/gi,
+        ];
+        for (const p of junkPatterns) s = s.replace(p, "");
+        s = s.replace(/\n{2,}/g, "\n").replace(/[ \t]{2,}/g, " ").trim();
+        return s;
+      };
+      parsedData.titolo = cleanText(parsedData.titolo);
+      parsedData.descrizione = cleanText(parsedData.descrizione);
+      // Email contatto sospetta: se è la nostra firma Paolo Salvemini, ignora
+      const emailContatto = (parsedData.contattoEmail || "").toLowerCase();
+      if (emailContatto.includes("salvemini") || emailContatto.includes("cavour")) {
+        console.warn(`[Extension] Email contatto sospetta (nostra firma), rimossa: ${emailContatto}`);
+        parsedData.contattoEmail = null;
+      }
+
       // Build and validate immobile data - map AI fields to storage fields
       const mq = parsedData.mq ?? parsedData.superficie;
       const camere = parsedData.camere ?? parsedData.locali;
@@ -2972,8 +2998,16 @@ ${analysis.areeSensibili.length > 0 ? analysis.areeSensibili.map(a => `• ${a}`
       const dedupPrezzo = validated.data.prezzo ?? null;
       const nuovaFonte = validated.data.fonte || (validated.data.urlAnnuncio ? new URL(validated.data.urlAnnuncio).hostname.replace("www.", "") : null);
 
+      console.log(`[Extension/DEDUP] check input: indirizzo='${normIndirizzo}' mq=${dedupMq} prezzo=${dedupPrezzo} fonte=${nuovaFonte}`);
+
       if (normIndirizzo && dedupMq && dedupPrezzo) {
         try {
+          // Estraggo solo le parole significative dell'indirizzo (rimuovo "via", "viale", "corso", numeri civici stand-alone)
+          const stopWords = ['via', 'viale', 'corso', 'piazza', 'piazzale', 'strada'];
+          const tokensIndirizzo = normIndirizzo.split(' ').filter(t => !stopWords.includes(t) && t.length > 1);
+          // Pattern flessibile per ILIKE — tutte le parole significative presenti
+          const patternIndirizzo = `%${tokensIndirizzo.join('%')}%`;
+          console.log(`[Extension/DEDUP] pattern='${patternIndirizzo}' mq=${dedupMq} prezzo_range=${Number(dedupPrezzo) * 0.95}-${Number(dedupPrezzo) * 1.05}`);
           const candidates = await pool.query(
             `SELECT id, fonte, url_annuncio, indirizzo, mq, prezzo, contatto_telefono, contatto_email
              FROM immobili_esterni
@@ -2982,8 +3016,9 @@ ${analysis.areeSensibili.length > 0 ? analysis.areeSensibili.map(a => `• ${a}`
                AND mq = $2
                AND prezzo BETWEEN $3 AND $4
              LIMIT 5`,
-            [`%${normIndirizzo}%`, dedupMq, Number(dedupPrezzo) * 0.95, Number(dedupPrezzo) * 1.05],
+            [patternIndirizzo, dedupMq, Number(dedupPrezzo) * 0.95, Number(dedupPrezzo) * 1.05],
           );
+          console.log(`[Extension/DEDUP] candidates trovati: ${candidates.rowCount}`);
           if (candidates.rowCount && candidates.rowCount > 0) {
             const existing = candidates.rows[0];
             // arricchisci campi mancanti
