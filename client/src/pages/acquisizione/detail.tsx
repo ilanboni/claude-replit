@@ -77,6 +77,7 @@ function WhatsAppBozzaBanner({ immobile }: { immobile: ImmobileEsterno }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [testo, setTesto] = useState("");
+  const [ultimoContatto, setUltimoContatto] = useState<any>(null);
 
   const generaMutation = useMutation({
     mutationFn: async () => {
@@ -85,6 +86,7 @@ function WhatsAppBozzaBanner({ immobile }: { immobile: ImmobileEsterno }) {
     },
     onSuccess: (data: any) => {
       setTesto(data.testo || "");
+      setUltimoContatto(data.ultimoContatto || null);
       setOpen(true);
     },
     onError: (e: any) => {
@@ -93,8 +95,8 @@ function WhatsAppBozzaBanner({ immobile }: { immobile: ImmobileEsterno }) {
   });
 
   const inviaMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/acquisizione/${immobile.id}/invia-whatsapp`, { testo });
+    mutationFn: async (force: boolean) => {
+      const res = await apiRequest("POST", `/api/acquisizione/${immobile.id}/invia-whatsapp`, { testo, force });
       return res.json();
     },
     onSuccess: () => {
@@ -103,8 +105,19 @@ function WhatsAppBozzaBanner({ immobile }: { immobile: ImmobileEsterno }) {
       toast({ title: "WhatsApp inviato", description: `A ${immobile.contattoTelefono}` });
       setOpen(false);
     },
-    onError: (e: any) => {
-      toast({ title: "Errore invio", description: e?.message || "Invio fallito", variant: "destructive" });
+    onError: async (e: any) => {
+      // 409 Conflict = contatto recente, offri conferma override
+      const msg = e?.message || "";
+      if (msg.includes("Contatto recente")) {
+        const ok = window.confirm(
+          "Questo numero è già stato contattato negli ultimi 30 giorni. Vuoi inviare comunque?"
+        );
+        if (ok) {
+          inviaMutation.mutate(true);
+          return;
+        }
+      }
+      toast({ title: "Errore invio", description: msg || "Invio fallito", variant: "destructive" });
     },
   });
 
@@ -152,8 +165,28 @@ function WhatsAppBozzaBanner({ immobile }: { immobile: ImmobileEsterno }) {
           <DialogHeader>
             <DialogTitle>Bozza WhatsApp per {immobile.contattoTelefono}</DialogTitle>
           </DialogHeader>
+          {ultimoContatto && (
+            <div className="border-2 border-amber-500/60 bg-amber-500/10 rounded-md p-3 text-sm">
+              <div className="font-semibold text-amber-700 dark:text-amber-400 mb-1">
+                ⚠️ Contatto precedente trovato
+              </div>
+              <div className="text-muted-foreground">
+                {ultimoContatto.data_ora && (
+                  <>Ultimo: <span className="font-medium">{new Date(ultimoContatto.data_ora).toLocaleString("it-IT")}</span></>
+                )}
+                {ultimoContatto.canale && <> · canale <span className="font-medium">{ultimoContatto.canale}</span></>}
+                {ultimoContatto.tipo && <> · {ultimoContatto.tipo}</>}
+              </div>
+              {ultimoContatto.testo && (
+                <div className="text-xs italic mt-2 line-clamp-2">"{ultimoContatto.testo}"</div>
+              )}
+              <div className="text-xs mt-2 text-muted-foreground">
+                Se invii adesso ti chiederò conferma (anti-duplicato 30 giorni).
+              </div>
+            </div>
+          )}
           <Textarea
-            rows={14}
+            rows={12}
             value={testo}
             onChange={(e) => setTesto(e.target.value)}
             className="font-mono text-sm"
@@ -172,7 +205,7 @@ function WhatsAppBozzaBanner({ immobile }: { immobile: ImmobileEsterno }) {
               Copia
             </Button>
             <Button
-              onClick={() => inviaMutation.mutate()}
+              onClick={() => inviaMutation.mutate(false)}
               disabled={inviaMutation.isPending || testo.trim().length < 10}
             >
               {inviaMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}

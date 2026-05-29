@@ -342,6 +342,34 @@ REGOLE OUTPUT:
 
 Scrivi ORA il messaggio finito.`;
 
+      // Check storico contatti per evitare duplicati
+      let ultimoContatto: any = null;
+      try {
+        const tel = (immobile.contattoTelefono || "").replace(/\D/g, "");
+        const indirizzoChiave = (immobile.indirizzo || "").split(",")[0].slice(0, 60);
+        const r = await pool.query(
+          `SELECT data_ora, canale, tipo, creato_da, LEFT(testo, 200) AS testo
+           FROM comunicazioni
+           WHERE (
+             ($1 != '' AND testo ILIKE $2)
+             OR ($3 != '' AND testo ILIKE $4)
+             OR ($5::int IS NOT NULL AND immobile_esterno_id = $5::int)
+           )
+           ORDER BY data_ora DESC NULLS LAST
+           LIMIT 3`,
+          [
+            tel, tel ? `%${tel.slice(-9)}%` : "",
+            indirizzoChiave, indirizzoChiave ? `%${indirizzoChiave}%` : "",
+            immobile.id,
+          ],
+        );
+        if (r.rowCount && r.rowCount > 0) {
+          ultimoContatto = r.rows[0];
+        }
+      } catch (e) {
+        console.warn("[Bozza] check storico fallito:", e);
+      }
+
       // Uso il client Anthropic già configurato
       const Anthropic = (await import("@anthropic-ai/sdk")).default;
       const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -356,7 +384,13 @@ Scrivi ORA il messaggio finito.`;
       const block = completion.content[0];
       const testo = block && block.type === "text" ? block.text.trim() : "";
       if (!testo) return res.status(500).json({ error: "Generazione AI vuota" });
-      res.json({ ok: true, testo, telefono: immobile.contattoTelefono || null, email: immobile.contattoEmail || null });
+      res.json({
+        ok: true,
+        testo,
+        telefono: immobile.contattoTelefono || null,
+        email: immobile.contattoEmail || null,
+        ultimoContatto,
+      });
     } catch (error: any) {
       console.error("Genera bozza error:", error);
       res.status(500).json({ error: "Errore generazione bozza", detail: error?.message });
@@ -376,6 +410,32 @@ Scrivi ORA il messaggio finito.`;
       const telefonoRaw = (telefonoBody || immobile.contattoTelefono || "").toString();
       const telefono = normalizeItalianPhone(telefonoRaw);
       if (!telefono) return res.status(400).json({ error: "Numero di telefono non disponibile" });
+
+      // Anti-duplicato: blocca se c'è stato un contatto outbound negli ultimi 30 giorni
+      // (override possibile passando { force: true } nel body)
+      const forceOverride = !!(req.body && req.body.force);
+      if (!forceOverride) {
+        try {
+          const tel9 = telefono.replace(/\D/g, "").slice(-9);
+          const dup = await pool.query(
+            `SELECT data_ora, canale FROM comunicazioni
+             WHERE testo ILIKE $1
+               AND data_ora > NOW() - INTERVAL '30 days'
+             ORDER BY data_ora DESC LIMIT 1`,
+            [`%${tel9}%`],
+          );
+          if (dup.rowCount && dup.rowCount > 0) {
+            const c = dup.rows[0];
+            return res.status(409).json({
+              error: "Contatto recente già presente",
+              ultimoContatto: c,
+              hint: "Per inviare comunque, riprova con { force: true }",
+            });
+          }
+        } catch (e) {
+          console.warn("[Invio] check duplicato fallito, proseguo:", e);
+        }
+      }
 
       // Invio diretto via UltraMsg
       const sent = await sendWhatsAppMessage(`+${telefono.replace(/^\+/, "")}`, testo);
