@@ -73,6 +73,118 @@ import type { ImmobileEsterno, Cliente, AnnuncioImmobile } from "@shared/schema"
 import { Label } from "@/components/ui/label";
 import { User, Building, Store } from "lucide-react";
 
+function WhatsAppBozzaBanner({ immobile }: { immobile: ImmobileEsterno }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [testo, setTesto] = useState("");
+
+  const generaMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/acquisizione/${immobile.id}/genera-bozza-whatsapp`, {});
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      setTesto(data.testo || "");
+      setOpen(true);
+    },
+    onError: (e: any) => {
+      toast({ title: "Errore generazione", description: e?.message || "Errore AI", variant: "destructive" });
+    },
+  });
+
+  const inviaMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/acquisizione/${immobile.id}/invia-whatsapp`, { testo });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/acquisizione"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/acquisizione", immobile.id] });
+      toast({ title: "WhatsApp inviato", description: `A ${immobile.contattoTelefono}` });
+      setOpen(false);
+    },
+    onError: (e: any) => {
+      toast({ title: "Errore invio", description: e?.message || "Invio fallito", variant: "destructive" });
+    },
+  });
+
+  if (!immobile.contattoTelefono) return null;
+
+  return (
+    <div className="mx-6 mt-4 p-4 border-2 border-emerald-500/50 bg-emerald-500/10 rounded-lg">
+      <div className="flex items-start gap-3">
+        <div className="p-2 bg-emerald-500/20 rounded-full">
+          <MessageSquare className="h-5 w-5 text-emerald-600" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="font-semibold text-emerald-700 dark:text-emerald-400">Contatto WhatsApp diretto</h3>
+            {immobile.statoContatto === "inviato" && (
+              <Badge className="bg-blue-600 text-white">
+                <CheckCircle2 className="h-3 w-3 mr-1" />
+                Già inviato
+              </Badge>
+            )}
+          </div>
+          <p className="text-sm text-muted-foreground mt-1">
+            Telefono: <span className="font-medium">{immobile.contattoTelefono}</span> — genera una bozza personalizzata e invia direttamente.
+          </p>
+          <div className="flex flex-wrap gap-2 mt-3">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => generaMutation.mutate()}
+              disabled={generaMutation.isPending}
+            >
+              {generaMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Wand2 className="h-4 w-4 mr-1" />
+              )}
+              Genera bozza WhatsApp
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Bozza WhatsApp per {immobile.contattoTelefono}</DialogTitle>
+          </DialogHeader>
+          <Textarea
+            rows={14}
+            value={testo}
+            onChange={(e) => setTesto(e.target.value)}
+            className="font-mono text-sm"
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Annulla
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                navigator.clipboard.writeText(testo);
+                toast({ title: "Copiato in clipboard" });
+              }}
+            >
+              Copia
+            </Button>
+            <Button
+              onClick={() => inviaMutation.mutate()}
+              disabled={inviaMutation.isPending || testo.trim().length < 10}
+            >
+              {inviaMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              Invia su WhatsApp
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 function FormContactBanner({ immobile }: { immobile: ImmobileEsterno }) {
   const { toast } = useToast();
   const [generatedMessage, setGeneratedMessage] = useState<string | null>(null);
@@ -1777,7 +1889,12 @@ export default function AcquisizioneDetailPage() {
     <div className="min-h-screen">
       <PropertyHeader immobile={immobile} />
 
-      {/* Banner Contatto via Form */}
+      {/* Banner Contatto WhatsApp diretto (quando c'è telefono) */}
+      {immobile.contattoTelefono && (
+        <WhatsAppBozzaBanner immobile={immobile} />
+      )}
+
+      {/* Banner Contatto via Form (annunci senza telefono) */}
       {immobile.contattoMetodo === "form" && (
         <FormContactBanner immobile={immobile} />
       )}

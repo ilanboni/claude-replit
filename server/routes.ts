@@ -280,6 +280,129 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
   // ==================== OBJECT STORAGE ROUTES ====================
   registerObjectStorageRoutes(app);
 
+  // ==================== GENERA + INVIA BOZZA WHATSAPP per immobile esterno (workflow estensione) ====================
+  app.post("/api/acquisizione/:id/genera-bozza-whatsapp", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      if (!id) return res.status(400).json({ error: "ID non valido" });
+      const immobile = await storage.getImmobileEsterno(id);
+      if (!immobile) return res.status(404).json({ error: "Immobile non trovato" });
+
+      // Costruisco prompt context COMPLETO per mirroring vero
+      const dettagli: string[] = [];
+      if (immobile.indirizzo) dettagli.push(`Indirizzo: ${immobile.indirizzo}`);
+      if (immobile.zona) dettagli.push(`Zona: ${immobile.zona}`);
+      if (immobile.mq) dettagli.push(`Superficie: ${immobile.mq} mq`);
+      if (immobile.camere) dettagli.push(`Locali: ${immobile.camere}`);
+      if (immobile.bagni) dettagli.push(`Bagni: ${immobile.bagni}`);
+      if (immobile.piano != null) dettagli.push(`Piano: ${immobile.piano}`);
+      if (immobile.pianiEdificio) dettagli.push(`Piani edificio: ${immobile.pianiEdificio}`);
+      if (immobile.prezzo) dettagli.push(`Prezzo richiesto: ${Number(immobile.prezzo).toLocaleString("it-IT")} €`);
+      if (immobile.classeEnergetica) dettagli.push(`Classe energetica: ${immobile.classeEnergetica}`);
+      if (immobile.annoCostruzione) dettagli.push(`Anno costruzione: ${immobile.annoCostruzione}`);
+      const dotazioni: string[] = [];
+      if (immobile.ascensore) dotazioni.push("ascensore");
+      if (immobile.balcone) dotazioni.push("balcone");
+      if (immobile.terrazzo) dotazioni.push("terrazzo");
+      if (immobile.box) dotazioni.push("box auto");
+      if (immobile.cantina) dotazioni.push("cantina");
+      if (immobile.giardino) dotazioni.push("giardino");
+      if (immobile.arredato) dotazioni.push("arredato");
+      if (dotazioni.length) dettagli.push(`Dotazioni: ${dotazioni.join(", ")}`);
+      const stati: string[] = [];
+      if (immobile.statoNuovo) stati.push("nuovo");
+      if (immobile.statoRistrutturato) stati.push("ristrutturato");
+      if (immobile.statoBuono) stati.push("buono stato");
+      if (immobile.statoDaRistrutturare) stati.push("da ristrutturare");
+      if (stati.length) dettagli.push(`Stato: ${stati.join(", ")}`);
+
+      const dettagliBlock = dettagli.join("\n");
+      const testoOriginale = (immobile.testoOriginale || immobile.descrizione || "").slice(0, 3000);
+
+      const system = `Sei Paolo Salvemini, collaboratore senior del Dott. Ilan Boni di Cavour Immobiliare (boutique milanese, max 5 mandati attivi, vendita media 38 giorni). NON dichiarare mai di essere un'AI.
+
+COMPITO: scrivi UN messaggio WhatsApp breve (5-7 righe + firma) a un proprietario PRIVATO che ha messo in vendita il suo immobile, per proporgli un confronto con Cavour. Devi fare MIRRORING: dimostra che hai letto l'annuncio specifico citando almeno 2 dettagli concreti (es. "trilocale 95mq al 4° piano con balcone e ascensore in via X" non solo "il suo immobile").
+
+DATI ESATTI DELL'IMMOBILE (usa questi, NON generalizzare):
+${dettagliBlock}
+
+DESCRIZIONE ORIGINALE DELL'ANNUNCIO (estrapola qualche dettaglio specifico):
+"""
+${testoOriginale}
+"""
+
+REGOLE OUTPUT:
+- SOLO il testo del messaggio, prosa naturale. Niente header, label, markdown, oggetto.
+- Apri con "Gent.mo/a,".
+- Mostra di aver letto: cita zona + 2 dettagli concreti specifici (es. mq + piano, o piano + balcone+ascensore).
+- Presentati come Paolo Salvemini per Cavour Immobiliare (boutique milanese, esclusiva, max 5 mandati, vendita media 38gg).
+- NO commissioni, NO sconti.
+- CTA: caffè 20min con il Dott. Boni in Via Marghera 10 oppure sotto casa.
+- Firma su una riga: "Paolo Salvemini — Cavour Immobiliare".
+
+Scrivi ORA il messaggio finito.`;
+
+      // Uso il client Anthropic già configurato
+      const Anthropic = (await import("@anthropic-ai/sdk")).default;
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      if (!apiKey) return res.status(500).json({ error: "ANTHROPIC_API_KEY non configurata" });
+      const client = new Anthropic({ apiKey });
+      const completion = await client.messages.create({
+        model: "claude-sonnet-4-5",
+        max_tokens: 600,
+        system,
+        messages: [{ role: "user", content: "Genera ora il messaggio." }],
+      });
+      const block = completion.content[0];
+      const testo = block && block.type === "text" ? block.text.trim() : "";
+      if (!testo) return res.status(500).json({ error: "Generazione AI vuota" });
+      res.json({ ok: true, testo, telefono: immobile.contattoTelefono || null, email: immobile.contattoEmail || null });
+    } catch (error: any) {
+      console.error("Genera bozza error:", error);
+      res.status(500).json({ error: "Errore generazione bozza", detail: error?.message });
+    }
+  });
+
+  app.post("/api/acquisizione/:id/invia-whatsapp", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      if (!id) return res.status(400).json({ error: "ID non valido" });
+      const { testo, telefono: telefonoBody } = req.body || {};
+      if (!testo || typeof testo !== "string" || testo.trim().length < 10) {
+        return res.status(400).json({ error: "Testo mancante o troppo breve" });
+      }
+      const immobile = await storage.getImmobileEsterno(id);
+      if (!immobile) return res.status(404).json({ error: "Immobile non trovato" });
+      const telefonoRaw = (telefonoBody || immobile.contattoTelefono || "").toString();
+      const telefono = normalizeItalianPhone(telefonoRaw);
+      if (!telefono) return res.status(400).json({ error: "Numero di telefono non disponibile" });
+
+      // Invio diretto via UltraMsg
+      const sent = await sendWhatsAppMessage(`+${telefono.replace(/^\+/, "")}`, testo);
+      if (!sent || !sent.ok) {
+        return res.status(500).json({ error: "Invio WhatsApp fallito", detail: sent });
+      }
+
+      // Marca immobile come contattato
+      try {
+        await pool.query(
+          `UPDATE immobili_esterni
+           SET stato_contatto = 'inviato',
+               data_contatto = NOW(),
+               messaggio_inviato = $1,
+               updated_at = NOW()
+           WHERE id = $2`,
+          [testo.slice(0, 4000), id],
+        );
+      } catch {}
+
+      res.json({ ok: true, telefono, message_id: sent?.id || null });
+    } catch (error: any) {
+      console.error("Invio WhatsApp acquisizione error:", error);
+      res.status(500).json({ error: "Errore invio", detail: error?.message });
+    }
+  });
+
   // ==================== BOZZE CASAFARI OUTREACH (raw SQL: tabella gestita da Cavour-Meta) ====================
   app.get("/api/casafari-bozze", async (_req, res) => {
     try {
@@ -2777,7 +2900,70 @@ ${analysis.areeSensibili.length > 0 ? analysis.areeSensibili.map(a => `• ${a}`
         console.error("Extension data validation failed:", validated.error);
         return res.status(400).json({ error: "Dati non validi", details: validated.error.flatten() });
       }
-      
+
+      // ===== DEDUP =====
+      // Cerca esistente con stesso indirizzo normalizzato + mq + prezzo (± 5%).
+      // Se match → arricchisce la scheda con la nuova fonte invece di creare duplicato.
+      const normIndirizzo = (validated.data.indirizzo || "").toLowerCase().replace(/[,\.;]/g, " ").replace(/\s+/g, " ").trim();
+      const dedupMq = validated.data.mq ?? null;
+      const dedupPrezzo = validated.data.prezzo ?? null;
+      const nuovaFonte = validated.data.fonte || (validated.data.urlAnnuncio ? new URL(validated.data.urlAnnuncio).hostname.replace("www.", "") : null);
+
+      if (normIndirizzo && dedupMq && dedupPrezzo) {
+        try {
+          const candidates = await pool.query(
+            `SELECT id, fonte, url_annuncio, indirizzo, mq, prezzo, contatto_telefono, contatto_email
+             FROM immobili_esterni
+             WHERE attivo = true
+               AND lower(indirizzo) ILIKE $1
+               AND mq = $2
+               AND prezzo BETWEEN $3 AND $4
+             LIMIT 5`,
+            [`%${normIndirizzo}%`, dedupMq, Number(dedupPrezzo) * 0.95, Number(dedupPrezzo) * 1.05],
+          );
+          if (candidates.rowCount && candidates.rowCount > 0) {
+            const existing = candidates.rows[0];
+            // arricchisci campi mancanti
+            const fields: string[] = [];
+            const params: any[] = [];
+            let idx = 1;
+            if (nuovaFonte && nuovaFonte !== existing.fonte) {
+              fields.push(`fonte = $${idx++}`);
+              params.push(`${existing.fonte || ""}|${nuovaFonte}`.replace(/^\|/, ""));
+            }
+            if (validated.data.urlAnnuncio && !existing.url_annuncio?.includes(validated.data.urlAnnuncio)) {
+              fields.push(`url_annuncio = $${idx++}`);
+              params.push(`${existing.url_annuncio || ""}\n${validated.data.urlAnnuncio}`.trim());
+            }
+            if (validated.data.contattoTelefono && !existing.contatto_telefono) {
+              fields.push(`contatto_telefono = $${idx++}`);
+              params.push(validated.data.contattoTelefono);
+            }
+            if (validated.data.contattoEmail && !existing.contatto_email) {
+              fields.push(`contatto_email = $${idx++}`);
+              params.push(validated.data.contattoEmail);
+            }
+            fields.push(`updated_at = NOW()`);
+            params.push(existing.id);
+            await pool.query(
+              `UPDATE immobili_esterni SET ${fields.join(", ")} WHERE id = $${idx}`,
+              params,
+            );
+            console.log(`[Extension/DEDUP] Merge in immobile ${existing.id} (era già presente, arricchito con fonte/dati)`);
+            return res.status(200).json({
+              success: true,
+              id: existing.id,
+              destination: "acquisizione",
+              deduplicato: true,
+              message: "Immobile già presente — scheda arricchita con la nuova fonte",
+            });
+          }
+        } catch (dedupErr) {
+          console.warn("[Extension/DEDUP] errore check, proseguo con insert:", dedupErr);
+        }
+      }
+      // ===== /DEDUP =====
+
       const immobile = await storage.createImmobileEsterno(validated.data);
       console.log(`[Extension] Private listing saved to Acquisizione: ${immobile.id}`);
       res.status(201).json({ success: true, id: immobile.id, destination: "acquisizione", message: "Annuncio importato con successo" });
