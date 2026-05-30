@@ -417,10 +417,16 @@ export class DatabaseStorage implements IStorage {
 
   // Immobili Esterni (Acquisizione)
   async getImmobiliEsterni(preferiti?: boolean): Promise<ImmobileEsterno[]> {
+    // Filtro attivo=true (esclude soft-deleted) + sort by updatedAt
+    // così quando un record viene arricchito via dedup dall'estensione risale in cima
     if (preferiti !== undefined) {
-      return db.select().from(immobiliEsterni).where(eq(immobiliEsterni.preferito, preferiti)).orderBy(desc(immobiliEsterni.createdAt));
+      return db.select().from(immobiliEsterni)
+        .where(and(eq(immobiliEsterni.preferito, preferiti), eq(immobiliEsterni.attivo, true)))
+        .orderBy(desc(immobiliEsterni.updatedAt));
     }
-    return db.select().from(immobiliEsterni).orderBy(desc(immobiliEsterni.createdAt));
+    return db.select().from(immobiliEsterni)
+      .where(eq(immobiliEsterni.attivo, true))
+      .orderBy(desc(immobiliEsterni.updatedAt));
   }
 
   async getImmobileEsterno(id: number): Promise<ImmobileEsterno | undefined> {

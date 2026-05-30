@@ -1639,17 +1639,20 @@ export default function AcquisizionePage() {
 
   const generateMessageMutation = useMutation({
     mutationFn: async (id: number) => {
-      const res = await apiRequest("POST", `/api/acquisizione/${id}/generate-message`, {});
+      // Usa lo stesso endpoint Anthropic della scheda dettaglio (genera-bozza-whatsapp)
+      // così la bozza è coerente cross-UI e dipende solo da ANTHROPIC_API_KEY (non OpenAI)
+      const res = await apiRequest("POST", `/api/acquisizione/${id}/genera-bozza-whatsapp`, {});
       return res.json();
     },
-    onSuccess: (data: { message: string }) => {
-      setGeneratedMessage(data.message);
+    onSuccess: (data: { testo?: string; message?: string }) => {
+      // L'endpoint genera-bozza-whatsapp risponde { testo, ... }; fallback su message per retro-compatibilità
+      setGeneratedMessage(data.testo || data.message || "");
     },
-    onError: () => {
+    onError: (e: any) => {
       setMessageDialogOpen(false);
       toast({
         title: "Errore",
-        description: "Impossibile generare il messaggio",
+        description: e?.message || "Impossibile generare il messaggio",
         variant: "destructive",
       });
     },
