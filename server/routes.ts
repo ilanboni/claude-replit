@@ -3106,12 +3106,30 @@ ${analysis.areeSensibili.length > 0 ? analysis.areeSensibili.map(a => `• ${a}`
               params,
             );
             console.log(`[Extension/DEDUP] Merge in immobile ${existing.id} (era già presente, arricchito con fonte/dati)`);
+
+            // Pre-genera bozza WhatsApp anche per il caso dedup
+            let bozzaTestoDedup: string | null = null;
+            try {
+              const bozzaResp = await fetch(`http://localhost:5000/api/acquisizione/${existing.id}/genera-bozza-whatsapp`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({}),
+              });
+              if (bozzaResp.ok) {
+                const bj = await bozzaResp.json();
+                bozzaTestoDedup = (bj && (bj.testo || bj.message)) || null;
+              }
+            } catch (e) {
+              console.warn("[Extension/DEDUP] Pre-generazione bozza fallita:", e);
+            }
+
             return res.status(200).json({
               success: true,
               id: existing.id,
               destination: "acquisizione",
               deduplicato: true,
               message: "Immobile già presente — scheda arricchita con la nuova fonte",
+              bozza: bozzaTestoDedup,
             });
           }
         } catch (dedupErr) {
@@ -3122,7 +3140,31 @@ ${analysis.areeSensibili.length > 0 ? analysis.areeSensibili.map(a => `• ${a}`
 
       const immobile = await storage.createImmobileEsterno(validated.data);
       console.log(`[Extension] Private listing saved to Acquisizione: ${immobile.id}`);
-      res.status(201).json({ success: true, id: immobile.id, destination: "acquisizione", message: "Annuncio importato con successo" });
+
+      // Pre-genera bozza WhatsApp così l'estensione la può usare per compilare il form
+      // senza dover fare una seconda fetch (che spesso fallisce per CSP/CORS dell'estensione)
+      let bozzaTesto: string | null = null;
+      try {
+        const bozzaResp = await fetch(`http://localhost:5000/api/acquisizione/${immobile.id}/genera-bozza-whatsapp`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        });
+        if (bozzaResp.ok) {
+          const bj = await bozzaResp.json();
+          bozzaTesto = (bj && (bj.testo || bj.message)) || null;
+        }
+      } catch (e) {
+        console.warn("[Extension] Pre-generazione bozza fallita:", e);
+      }
+
+      res.status(201).json({
+        success: true,
+        id: immobile.id,
+        destination: "acquisizione",
+        message: "Annuncio importato con successo",
+        bozza: bozzaTesto, // null se la generazione fallisce; l'estensione gestisce il caso
+      });
     } catch (error) {
       console.error("Extension import error:", error);
       res.status(500).json({ error: "Errore nell'importazione dell'annuncio" });
