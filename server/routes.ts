@@ -3110,7 +3110,7 @@ ${analysis.areeSensibili.length > 0 ? analysis.areeSensibili.map(a => `• ${a}`
             // Pre-genera bozza WhatsApp anche per il caso dedup
             let bozzaTestoDedup: string | null = null;
             try {
-              const bozzaResp = await fetch(`http://localhost:5000/api/acquisizione/${existing.id}/genera-bozza-whatsapp`, {
+              const bozzaResp = await fetch(`${req.protocol}://${req.get("host")}/api/acquisizione/${existing.id}/genera-bozza-whatsapp`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({}),
@@ -3145,7 +3145,7 @@ ${analysis.areeSensibili.length > 0 ? analysis.areeSensibili.map(a => `• ${a}`
       // senza dover fare una seconda fetch (che spesso fallisce per CSP/CORS dell'estensione)
       let bozzaTesto: string | null = null;
       try {
-        const bozzaResp = await fetch(`http://localhost:5000/api/acquisizione/${immobile.id}/genera-bozza-whatsapp`, {
+        const bozzaResp = await fetch(`${req.protocol}://${req.get("host")}/api/acquisizione/${immobile.id}/genera-bozza-whatsapp`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({}),
