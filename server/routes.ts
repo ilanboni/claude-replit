@@ -283,6 +283,10 @@ export async function registerRoutes(server: Server, app: Express): Promise<void
   // ==================== GENERA + INVIA BOZZA WHATSAPP per immobile esterno (workflow estensione) ====================
   app.post("/api/acquisizione/:id/genera-bozza-whatsapp", async (req, res) => {
     try {
+      // CORS — necessario perché l'endpoint viene chiamato anche dall'estensione Chrome
+      res.header("Access-Control-Allow-Origin", "*");
+      res.header("Access-Control-Allow-Methods", "POST, OPTIONS");
+      res.header("Access-Control-Allow-Headers", "Content-Type");
       const id = parseInt(req.params.id, 10);
       if (!id) return res.status(400).json({ error: "ID non valido" });
       const immobile = await storage.getImmobileEsterno(id);
@@ -438,6 +442,14 @@ Scrivi ORA il messaggio finito, solo il testo, senza preamboli né commenti.`;
       console.error("Genera bozza error:", error);
       res.status(500).json({ error: "Errore generazione bozza", detail: error?.message });
     }
+  });
+
+  // CORS preflight per genera-bozza-whatsapp (estensione Chrome)
+  app.options("/api/acquisizione/:id/genera-bozza-whatsapp", (req, res) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.header("Access-Control-Allow-Headers", "Content-Type");
+    res.sendStatus(204);
   });
 
   app.post("/api/acquisizione/:id/invia-whatsapp", async (req, res) => {
