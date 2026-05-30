@@ -3,4 +3,8 @@ dist
 .DS_Store
 server/public
 vite.config.ts.*
-*.tar.gz
+*.tar.gzmigration_v2_data/ 
+HANDOFF_MIGRATION.md 
+migration_v1_alter_tables.sql 
+run_migration.py 
+run_migration_remaining.ps1 
