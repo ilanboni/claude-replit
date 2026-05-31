@@ -15,7 +15,7 @@ import {
   ClipboardList,
   TrendingUp,
   Inbox,
-} from "lucide-react";
+} , Kanban from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -44,6 +44,7 @@ const menuItems = [
   { title: "Bot WhatsApp", url: "/bot", icon: Bot },
   { title: "WhatsApp Chat", url: "/whatsapp", icon: Phone },
   { title: "Bozze in attesa", url: "/bozze", icon: Inbox },
+  { title: "Pipeline Privati", url: "/pipeline-privati", icon: Inbox },
 ];
 
 export function AppSidebar() {

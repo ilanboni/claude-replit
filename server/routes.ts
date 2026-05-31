@@ -8263,4 +8263,169 @@ FORMATO RISPOSTE:
       res.status(500).json({ error: error.message });
     }
   });
+
+  // ==================== PIPELINE CASAFARI PRIVATI (Kanban) ====================
+  // Funnel A: scouting target Casafari -> mandato firmato.
+  // Sorgente dati: casafari_target_immobili (mandato_status) + casafari_outreach (ultimo stato).
+  // Endpoint:
+  //   GET   /api/pipeline/casafari-privati                  -> {colonne, metrics}
+  //   PATCH /api/pipeline/casafari-privati/:id/sposta       -> {nuova_colonna}
+  //   POST  /api/pipeline/casafari-privati/:id/marca-perso  -> {motivo?}
+
+  app.get("/api/pipeline/casafari-privati", async (_req, res) => {
+    try {
+      const result = await pool.query(`
+        SELECT
+          t.id::text AS id,
+          t.indirizzo, t.civico, t.zona, t.mq, t.locali, t.prezzo_corrente,
+          t.scenario, t.url_casafari,
+          t.mandato_status, t.mandato_status_updated_at,
+          t.contatto_proprietario_telefono, t.contatto_proprietario_email,
+          t.created_at, t.updated_at,
+          (
+            SELECT row_to_json(x) FROM (
+              SELECT o.id::text AS id, o.stato, o.tipo, o.testo_proposto,
+                     o.inviato_at, o.risposto_at, o.created_at,
+                     o.destinatario_nome, o.destinatario_telefono, o.destinatario_email,
+                     o.risposta_destinatario
+              FROM casafari_outreach o
+              WHERE o.target_immobile_id = t.id
+              ORDER BY o.created_at DESC
+              LIMIT 1
+            ) x
+          ) AS ultimo_outreach
+        FROM casafari_target_immobili t
+        ORDER BY COALESCE(t.mandato_status_updated_at, t.updated_at, t.created_at) DESC NULLS LAST
+        LIMIT 500
+      `);
+
+      const colonne: Record<string, any[]> = {
+        target: [], bozza: [], inviato: [], risposto: [],
+        appuntamento: [], negoziazione: [], mandato: [], perso: [],
+      };
+
+      const classificaColonna = (t: any, ultOut: any): string => {
+        if (t.mandato_status === 'firmato') return 'mandato';
+        if (t.mandato_status === 'perso')   return 'perso';
+        if (t.mandato_status === 'negoziazione') return 'negoziazione';
+        if (t.mandato_status === 'appuntamento') return 'appuntamento';
+        if (!ultOut || ultOut.stato === 'scartato') return 'target';
+        if (ultOut.stato === 'proposto') return 'bozza';
+        if (['approvato','attesa_invio','inviato'].includes(ultOut.stato)) return 'inviato';
+        if (ultOut.stato === 'risposto') return 'risposto';
+        return 'target';
+      };
+
+      const now = Date.now();
+      for (const t of result.rows) {
+        const ultOut = t.ultimo_outreach;
+        const colonna = classificaColonna(t, ultOut);
+        const ref = t.mandato_status_updated_at || ultOut?.risposto_at || ultOut?.inviato_at || ultOut?.created_at || t.created_at;
+        let gg = 0;
+        try { gg = Math.floor((now - new Date(ref).getTime()) / 86400000); } catch {}
+        const stallo = gg >= 14 ? 'rosso' : gg >= 7 ? 'giallo' : 'verde';
+
+        colonne[colonna].push({
+          id: t.id,
+          indirizzo: t.indirizzo,
+          civico: t.civico,
+          zona: t.zona,
+          mq: t.mq,
+          locali: t.locali,
+          prezzo: t.prezzo_corrente,
+          scenario: t.scenario,
+          url_casafari: t.url_casafari,
+          mandato_status: t.mandato_status,
+          destinatario_nome: ultOut?.destinatario_nome || null,
+          destinatario_telefono: ultOut?.destinatario_telefono || t.contatto_proprietario_telefono || null,
+          destinatario_email: ultOut?.destinatario_email || t.contatto_proprietario_email || null,
+          outreach_id: ultOut?.id || null,
+          outreach_stato: ultOut?.stato || null,
+          outreach_testo: ultOut?.testo_proposto || null,
+          outreach_inviato_at: ultOut?.inviato_at || null,
+          outreach_risposto_at: ultOut?.risposto_at || null,
+          risposta_testo: ultOut?.risposta_destinatario || null,
+          gg_in_colonna: gg,
+          stallo,
+        });
+      }
+
+      // Metriche header (mese corrente)
+      const inizioMese = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+      const m = await pool.query(`
+        SELECT
+          COUNT(*) FILTER (WHERE mandato_status = 'firmato' AND mandato_status_updated_at >= $1) AS mandati_mese,
+          COUNT(*) FILTER (WHERE mandato_status = 'negoziazione') AS in_negoziazione,
+          COUNT(*) FILTER (WHERE mandato_status = 'appuntamento') AS appuntamenti_aperti
+        FROM casafari_target_immobili
+      `, [inizioMese]);
+      const oQuery = await pool.query(`
+        SELECT COUNT(*) AS risposte_da_gestire
+        FROM casafari_outreach
+        WHERE stato = 'risposto'
+      `);
+
+      res.json({
+        colonne,
+        metrics: {
+          mandati_mese: parseInt(m.rows[0].mandati_mese) || 0,
+          in_negoziazione: parseInt(m.rows[0].in_negoziazione) || 0,
+          appuntamenti_aperti: parseInt(m.rows[0].appuntamenti_aperti) || 0,
+          risposte_da_gestire: parseInt(oQuery.rows[0].risposte_da_gestire) || 0,
+        },
+      });
+    } catch (error: any) {
+      console.error("Pipeline casafari-privati GET error:", error);
+      res.status(500).json({ error: "Errore lettura pipeline", detail: error.message });
+    }
+  });
+
+  app.patch("/api/pipeline/casafari-privati/:id/sposta", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { nuova_colonna } = req.body || {};
+      const consentite = ['target', 'appuntamento', 'negoziazione', 'mandato', 'perso'];
+      if (!nuova_colonna || !consentite.includes(nuova_colonna)) {
+        return res.status(400).json({ error: `nuova_colonna obbligatoria (${consentite.join(', ')})` });
+      }
+      const mandatoStatus = nuova_colonna === 'target' ? null
+        : nuova_colonna === 'mandato' ? 'firmato'
+        : nuova_colonna;
+      const r = await pool.query(
+        `UPDATE casafari_target_immobili
+         SET mandato_status = $1, mandato_status_updated_at = now(), updated_at = now()
+         WHERE id::text = $2
+         RETURNING id, mandato_status`,
+        [mandatoStatus, id],
+      );
+      if (r.rowCount === 0) return res.status(404).json({ error: "Target non trovato" });
+      res.json({ ok: true, id: r.rows[0].id, mandato_status: r.rows[0].mandato_status, colonna: nuova_colonna });
+    } catch (error: any) {
+      console.error("Pipeline sposta error:", error);
+      res.status(500).json({ error: "Errore spostamento", detail: error.message });
+    }
+  });
+
+  app.post("/api/pipeline/casafari-privati/:id/marca-perso", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { motivo } = req.body || {};
+      const oggi = new Date().toISOString().slice(0, 10);
+      const noteAdd = ` | [${oggi}: perso${motivo ? ' - ' + String(motivo).slice(0, 200) : ''}]`;
+      const r = await pool.query(
+        `UPDATE casafari_target_immobili
+         SET mandato_status = 'perso', mandato_status_updated_at = now(),
+             mandato_note = COALESCE(mandato_note, '') || $1,
+             updated_at = now()
+         WHERE id::text = $2
+         RETURNING id`,
+        [noteAdd, id],
+      );
+      if (r.rowCount === 0) return res.status(404).json({ error: "Target non trovato" });
+      res.json({ ok: true, id: r.rows[0].id });
+    } catch (error: any) {
+      console.error("Pipeline marca-perso error:", error);
+      res.status(500).json({ error: "Errore marca-perso", detail: error.message });
+    }
+  });
 }
