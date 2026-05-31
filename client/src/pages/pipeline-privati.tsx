@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Phone, MessageCircle, ExternalLink, MoreHorizontal, MapPin, Euro, Clock, TrendingUp, Inbox, Loader2, Home } from "lucide-react";
+import { Phone, MessageCircle, ExternalLink, MoreHorizontal, MapPin, Euro, Clock, TrendingUp, Inbox, Loader2, Home, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -111,11 +111,13 @@ function MetricCard({ label, value, icon: Icon, accent }: { label: string; value
   );
 }
 
-function KanbanCard({ card, colonna, onMove, onMarcaPerso }: {
+function KanbanCard({ card, colonna, onMove, onMarcaPerso, onApprovaBozza, onScartaBozza }: {
   card: PipelineCard;
   colonna: typeof COLONNE[number];
   onMove: (id: string, nuova: string) => void;
   onMarcaPerso: (id: string) => void;
+  onApprovaBozza: (outreachId: string) => void;
+  onScartaBozza: (outreachId: string) => void;
 }) {
   const tel = normalizzaTel(card.destinatario_telefono);
   const nome = card.destinatario_nome || "(nome n/d)";
@@ -186,6 +188,28 @@ function KanbanCard({ card, colonna, onMove, onMarcaPerso }: {
             <Clock className="w-3 h-3" /> {ggLabel(card.gg_in_colonna)}
           </Badge>
           <div className="flex gap-1">
+            {colonna.key === "bozza" && card.outreach_id && (
+              <>
+                <Button
+                  variant="default"
+                  size="icon"
+                  className="h-7 w-7 bg-green-600 hover:bg-green-700"
+                  title="Approva e manda"
+                  onClick={() => onApprovaBozza(card.outreach_id!)}
+                >
+                  <Check className="w-3.5 h-3.5" />
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  className="h-7 w-7"
+                  title="Scarta bozza"
+                  onClick={() => onScartaBozza(card.outreach_id!)}
+                >
+                  <X className="w-3.5 h-3.5" />
+                </Button>
+              </>
+            )}
             {tel && (
               <Button variant="ghost" size="icon" className="h-7 w-7" asChild title="Chiama">
                 <a href={`tel:+${tel}`}><Phone className="w-3.5 h-3.5" /></a>
@@ -214,11 +238,13 @@ function KanbanCard({ card, colonna, onMove, onMarcaPerso }: {
   );
 }
 
-function KanbanColumn({ colonna, cards, onMove, onMarcaPerso }: {
+function KanbanColumn({ colonna, cards, onMove, onMarcaPerso, onApprovaBozza, onScartaBozza }: {
   colonna: typeof COLONNE[number];
   cards: PipelineCard[];
   onMove: (id: string, nuova: string) => void;
   onMarcaPerso: (id: string) => void;
+  onApprovaBozza: (outreachId: string) => void;
+  onScartaBozza: (outreachId: string) => void;
 }) {
   const count = cards.length;
   return (
@@ -236,7 +262,7 @@ function KanbanColumn({ colonna, cards, onMove, onMarcaPerso }: {
           <p className="text-xs text-muted-foreground/60 text-center py-6">Vuota</p>
         ) : (
           cards.map((c) => (
-            <KanbanCard key={c.id} card={c} colonna={colonna} onMove={onMove} onMarcaPerso={onMarcaPerso} />
+            <KanbanCard key={c.id} card={c} colonna={colonna} onMove={onMove} onMarcaPerso={onMarcaPerso} onApprovaBozza={onApprovaBozza} onScartaBozza={onScartaBozza} />
           ))
         )}
       </div>
@@ -275,8 +301,35 @@ export default function PipelinePrivatiPage() {
     },
   });
 
+  const approvaBozzaMutation = useMutation({
+    mutationFn: async (outreachId: string) => {
+      return apiRequest("POST", `/api/casafari-bozze/${outreachId}/approva`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/pipeline/casafari-privati"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/casafari-bozze"] });
+      toast({ title: "Bozza approvata", description: "Verra' inviata al prossimo run del sender." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Errore approvazione", description: err?.message || "Riprova", variant: "destructive" });
+    },
+  });
+
+  const scartaBozzaMutation = useMutation({
+    mutationFn: async (outreachId: string) => {
+      return apiRequest("POST", `/api/casafari-bozze/${outreachId}/scarta`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/pipeline/casafari-privati"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/casafari-bozze"] });
+      toast({ title: "Bozza scartata" });
+    },
+  });
+
   const onMove = (id: string, nuova_colonna: string) => spostaMutation.mutate({ id, nuova_colonna });
   const onMarcaPerso = (id: string) => persoMutation.mutate(id);
+  const onApprovaBozza = (outreachId: string) => approvaBozzaMutation.mutate(outreachId);
+  const onScartaBozza = (outreachId: string) => scartaBozzaMutation.mutate(outreachId);
 
   if (isLoading) {
     return (
@@ -319,15 +372,7 @@ export default function PipelinePrivatiPage() {
             cards={data.colonne[c.key] || []}
             onMove={onMove}
             onMarcaPerso={onMarcaPerso}
+            onApprovaBozza={onApprovaBozza}
+            onScartaBozza={onScartaBozza}
           />
-        ))}
-      </div>
-
-      {(spostaMutation.isPending || persoMutation.isPending) && (
-        <div className="fixed bottom-4 right-4 bg-background border rounded-md px-3 py-2 flex items-center gap-2 shadow-lg">
-          <Loader2 className="w-4 h-4 animate-spin" /> Aggiornamento...
-        </div>
-      )}
-    </div>
-  );
-}
+        )
