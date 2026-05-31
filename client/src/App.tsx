@@ -33,6 +33,7 @@ import ConfermaAppuntamentiPage from "@/pages/conferma-appuntamenti";
 import ImpostazioniPage from "@/pages/impostazioni";
 import BozzePage from "@/pages/bozze";
 import PipelinePrivatiPage from "@/pages/pipeline-privati";
+import AnalyticsOutreachPage from "@/pages/analytics-outreach";
 
 function Router() {
   return (
@@ -60,6 +61,7 @@ function Router() {
       <Route path="/impostazioni" component={ImpostazioniPage} />
       <Route path="/bozze" component={BozzePage} />
       <Route path="/pipeline-privati" component={PipelinePrivatiPage} />
+      <Route path="/analytics-outreach" component={AnalyticsOutreachPage} />
       <Route component={NotFound} />
     </Switch>
   );

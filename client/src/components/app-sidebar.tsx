@@ -45,6 +45,7 @@ const menuItems = [
   { title: "WhatsApp Chat", url: "/whatsapp", icon: Phone },
   { title: "Bozze in attesa", url: "/bozze", icon: Inbox },
   { title: "Pipeline Privati", url: "/pipeline-privati", icon: Inbox },
+  { title: "Analytics Outreach", url: "/analytics-outreach", icon: Inbox },
 ];
 
 export function AppSidebar() {

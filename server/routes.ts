@@ -8349,6 +8349,113 @@ FORMATO RISPOSTE:
     }
   });
 
+  // ==================== ANALYTICS OUTREACH (Cavour-Meta data) ====================
+  // GET /api/analytics/outreach -> aggregati per canale x scenario x variant, top obiezioni
+  app.get("/api/analytics/outreach", async (req, res) => {
+    try {
+      const daysParam = parseInt((req.query.days as string) || "60", 10);
+      const days = Math.max(1, Math.min(365, daysParam || 60));
+
+      // 1. Conteggi base per canale (tipo)
+      const perCanale = await pool.query(`
+        SELECT
+          COALESCE(tipo, 'unknown') AS canale,
+          COUNT(*) FILTER (WHERE stato = 'inviato' OR stato = 'risposto') AS inviati,
+          COUNT(*) FILTER (WHERE stato = 'risposto') AS risposti,
+          COUNT(*) FILTER (WHERE esito_classificato = 'positivo') AS positivi,
+          COUNT(*) FILTER (WHERE esito_classificato = 'negativo') AS negativi,
+          COUNT(*) FILTER (WHERE esito_classificato = 'nulla') AS nulli
+        FROM casafari_outreach
+        WHERE COALESCE(inviato_at, created_at) > NOW() - ($1 || ' days')::interval
+        GROUP BY canale
+        ORDER BY inviati DESC
+      `, [String(days)]);
+
+      // 2. Per scenario
+      const perScenario = await pool.query(`
+        SELECT
+          COALESCE(scenario::text, 'unknown') AS scenario,
+          COUNT(*) FILTER (WHERE stato IN ('inviato','risposto')) AS inviati,
+          COUNT(*) FILTER (WHERE stato = 'risposto') AS risposti,
+          COUNT(*) FILTER (WHERE esito_classificato = 'positivo') AS positivi
+        FROM casafari_outreach
+        WHERE COALESCE(inviato_at, created_at) > NOW() - ($1 || ' days')::interval
+        GROUP BY scenario
+        ORDER BY inviati DESC
+      `, [String(days)]);
+
+      // 3. Per variant_label (template)
+      const perVariant = await pool.query(`
+        SELECT
+          COALESCE(variant_label, 'unknown') AS variant,
+          COUNT(*) FILTER (WHERE stato IN ('inviato','risposto')) AS inviati,
+          COUNT(*) FILTER (WHERE stato = 'risposto') AS risposti,
+          COUNT(*) FILTER (WHERE esito_classificato = 'positivo') AS positivi
+        FROM casafari_outreach
+        WHERE COALESCE(inviato_at, created_at) > NOW() - ($1 || ' days')::interval
+        GROUP BY variant
+        ORDER BY inviati DESC
+      `, [String(days)]);
+
+      // 4. Top obiezioni (tema_risposta) con esempi
+      const topObiezioni = await pool.query(`
+        SELECT
+          tema_risposta AS tema,
+          COUNT(*) AS n,
+          COUNT(*) FILTER (WHERE esito_classificato = 'positivo') AS positivi,
+          COUNT(*) FILTER (WHERE esito_classificato = 'negativo') AS negativi,
+          (
+            SELECT array_agg(testo_obiezione)
+            FROM (
+              SELECT DISTINCT testo_obiezione FROM casafari_outreach
+              WHERE tema_risposta = co.tema_risposta
+                AND testo_obiezione IS NOT NULL AND testo_obiezione != ''
+              LIMIT 3
+            ) sub
+          ) AS esempi
+        FROM casafari_outreach co
+        WHERE COALESCE(risposto_at, inviato_at) > NOW() - ($1 || ' days')::interval
+          AND tema_risposta IS NOT NULL
+        GROUP BY tema_risposta
+        ORDER BY n DESC
+        LIMIT 10
+      `, [String(days)]);
+
+      // 5. Totali generali
+      const totali = await pool.query(`
+        SELECT
+          COUNT(*) FILTER (WHERE stato IN ('inviato','risposto')) AS inviati,
+          COUNT(*) FILTER (WHERE stato = 'risposto') AS risposti,
+          COUNT(*) FILTER (WHERE esito_classificato = 'positivo') AS positivi,
+          COUNT(*) FILTER (WHERE stato = 'fallito') AS falliti,
+          COUNT(*) FILTER (WHERE stato = 'saltato_duplicato') AS saltati_dup
+        FROM casafari_outreach
+        WHERE COALESCE(inviato_at, created_at) > NOW() - ($1 || ' days')::interval
+      `, [String(days)]);
+
+      // 6. Mandati firmati nel periodo (da casafari_target_immobili)
+      const mandati = await pool.query(`
+        SELECT COUNT(*) AS n
+        FROM casafari_target_immobili
+        WHERE mandato_status = 'firmato'
+          AND mandato_status_updated_at > NOW() - ($1 || ' days')::interval
+      `, [String(days)]);
+
+      res.json({
+        periodo_giorni: days,
+        totali: totali.rows[0] || {},
+        mandati_firmati: parseInt(mandati.rows[0]?.n || "0"),
+        per_canale: perCanale.rows,
+        per_scenario: perScenario.rows,
+        per_variant: perVariant.rows,
+        top_obiezioni: topObiezioni.rows,
+      });
+    } catch (error: any) {
+      console.error("Analytics outreach error:", error);
+      res.status(500).json({ error: "Errore lettura analytics", detail: error.message });
+    }
+  });
+
   // ==================== PIPELINE CASAFARI PRIVATI (Kanban) ====================
   // Funnel A: scouting target Casafari -> mandato firmato.
   // Sorgente dati: casafari_target_immobili (mandato_status) + casafari_outreach (ultimo stato).
