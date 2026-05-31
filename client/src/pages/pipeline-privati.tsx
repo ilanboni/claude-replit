@@ -375,4 +375,8 @@ export default function PipelinePrivatiPage() {
             onApprovaBozza={onApprovaBozza}
             onScartaBozza={onScartaBozza}
           />
-        )
+        ))}
+      </div>
+    </div>
+  );
+}

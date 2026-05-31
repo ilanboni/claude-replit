@@ -15,7 +15,8 @@ import {
   ClipboardList,
   TrendingUp,
   Inbox,
-} , Kanban from "lucide-react";
+  Kanban,
+} from "lucide-react";
 import {
   Sidebar,
   SidebarContent,

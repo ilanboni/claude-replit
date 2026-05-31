@@ -104,8 +104,10 @@ app.use((req, res, next) => {
       // Start the scheduled message worker for delayed bot responses
       startScheduledMessageWorker();
       
-      // Start the email import worker (checks every 5 minutes)
-      startEmailImportWorker(5);
+      // DISABILITATO: duplicato di Cavour-Meta jobs/leggi_email (Railway, ogni 30min)
+      // Entrambi leggevano le stesse email portali e scrivevano nella stessa tabella comunicazioni su Supabase.
+      // Lasciato l'import sopra per non rompere niente, ma il worker non parte più.
+      // startEmailImportWorker(5);
       
       // Start the calendar connection monitor (checks every 10 minutes)
       startCalendarMonitorWorker(10);
