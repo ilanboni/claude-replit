@@ -517,6 +517,39 @@ Scrivi ORA il messaggio finito, solo il testo, senza preamboli né commenti.`;
         );
       } catch {}
 
+      // SYNC: registra l'invio in casafari_outreach cosi' appare nel Kanban Pipeline.
+      try {
+        let casafariTargetId: string | null = null;
+        const addr = (immobile.indirizzo || immobile.titolo || "").toLowerCase().trim();
+        if (addr.length >= 6) {
+          const cf = await pool.query(
+            `SELECT id::text AS id FROM casafari_target_immobili
+             WHERE LOWER(COALESCE(indirizzo, '')) LIKE '%' || $1 || '%'
+                OR $1 LIKE '%' || LOWER(COALESCE(indirizzo, '')) || '%'
+             ORDER BY created_at DESC LIMIT 1`,
+            [addr.slice(0, 60)],
+          );
+          casafariTargetId = cf.rows[0]?.id || null;
+        }
+        await pool.query(
+          `INSERT INTO casafari_outreach
+            (target_immobile_id, immobile_esterno_id, scenario, tipo,
+             destinatario_telefono, destinatario_nome, destinatario_email,
+             testo_proposto, testo_inviato, stato, inviato_at)
+           VALUES ($1, $2, NULL, 'whatsapp_acquisizione', $3, $4, $5, $6, $6, 'inviato', NOW())`,
+          [
+            casafariTargetId,
+            id,
+            telefono,
+            immobile.contattoNome || null,
+            immobile.contattoEmail || null,
+            testo.slice(0, 4000),
+          ],
+        );
+      } catch (syncErr) {
+        console.warn("[Invio] Sync casafari_outreach fallito (non bloccante):", syncErr);
+      }
+
       res.json({ ok: true, telefono, message_id: sent?.id || null });
     } catch (error: any) {
       console.error("Invio WhatsApp acquisizione error:", error);
@@ -560,7 +593,59 @@ Scrivi ORA il messaggio finito, solo il testo, senza preamboli né commenti.`;
   app.post("/api/casafari-bozze/:id/approva", async (req, res) => {
     try {
       const { id } = req.params;
-      const { testo } = req.body || {};
+      const { testo, force } = req.body || {};
+
+      // ANTI-DUP: blocca se telefono gia contattato negli ultimi 30gg. Override con { force: true }.
+      if (!force) {
+        try {
+          const bRes = await pool.query(
+            `SELECT destinatario_telefono FROM casafari_outreach WHERE id::text = $1`,
+            [id],
+          );
+          const tel = bRes.rows[0]?.destinatario_telefono || "";
+          const tel9 = tel.replace(/\D/g, "").slice(-9);
+          if (tel9) {
+            const dup1 = await pool.query(
+              `SELECT id, destinatario_nome, inviato_at
+               FROM casafari_outreach
+               WHERE id::text != $1
+                 AND stato = 'inviato'
+                 AND inviato_at > NOW() - INTERVAL '30 days'
+                 AND regexp_replace(COALESCE(destinatario_telefono,''), '\\D', '', 'g') ILIKE '%' || $2 || '%'
+               ORDER BY inviato_at DESC LIMIT 1`,
+              [id, tel9],
+            );
+            if (dup1.rowCount && dup1.rowCount > 0) {
+              const d = dup1.rows[0];
+              return res.status(409).json({
+                error: "Telefono gia contattato di recente (Casafari)",
+                ultimoContatto: { tipo: "casafari_outreach", data: d.inviato_at, nome: d.destinatario_nome },
+                hint: "Per mandare lo stesso, riprova con { force: true }",
+              });
+            }
+            const dup2 = await pool.query(
+              `SELECT c.data_ora, c.canale, c.tipo, cl.nome, cl.cognome
+               FROM comunicazioni c
+               JOIN clienti cl ON cl.id = c.cliente_id
+               WHERE c.data_ora > NOW() - INTERVAL '30 days'
+                 AND regexp_replace(COALESCE(cl.telefono,''), '\\D', '', 'g') ILIKE '%' || $1 || '%'
+               ORDER BY c.data_ora DESC LIMIT 1`,
+              [tel9],
+            );
+            if (dup2.rowCount && dup2.rowCount > 0) {
+              const d = dup2.rows[0];
+              return res.status(409).json({
+                error: "Telefono gia contattato di recente (comunicazione diretta)",
+                ultimoContatto: { tipo: "comunicazione", data: d.data_ora, canale: d.canale, nome: `${d.nome||''} ${d.cognome||''}`.trim() },
+                hint: "Per mandare lo stesso, riprova con { force: true }",
+              });
+            }
+          }
+        } catch (dupErr) {
+          console.warn("[Approva] anti-dup check fallito (proseguo):", dupErr);
+        }
+      }
+
       const fields = testo
         ? [`stato = 'approvato'`, `testo_proposto = $2`]
         : [`stato = 'approvato'`];
@@ -8276,7 +8361,7 @@ FORMATO RISPOSTE:
     try {
       const result = await pool.query(`
         SELECT
-          t.id::text AS id,
+          t.id::text AS id, 'casafari' AS source,
           t.indirizzo, t.civico, t.zona, t.mq, t.locali, t.prezzo_corrente,
           t.scenario, t.url_casafari,
           t.mandato_status, t.mandato_status_updated_at,
@@ -8299,6 +8384,41 @@ FORMATO RISPOSTE:
         LIMIT 500
       `);
 
+      // UNION: immobili_esterni "contattati" che NON hanno gia outreach corrispondente
+      const externalRes = await pool.query(`
+        SELECT
+          ie.id::text AS id, 'immobili_esterni' AS source,
+          COALESCE(ie.indirizzo, ie.titolo) AS indirizzo,
+          NULL::text AS civico,
+          ie.zona, ie.mq, ie.camere AS locali, ie.prezzo AS prezzo_corrente,
+          NULL::int AS scenario, ie.url_annuncio AS url_casafari,
+          ie.stato_contatto AS mandato_status,
+          ie.data_contatto AS mandato_status_updated_at,
+          ie.contatto_telefono AS contatto_proprietario_telefono,
+          ie.contatto_email AS contatto_proprietario_email,
+          ie.created_at, ie.updated_at,
+          (
+            SELECT row_to_json(x) FROM (
+              SELECT o.id::text AS id, o.stato, o.tipo, o.testo_proposto,
+                     o.inviato_at, o.risposto_at, o.created_at,
+                     o.destinatario_nome, o.destinatario_telefono, o.destinatario_email,
+                     o.risposta_destinatario
+              FROM casafari_outreach o
+              WHERE o.immobile_esterno_id = ie.id
+              ORDER BY o.created_at DESC LIMIT 1
+            ) x
+          ) AS ultimo_outreach
+        FROM immobili_esterni ie
+        WHERE ie.attivo = true
+          AND ie.stato_contatto IN ('contattato','inviato','risposto','interessato','in_negoziazione')
+          AND NOT EXISTS (
+            SELECT 1 FROM casafari_outreach co WHERE co.immobile_esterno_id = ie.id
+          )
+        ORDER BY ie.data_contatto DESC NULLS LAST
+        LIMIT 500
+      `);
+      const allRows = [...result.rows, ...externalRes.rows];
+
       const colonne: Record<string, any[]> = {
         target: [], bozza: [], inviato: [], risposto: [],
         appuntamento: [], negoziazione: [], mandato: [], perso: [],
@@ -8307,8 +8427,13 @@ FORMATO RISPOSTE:
       const classificaColonna = (t: any, ultOut: any): string => {
         if (t.mandato_status === 'firmato') return 'mandato';
         if (t.mandato_status === 'perso')   return 'perso';
-        if (t.mandato_status === 'negoziazione') return 'negoziazione';
+        if (t.mandato_status === 'negoziazione' || t.mandato_status === 'in_negoziazione') return 'negoziazione';
         if (t.mandato_status === 'appuntamento') return 'appuntamento';
+        if (t.source === 'immobili_esterni') {
+          if (t.mandato_status === 'risposto' || t.mandato_status === 'interessato') return 'risposto';
+          if (t.mandato_status === 'contattato' || t.mandato_status === 'inviato') return 'inviato';
+          if (t.mandato_status === 'nuovo' || !t.mandato_status) return 'target';
+        }
         if (!ultOut || ultOut.stato === 'scartato') return 'target';
         if (ultOut.stato === 'proposto') return 'bozza';
         if (['approvato','attesa_invio','inviato'].includes(ultOut.stato)) return 'inviato';
@@ -8317,7 +8442,7 @@ FORMATO RISPOSTE:
       };
 
       const now = Date.now();
-      for (const t of result.rows) {
+      for (const t of allRows) {
         const ultOut = t.ultimo_outreach;
         const colonna = classificaColonna(t, ultOut);
         const ref = t.mandato_status_updated_at || ultOut?.risposto_at || ultOut?.inviato_at || ultOut?.created_at || t.created_at;
@@ -8327,6 +8452,7 @@ FORMATO RISPOSTE:
 
         colonne[colonna].push({
           id: t.id,
+          source: t.source || 'casafari',
           indirizzo: t.indirizzo,
           civico: t.civico,
           zona: t.zona,
