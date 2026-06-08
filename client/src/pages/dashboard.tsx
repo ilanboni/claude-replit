@@ -1208,6 +1208,28 @@ export default function Dashboard() {
     queryKey: ["/api/whatsapp/conversations"],
   });
 
+  // Pipeline operativa Cavour (live da Cavour-Meta)
+  const { data: cavourData, isLoading: cavourLoading } = useQuery<{
+    kpi: {
+      lead_aperti?: number;
+      lead_nuovi_7gg?: number;
+      outreach_inviati_7gg?: number;
+      outreach_risposti_7gg?: number;
+      appuntamenti_prossimi_7gg?: number;
+      clienti_attivi?: number;
+      bozze_pending?: number;
+    };
+    cards: {
+      prossimi_appuntamenti: Array<{ appuntamento_id: number; cliente_id?: number; cliente_nome: string; telefono?: string; data_ora?: string; note?: string }>;
+      lead_caldi: Array<{ id: string; nome?: string; cognome?: string; telefono?: string; score?: number; stato?: string; info_chiave?: string }>;
+      richieste_no_casafari: Array<{ cliente_id?: number; cliente_nome: string; richiesta_id: number; creata_da_giorni?: number }>;
+    };
+    generato_at: string;
+  }>({
+    queryKey: ["/api/cavour/dashboard"],
+    refetchInterval: 60_000, // refresh ogni minuto
+  });
+
   const loading = statsLoading || clientiLoading || immobiliLoading;
 
   return (
@@ -1216,6 +1238,130 @@ export default function Dashboard() {
         <h1 className="text-2xl font-semibold" data-testid="text-dashboard-title">Dashboard</h1>
         <p className="text-muted-foreground">Panoramica delle tue attività immobiliari</p>
       </div>
+
+      {/* ─── Pipeline operativa Cavour (live da Cavour-Meta) ─── */}
+      <Card data-testid="card-pipeline-cavour-live">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-primary" />
+              Pipeline operativa Cavour
+            </CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              {cavourData?.generato_at
+                ? `Aggiornato ${new Date(cavourData.generato_at).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`
+                : "Live da go.cavourimmobiliare.online"}
+            </p>
+          </div>
+          {cavourLoading && <Skeleton className="h-4 w-20" />}
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* KPI strip */}
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+            {[
+              { label: "Lead aperti", value: cavourData?.kpi?.lead_aperti, accent: false },
+              { label: "Nuovi 7gg", value: cavourData?.kpi?.lead_nuovi_7gg, accent: true },
+              { label: "Clienti attivi", value: cavourData?.kpi?.clienti_attivi, accent: false },
+              { label: "Outreach 7gg", value: cavourData?.kpi?.outreach_inviati_7gg, accent: false },
+              { label: "Risposti 7gg", value: cavourData?.kpi?.outreach_risposti_7gg, accent: true },
+              { label: "App. prox 7gg", value: cavourData?.kpi?.appuntamenti_prossimi_7gg, accent: true },
+              { label: "Bozze pending", value: cavourData?.kpi?.bozze_pending, accent: false },
+            ].map((k) => (
+              <div
+                key={k.label}
+                className={`rounded-md border p-3 ${k.accent ? "border-primary/30 bg-primary/5" : ""}`}
+                data-testid={`kpi-cavour-${k.label.toLowerCase().replace(/\s/g, "-")}`}
+              >
+                <div className="text-xs text-muted-foreground uppercase tracking-wide">{k.label}</div>
+                <div className="text-2xl font-semibold tabular-nums mt-1">
+                  {k.value ?? (cavourLoading ? "…" : 0)}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Cards riga */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+            <div className="rounded-md border p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+                <h3 className="font-medium text-sm">Prossimi appuntamenti</h3>
+              </div>
+              {(cavourData?.cards?.prossimi_appuntamenti?.length || 0) === 0 ? (
+                <p className="text-xs text-muted-foreground">Niente in agenda nei prossimi 7gg.</p>
+              ) : (
+                <ul className="space-y-2 text-sm">
+                  {cavourData!.cards.prossimi_appuntamenti.slice(0, 5).map((a) => (
+                    <li key={a.appuntamento_id} className="flex justify-between gap-2 border-b last:border-b-0 pb-1.5">
+                      <div className="min-w-0">
+                        <Link href={a.cliente_id ? `/clienti/${a.cliente_id}` : "#"} className="font-medium hover:underline truncate block">
+                          {a.cliente_nome}
+                        </Link>
+                        {a.note && <p className="text-xs text-muted-foreground truncate">{a.note}</p>}
+                      </div>
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">
+                        {a.data_ora ? new Date(a.data_ora).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—"}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <div className="rounded-md border p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                <h3 className="font-medium text-sm">Lead caldi</h3>
+              </div>
+              {(cavourData?.cards?.lead_caldi?.length || 0) === 0 ? (
+                <p className="text-xs text-muted-foreground">Nessun lead caldo aperto.</p>
+              ) : (
+                <ul className="space-y-2 text-sm">
+                  {cavourData!.cards.lead_caldi.slice(0, 5).map((l) => (
+                    <li key={l.id} className="flex justify-between gap-2 border-b last:border-b-0 pb-1.5">
+                      <div className="min-w-0">
+                        <span className="font-medium truncate block">
+                          {`${l.nome || ""} ${l.cognome || ""}`.trim() || l.telefono || "?"}
+                        </span>
+                        {l.info_chiave && <p className="text-xs text-muted-foreground truncate">{l.info_chiave}</p>}
+                      </div>
+                      <div className="text-xs flex flex-col items-end gap-1">
+                        {l.score !== undefined && <Badge variant="secondary">{l.score}</Badge>}
+                        {l.stato && <span className="text-muted-foreground">{l.stato}</span>}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <div className="rounded-md border p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <AlertCircle className="h-4 w-4 text-amber-500" />
+                <h3 className="font-medium text-sm">Casafari mancanti</h3>
+              </div>
+              {(cavourData?.cards?.richieste_no_casafari?.length || 0) === 0 ? (
+                <p className="text-xs text-muted-foreground">Tutte le ricerche hanno il link Casafari ✓</p>
+              ) : (
+                <ul className="space-y-2 text-sm">
+                  {cavourData!.cards.richieste_no_casafari.slice(0, 5).map((c) => (
+                    <li key={c.richiesta_id} className="flex justify-between gap-2 border-b last:border-b-0 pb-1.5">
+                      <Link href={c.cliente_id ? `/clienti/${c.cliente_id}` : "#"} className="font-medium hover:underline truncate">
+                        {c.cliente_nome || "?"}
+                      </Link>
+                      {c.creata_da_giorni !== undefined && (
+                        <span className="text-xs text-amber-600 dark:text-amber-400 whitespace-nowrap">
+                          {c.creata_da_giorni}gg fa
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard

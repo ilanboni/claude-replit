@@ -8661,4 +8661,46 @@ FORMATO RISPOSTE:
       res.status(500).json({ error: "Errore marca-perso", detail: error.message });
     }
   });
+
+  // ==================== PROXY a Cavour-Meta /api/operativo/* (#36-39) ====================
+  // Forwarda chiamate dal client React al backend Python su Railway,
+  // tenendo X-Admin-Token solo server-side per non esporlo nel browser.
+  const cavourBase = (process.env.CAVOUR_META_BASE_URL || "https://go.cavourimmobiliare.online").replace(/\/$/, "");
+  const cavourToken = process.env.CAVOUR_META_ADMIN_TOKEN || "";
+
+  async function proxyCavour(path: string, res: any) {
+    if (!cavourToken) {
+      return res.status(500).json({ error: "CAVOUR_META_ADMIN_TOKEN non configurato su Replit" });
+    }
+    try {
+      const r = await fetch(`${cavourBase}${path}`, {
+        method: "GET",
+        headers: { "X-Admin-Token": cavourToken, "Accept": "application/json" },
+      });
+      const txt = await r.text();
+      res.status(r.status);
+      try {
+        res.json(JSON.parse(txt));
+      } catch {
+        res.send(txt);
+      }
+    } catch (err: any) {
+      console.error("[proxyCavour] fail", path, err?.message);
+      res.status(502).json({ error: "Cavour-Meta non raggiungibile", detail: err?.message });
+    }
+  }
+
+  app.get("/api/cavour/dashboard", async (_req, res) => {
+    await proxyCavour("/api/operativo/dashboard", res);
+  });
+  app.get("/api/cavour/cliente/:id", async (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ error: "id non valido" });
+    await proxyCavour(`/api/operativo/cliente/${id}`, res);
+  });
+  app.get("/api/cavour/liste", async (req, res) => {
+    const tab = (req.query.tab as string) || "clienti";
+    const limit = parseInt((req.query.limit as string) || "100", 10);
+    await proxyCavour(`/api/operativo/liste?tab=${encodeURIComponent(tab)}&limit=${limit}`, res);
+  });
 }

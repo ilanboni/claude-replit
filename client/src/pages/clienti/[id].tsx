@@ -1502,6 +1502,131 @@ function TabMatching({ clienteId }: { clienteId: number }) {
   );
 }
 
+// ─── Timeline Cavour-Meta: aggrega WhatsApp + appuntamenti + email portali + outreach ───
+type CavourTimelineEvent = {
+  tipo: "whatsapp" | "appuntamento" | "email_portale" | "outreach_casafari" | "outreach_casafari_risposta" | string;
+  direzione: "inbound" | "outbound" | "evento";
+  data_ora?: string;
+  testo: string;
+  meta?: Record<string, any>;
+};
+
+type CavourScheda = {
+  cliente: any;
+  richieste: any[];
+  timeline: CavourTimelineEvent[];
+};
+
+function TabTimelineCavour({ clienteId }: { clienteId: number }) {
+  const { data, isLoading, isError } = useQuery<CavourScheda>({
+    queryKey: [`/api/cavour/cliente/${clienteId}`],
+    refetchInterval: 60_000,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="space-y-3">
+        <Skeleton className="h-16 w-full" />
+        <Skeleton className="h-16 w-full" />
+        <Skeleton className="h-16 w-full" />
+      </div>
+    );
+  }
+  if (isError || !data) {
+    return (
+      <div className="text-sm text-muted-foreground p-4 border rounded">
+        Timeline non disponibile (Cavour-Meta non raggiungibile o token mancante).
+      </div>
+    );
+  }
+
+  const events = data.timeline || [];
+  if (events.length === 0) {
+    return <div className="text-sm text-muted-foreground p-4 border rounded">Nessun evento ancora registrato per questo cliente.</div>;
+  }
+
+  const labelTipo = (t: string) => ({
+    whatsapp: "WhatsApp",
+    appuntamento: "Appuntamento",
+    email_portale: "Email portale",
+    outreach_casafari: "Outreach Casafari",
+    outreach_casafari_risposta: "Risposta outreach",
+  } as Record<string, string>)[t] || t;
+
+  const iconTipo = (t: string) => {
+    switch (t) {
+      case "whatsapp": return MessageCircle;
+      case "appuntamento": return Calendar;
+      case "email_portale": return Mail;
+      case "outreach_casafari":
+      case "outreach_casafari_risposta": return Send;
+      default: return FileText;
+    }
+  };
+
+  const colorDirezione = (d: string) => d === "inbound" ? "bg-blue-50 dark:bg-blue-950/30 border-blue-200" : d === "outbound" ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200" : "bg-amber-50 dark:bg-amber-950/30 border-amber-200";
+
+  return (
+    <div className="space-y-4">
+      {data.richieste && data.richieste.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Ricerca attiva</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm space-y-1">
+            {data.richieste.filter((r: any) => r.attiva).slice(0, 1).map((r: any) => (
+              <div key={r.id} className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                <div><span className="text-muted-foreground">Zona:</span> {r.zona || "—"}</div>
+                <div><span className="text-muted-foreground">Budget max:</span> {r.budget_massimo ? `${Number(r.budget_massimo).toLocaleString("it-IT")} €` : "—"}</div>
+                <div><span className="text-muted-foreground">Mq min:</span> {r.mq_minimi || "—"}</div>
+                <div className="md:col-span-1">
+                  <span className="text-muted-foreground">Casafari:</span>{" "}
+                  {r.link_ricerca ? (
+                    <a href={r.link_ricerca} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+                      apri ↗
+                    </a>
+                  ) : (
+                    <Badge variant="outline" className="text-amber-600 border-amber-300">manca</Badge>
+                  )}
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="space-y-2">
+        {events.map((e, i) => {
+          const Icon = iconTipo(e.tipo);
+          return (
+            <div key={i} className={`border rounded-md p-3 ${colorDirezione(e.direzione)}`}>
+              <div className="flex items-start gap-3">
+                <Icon className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge variant="outline" className="text-xs">{labelTipo(e.tipo)}</Badge>
+                      <Badge variant={e.direzione === "inbound" ? "secondary" : "outline"} className="text-xs">
+                        {e.direzione === "inbound" ? "← ricevuto" : e.direzione === "outbound" ? "→ inviato" : "evento"}
+                      </Badge>
+                    </div>
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">
+                      {e.data_ora ? new Date(e.data_ora).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" }) : ""}
+                    </span>
+                  </div>
+                  <p className="text-sm whitespace-pre-wrap break-words">{e.testo}</p>
+                  {e.meta?.note && <p className="text-xs text-muted-foreground mt-1">Note: {e.meta.note}</p>}
+                  {e.meta?.esito && <Badge variant="secondary" className="mt-1 text-xs">Esito: {e.meta.esito}</Badge>}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function ClienteDetailPage() {
   const params = useParams<{ id: string }>();
   const [, navigate] = useLocation();
@@ -1706,12 +1831,19 @@ export default function ClienteDetailPage() {
           >
             Attività
           </TabsTrigger>
-          <TabsTrigger 
+          <TabsTrigger
             value="matching"
             className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
             data-testid="tab-matching"
           >
             Matching
+          </TabsTrigger>
+          <TabsTrigger
+            value="timeline"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+            data-testid="tab-timeline"
+          >
+            Timeline
           </TabsTrigger>
         </TabsList>
 
@@ -1739,6 +1871,9 @@ export default function ClienteDetailPage() {
         </TabsContent>
         <TabsContent value="matching" className="mt-6">
           <TabMatching clienteId={clienteId} />
+        </TabsContent>
+        <TabsContent value="timeline" className="mt-6">
+          <TabTimelineCavour clienteId={clienteId} />
         </TabsContent>
       </Tabs>
 
