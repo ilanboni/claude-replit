@@ -4,13 +4,11 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/lib/theme";
-import { ThemeToggle } from "@/components/theme-toggle";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/app-sidebar";
-import { GlobalSearch } from "@/components/global-search";
-import { NotificationsBell } from "@/components/notifications-bell";
+import { AppShell } from "@/components/app-shell";
+
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
+import Home from "@/pages/home";
 import ClientiPage from "@/pages/clienti";
 import ClienteDetailPage from "@/pages/clienti/[id]";
 import ImmobiliPage from "@/pages/immobili";
@@ -39,7 +37,11 @@ import OperativoPage from "@/pages/operativo";
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Dashboard} />
+      {/* Nuova homepage "OGGI" mobile-first */}
+      <Route path="/" component={Home} />
+      {/* Vecchia dashboard analytics raggiungibile esplicitamente */}
+      <Route path="/dashboard" component={Dashboard} />
+
       <Route path="/clienti" component={ClientiPage} />
       <Route path="/clienti/:id" component={ClienteDetailPage} />
       <Route path="/immobili" component={ImmobiliPage} />
@@ -70,33 +72,13 @@ function Router() {
 }
 
 function App() {
-  const style = {
-    "--sidebar-width": "16rem",
-    "--sidebar-width-icon": "3rem",
-  };
-
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <TooltipProvider>
-          <SidebarProvider style={style as React.CSSProperties}>
-            <div className="flex h-screen w-full">
-              <AppSidebar />
-              <div className="flex flex-col flex-1 overflow-hidden">
-                <header className="flex items-center gap-4 h-14 border-b px-4 shrink-0">
-                  <SidebarTrigger data-testid="button-sidebar-toggle" />
-                  <GlobalSearch />
-                  <div className="flex items-center gap-1">
-                    <NotificationsBell />
-                    <ThemeToggle />
-                  </div>
-                </header>
-                <main className="flex-1 overflow-auto">
-                  <Router />
-                </main>
-              </div>
-            </div>
-          </SidebarProvider>
+          <AppShell>
+            <Router />
+          </AppShell>
           <Toaster />
         </TooltipProvider>
       </ThemeProvider>

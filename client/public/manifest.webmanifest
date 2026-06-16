@@ -1,0 +1,45 @@
+{
+  "name": "ImmoGest — Cavour Immobiliare",
+  "short_name": "ImmoGest",
+  "description": "CRM mobile Cavour Immobiliare — clienti, immobili, attività, pluricondivisi",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0a0a",
+  "theme_color": "#0a0a0a",
+  "lang": "it",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Home (Oggi)",
+      "url": "/",
+      "description": "Cosa fare oggi"
+    },
+    {
+      "name": "Clienti",
+      "url": "/clienti"
+    },
+    {
+      "name": "Immobili",
+      "url": "/immobili"
+    },
+    {
+      "name": "Pluricondivisi",
+      "url": "/pluricondivisi"
+    }
+  ]
+}
