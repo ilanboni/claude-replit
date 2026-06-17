@@ -8,3 +8,7 @@ HANDOFF_MIGRATION.md
 migration_v1_alter_tables.sql 
 run_migration.py 
 run_migration_remaining.ps1 
+
+migration_v2_data/
+backup_immogest_*.sql
+*_dump.sql

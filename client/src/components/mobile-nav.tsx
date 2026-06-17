@@ -12,7 +12,7 @@ const NAV_ITEMS = [
   { href: "/clienti", label: "Clienti", icon: Users, match: (path: string) => path.startsWith("/clienti") || path.startsWith("/richieste") || path.startsWith("/matching") },
   { href: "/immobili", label: "Immobili", icon: Building2, match: (path: string) => path.startsWith("/immobili") || path.startsWith("/acquisizione") || path.startsWith("/mercato") || path.startsWith("/bozze") || path.startsWith("/pipeline-privati") || path.startsWith("/pluricondivisi") },
   { href: "/attivita", label: "Attività", icon: Activity, match: (path: string) => path.startsWith("/attivita") || path.startsWith("/comunicazioni") || path.startsWith("/appuntamenti") || path.startsWith("/whatsapp") || path.startsWith("/analytics") },
-  { href: "/impostazioni", label: "Settings", icon: Settings, match: (path: string) => path.startsWith("/impostazioni") || path.startsWith("/bot") },
+  { href: "/impostazioni-pwa", label: "Settings", icon: Settings, match: (path: string) => path.startsWith("/impostazioni") || path.startsWith("/bot") },
 ];
 
 export function MobileNav() {

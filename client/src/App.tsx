@@ -9,6 +9,10 @@ import { AppShell } from "@/components/app-shell";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import Home from "@/pages/home";
+import Pluricondivisi from "@/pages/pluricondivisi";
+import ImpostazioniPWA from "@/pages/impostazioni-pwa";
+import Promemoria from "@/pages/promemoria";
+import Comandi from "@/pages/comandi";
 import ClientiPage from "@/pages/clienti";
 import ClienteDetailPage from "@/pages/clienti/[id]";
 import ImmobiliPage from "@/pages/immobili";
@@ -41,6 +45,12 @@ function Router() {
       <Route path="/" component={Home} />
       {/* Vecchia dashboard analytics raggiungibile esplicitamente */}
       <Route path="/dashboard" component={Dashboard} />
+
+      {/* Nuove pagine PWA mobile-first */}
+      <Route path="/pluricondivisi" component={Pluricondivisi} />
+      <Route path="/impostazioni-pwa" component={ImpostazioniPWA} />
+      <Route path="/promemoria" component={Promemoria} />
+      <Route path="/comandi" component={Comandi} />
 
       <Route path="/clienti" component={ClientiPage} />
       <Route path="/clienti/:id" component={ClienteDetailPage} />

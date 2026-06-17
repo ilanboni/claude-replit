@@ -1766,8 +1766,9 @@ export default function ClienteDetailPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center gap-2">
+    <div className="p-3 md:p-6 space-y-3 md:space-y-6">
+      {/* Breadcrumb compatto: solo desktop. Su mobile basta il back button della bottom nav. */}
+      <div className="hidden md:flex items-center gap-2">
         <Link href="/clienti">
           <Button variant="ghost" size="icon" data-testid="button-back">
             <ArrowLeft className="h-4 w-4" />
@@ -1778,17 +1779,77 @@ export default function ClienteDetailPage() {
         <span>{cliente.nome} {cliente.cognome}</span>
       </div>
 
-      <ClienteHeader 
-        cliente={cliente} 
-        onEdit={() => setShowEditForm(true)}
-        onDelete={() => setShowDeleteDialog(true)}
-        onMerge={() => setShowMergeDialog(true)}
-      />
+      {/* Breadcrumb mobile: solo back + nome compatto */}
+      <div className="flex md:hidden items-center gap-2 -mx-1">
+        <Link href="/clienti">
+          <Button variant="ghost" size="icon" className="h-9 w-9" data-testid="button-back-mobile">
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+        </Link>
+        <div className="flex-1 min-w-0">
+          <div className="text-base font-semibold truncate">{cliente.nome} {cliente.cognome}</div>
+          <div className="text-xs text-muted-foreground truncate">
+            {cliente.tipo || "Cliente"}{cliente.rating ? ` • ⭐ ${cliente.rating}/5` : ""}
+          </div>
+        </div>
+      </div>
+
+      {/* Header completo (desktop) e compatto (mobile gia' coperto dal breadcrumb sopra) */}
+      <div className="hidden md:block">
+        <ClienteHeader
+          cliente={cliente}
+          onEdit={() => setShowEditForm(true)}
+          onDelete={() => setShowDeleteDialog(true)}
+          onMerge={() => setShowMergeDialog(true)}
+        />
+      </div>
+
+      {/* Mobile Quick Actions — 4 bottoni grossi tap-friendly. Visibile solo su mobile. */}
+      <div className="grid grid-cols-4 gap-2 md:hidden">
+        {cliente.telefono ? (
+          <a href={`tel:${cliente.telefono}`} className="flex flex-col items-center gap-1 py-3 rounded-lg bg-primary/10 active:bg-primary/20 transition" data-testid="action-call">
+            <Phone className="h-5 w-5 text-primary" />
+            <span className="text-[10px] font-medium">Chiama</span>
+          </a>
+        ) : (
+          <div className="flex flex-col items-center gap-1 py-3 rounded-lg bg-muted/40 opacity-50">
+            <Phone className="h-5 w-5" />
+            <span className="text-[10px]">No tel</span>
+          </div>
+        )}
+        {cliente.telefono ? (
+          <a href={`https://wa.me/${cliente.telefono.replace(/\D/g, "")}`} target="_blank" rel="noopener" className="flex flex-col items-center gap-1 py-3 rounded-lg bg-green-500/10 active:bg-green-500/20 transition" data-testid="action-wa">
+            <MessageCircle className="h-5 w-5 text-green-500" />
+            <span className="text-[10px] font-medium">WhatsApp</span>
+          </a>
+        ) : (
+          <div className="flex flex-col items-center gap-1 py-3 rounded-lg bg-muted/40 opacity-50">
+            <MessageCircle className="h-5 w-5" />
+            <span className="text-[10px]">No WA</span>
+          </div>
+        )}
+        {cliente.email ? (
+          <a href={`mailto:${cliente.email}`} className="flex flex-col items-center gap-1 py-3 rounded-lg bg-blue-500/10 active:bg-blue-500/20 transition" data-testid="action-mail">
+            <Mail className="h-5 w-5 text-blue-500" />
+            <span className="text-[10px] font-medium">Email</span>
+          </a>
+        ) : (
+          <div className="flex flex-col items-center gap-1 py-3 rounded-lg bg-muted/40 opacity-50">
+            <Mail className="h-5 w-5" />
+            <span className="text-[10px]">No email</span>
+          </div>
+        )}
+        <Link href={`/appuntamenti?cliente=${clienteId}`} className="flex flex-col items-center gap-1 py-3 rounded-lg bg-orange-500/10 active:bg-orange-500/20 transition" data-testid="action-appuntamento">
+          <CalendarDays className="h-5 w-5 text-orange-500" />
+          <span className="text-[10px] font-medium">Appunta</span>
+        </Link>
+      </div>
 
       <MessaggiDaGestireCliente clienteId={clienteId} cliente={cliente} />
 
       <Tabs defaultValue="panoramica" className="w-full">
-        <TabsList className="w-full justify-start border-b rounded-none bg-transparent p-0 h-auto">
+        {/* TabsList scrollable orizzontalmente su mobile per gestire 8 tab */}
+        <TabsList className="w-full justify-start border-b rounded-none bg-transparent p-0 h-auto overflow-x-auto scrollbar-none flex-nowrap">
           <TabsTrigger 
             value="panoramica" 
             className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"

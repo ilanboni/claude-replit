@@ -217,19 +217,21 @@ export default function ClientiPage() {
   });
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="space-y-3 md:space-y-6 p-3 md:p-6">
+      {/* Header + FAB nuovo cliente. Su mobile titolo compatto, niente sottotitolo. */}
+      <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold" data-testid="text-clienti-title">Clienti</h1>
-          <p className="text-muted-foreground">Gestisci la tua rubrica clienti</p>
+          <h1 className="text-xl md:text-2xl font-semibold" data-testid="text-clienti-title">Clienti</h1>
+          <p className="hidden md:block text-muted-foreground">Gestisci la tua rubrica clienti</p>
         </div>
-        <Button onClick={() => setShowForm(true)} data-testid="button-new-client">
-          <Plus className="h-4 w-4 mr-2" />
-          Nuovo Cliente
+        <Button onClick={() => setShowForm(true)} size="sm" className="md:size-default" data-testid="button-new-client">
+          <Plus className="h-4 w-4 md:mr-2" />
+          <span className="hidden md:inline">Nuovo Cliente</span>
         </Button>
       </div>
 
-      <div className="flex flex-col gap-4 sm:flex-row">
+      {/* Search + filtro sticky sotto header su mobile per ricerca rapida sempre visibile. */}
+      <div className="flex flex-col gap-2 md:flex-row md:gap-4 sticky top-12 md:top-14 z-20 bg-background/95 backdrop-blur py-2 -mx-3 px-3 md:-mx-6 md:px-6">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -281,7 +283,7 @@ export default function ClientiPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {filteredClienti.map((cliente) => (
             <ClienteCard
               key={cliente.id}

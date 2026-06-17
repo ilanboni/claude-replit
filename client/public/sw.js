@@ -30,6 +30,35 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// Push notifications native (iOS 16.4+ supporta su PWA installate dalla Home).
+self.addEventListener('push', (event) => {
+  let data = { title: 'ImmoGest', body: 'Nuovo aggiornamento' };
+  try { data = event.data ? event.data.json() : data; } catch {}
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'ImmoGest', {
+      body: data.body || '',
+      icon: '/favicon.png',
+      badge: '/favicon.png',
+      tag: data.tag || 'immogest-notif',
+      data: { url: data.url || '/' },
+      requireInteraction: data.requireInteraction || false,
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = event.notification.data && event.notification.data.url || '/';
+  event.waitUntil(
+    clients.matchAll({ type: 'window' }).then(clients => {
+      for (const c of clients) {
+        if (c.url.endsWith(url) && 'focus' in c) return c.focus();
+      }
+      if (clients.openWindow) return clients.openWindow(url);
+    })
+  );
+});
+
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET') return;

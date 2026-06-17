@@ -1024,6 +1024,425 @@ Scrivi ORA il messaggio finito, solo il testo, senza preamboli né commenti.`;
     }
   });
 
+  // ==================== APPROVAZIONI MOBILE DIRETTE ====================
+  // Permettono di chiudere le decisioni dalla Home PWA senza aprire Telegram.
+  // Riusano la logica dei comandi gia' presente in Cavour-Meta via webhook simulato.
+
+  // Bozza CRM: ok/scarta/modifica/togli
+  app.post("/api/decisione/bozza-crm/:short_id", async (req, res) => {
+    try {
+      const { action, payload } = req.body as { action: string; payload?: string };
+      const { short_id } = req.params;
+      // Leggo bozze pending
+      const r = await pool.query(
+        `SELECT value FROM system_config WHERE key='paolo_bozze_pending' LIMIT 1`
+      );
+      let bozze: any[] = [];
+      try { bozze = JSON.parse(r.rows[0]?.value || "[]"); } catch {}
+      const idx = bozze.findIndex((b: any) => (b.id || "").toUpperCase() === short_id.toUpperCase());
+      if (idx < 0) return res.status(404).json({ error: "Bozza non trovata" });
+      const bozza = bozze[idx];
+      let testoFinale = bozza.bozza;
+      if (action === "togli" && payload) {
+        testoFinale = (testoFinale || "").replace(new RegExp(payload.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&"), "gi"), "").replace(/\s+/g, " ").trim();
+      } else if (action === "modifica" && payload) {
+        testoFinale = payload;
+      } else if (action === "scarta") {
+        bozza.stato = "scartato";
+        bozze[idx] = bozza;
+        await pool.query(
+          `UPDATE system_config SET value=$1, updated_at=NOW() WHERE key='paolo_bozze_pending'`,
+          [JSON.stringify(bozze)]
+        );
+        return res.json({ ok: true, action: "scartato" });
+      } else if (action !== "ok") {
+        return res.status(400).json({ error: "action non valida" });
+      }
+
+      // Accoda invio: aggiungo a paolo_azioni_programmate
+      const ra = await pool.query(
+        `SELECT value FROM system_config WHERE key='paolo_azioni_programmate' LIMIT 1`
+      );
+      let azioni: any[] = [];
+      try { azioni = JSON.parse(ra.rows[0]?.value || "[]"); } catch {}
+      azioni.push({
+        id: Math.random().toString(36).slice(2, 8),
+        tipo: "risposta_paolo_inbound",
+        telefono: (bozza.telefono || "").replace(/^\+/, ""),
+        nome_lead: bozza.nome,
+        messaggio: testoFinale,
+        scheduled_at: new Date().toISOString(),
+        stato: "in_attesa",
+        origine: `crm_bozza_${action}_${short_id}`,
+        creato_at: new Date().toISOString(),
+      });
+      await pool.query(
+        `INSERT INTO system_config(key,value,updated_at) VALUES('paolo_azioni_programmate',$1,NOW())
+         ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=NOW()`,
+        [JSON.stringify(azioni)]
+      );
+      bozza.stato = "approvato";
+      bozza.testo_finale = testoFinale;
+      bozze[idx] = bozza;
+      await pool.query(
+        `UPDATE system_config SET value=$1, updated_at=NOW() WHERE key='paolo_bozze_pending'`,
+        [JSON.stringify(bozze)]
+      );
+      res.json({ ok: true, action: "accodato_invio", testo: testoFinale });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Tasks_ilan: fatto/scarta/rinvia
+  app.post("/api/decisione/task/:short_id", async (req, res) => {
+    try {
+      const { action, rinvia_giorni } = req.body as { action: string; rinvia_giorni?: number };
+      const { short_id } = req.params;
+      if (action === "fatto") {
+        await pool.query(
+          `UPDATE tasks_ilan SET stato='fatto', fatto_at=NOW() WHERE short_id=$1 AND stato='attivo'`,
+          [short_id.toUpperCase()]
+        );
+      } else if (action === "scarta") {
+        await pool.query(
+          `UPDATE tasks_ilan SET stato='scartato', motivo_chiusura='scartato_da_ui' WHERE short_id=$1`,
+          [short_id.toUpperCase()]
+        );
+      } else if (action === "rinvia") {
+        const days = Math.max(1, Math.min(60, rinvia_giorni || 3));
+        const target = new Date(Date.now() + days * 86400_000);
+        await pool.query(
+          `UPDATE tasks_ilan SET scheduled_at=$1, stato='attivo' WHERE short_id=$2`,
+          [target.toISOString(), short_id.toUpperCase()]
+        );
+      } else {
+        return res.status(400).json({ error: "action non valida" });
+      }
+      res.json({ ok: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Outreach approvazione: approva/scarta
+  app.post("/api/decisione/outreach/:uuid", async (req, res) => {
+    try {
+      const { action, motivo } = req.body as { action: string; motivo?: string };
+      const { uuid } = req.params;
+      if (action === "approva") {
+        await pool.query(
+          `UPDATE casafari_outreach
+           SET stato='approvato', motivo_approvazione=COALESCE(motivo_approvazione,$2)
+           WHERE id=$1`,
+          [uuid, motivo || "approvato_da_ui_mobile"]
+        );
+      } else if (action === "scarta") {
+        await pool.query(`UPDATE casafari_outreach SET stato='scartato' WHERE id=$1`, [uuid]);
+      } else {
+        return res.status(400).json({ error: "action non valida" });
+      }
+      res.json({ ok: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Drip: manda/scarta
+  app.post("/api/decisione/drip/:drip_id", async (req, res) => {
+    try {
+      const { action } = req.body as { action: string };
+      const { drip_id } = req.params;
+      const r = await pool.query(
+        `SELECT value FROM system_config WHERE key='paolo_azioni_programmate' LIMIT 1`
+      );
+      let azioni: any[] = [];
+      try { azioni = JSON.parse(r.rows[0]?.value || "[]"); } catch {}
+      const idx = azioni.findIndex((a: any) => a.id === drip_id);
+      if (idx < 0) return res.status(404).json({ error: "Drip non trovato" });
+      if (action === "manda") {
+        azioni[idx].stato = "in_attesa";
+        azioni[idx].scheduled_at = new Date().toISOString();
+      } else if (action === "scarta") {
+        azioni[idx].stato = "scartato";
+      } else {
+        return res.status(400).json({ error: "action non valida" });
+      }
+      await pool.query(
+        `UPDATE system_config SET value=$1, updated_at=NOW() WHERE key='paolo_azioni_programmate'`,
+        [JSON.stringify(azioni)]
+      );
+      res.json({ ok: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ==================== PLURICONDIVISI ====================
+  app.get("/api/pluricondivisi", async (req, res) => {
+    try {
+      const stato = (req.query.stato as string) || "all"; // all | proposto | proprietario_trovato | bozza_pronta | contattato | chiuso | scartato
+      let q = `SELECT id, short_id, indirizzo, zona, mq, locali, prezzo, num_agenzie,
+                      lista_agenzie, score_priorita, giorni_sul_mercato, stato,
+                      proprietario_nome, proprietario_cognome, proprietario_telefono,
+                      contattato_at, esito_finale, primo_visto, briefing_inviato_at
+               FROM immobili_pluricondivisi
+               WHERE attivo = true`;
+      const params: any[] = [];
+      if (stato !== "all" && stato !== "aperti") {
+        params.push(stato);
+        q += ` AND stato = $${params.length}`;
+      } else if (stato === "aperti") {
+        q += ` AND stato NOT IN ('chiuso','scartato')`;
+      }
+      q += ` ORDER BY score_priorita DESC, primo_visto DESC LIMIT 200`;
+      const r = await pool.query(q, params);
+      res.json(r.rows);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/pluricondivisi/:short_id", async (req, res) => {
+    try {
+      const r = await pool.query(
+        `SELECT * FROM immobili_pluricondivisi WHERE short_id = $1 LIMIT 1`,
+        [req.params.short_id.toUpperCase()]
+      );
+      if (!r.rows[0]) return res.status(404).json({ error: "not found" });
+      res.json(r.rows[0]);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ==================== TASKS_ILAN (promemoria) ====================
+  app.get("/api/tasks-ilan", async (req, res) => {
+    try {
+      const stato = (req.query.stato as string) || "attivo";
+      const r = await pool.query(
+        `SELECT short_id, tipo, descrizione, nome_riferimento, telefono,
+                scheduled_at, priorita, origine, origine_dettaglio, stato, fatto_at
+         FROM tasks_ilan WHERE stato = $1
+         ORDER BY priorita ASC, scheduled_at ASC LIMIT 100`,
+        [stato]
+      );
+      res.json(r.rows);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ==================== SYSTEM CONFIG (settings reali) ====================
+  app.get("/api/config", async (_req, res) => {
+    try {
+      const r = await pool.query(
+        `SELECT key, value, updated_at FROM system_config
+         WHERE key IN (
+           'paolo_pausa_until','casafari_outreach_fase','casafari_drafter_enabled',
+           'casafari_max_outreach_giornalieri','cavour_max_mandati',
+           'cavour_telefono_paolo_whatsapp','cavour_vendite_anno_corrente',
+           'cavour_vendite_anno_precedente','cavour_giorni_medi_vendita',
+           'referral_abilitato','referral_giorni_dopo_rogito',
+           'incentivo_referral','template_referral_richiesta',
+           'paolo_risponde_sempre'
+         )`
+      );
+      const map: Record<string, any> = {};
+      for (const row of r.rows) {
+        map[row.key] = { value: row.value, updated_at: row.updated_at };
+      }
+      res.json(map);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/config/:key", async (req, res) => {
+    try {
+      const { key } = req.params;
+      const { value } = req.body;
+      const allowedKeys = [
+        "paolo_pausa_until", "casafari_outreach_fase", "casafari_drafter_enabled",
+        "casafari_max_outreach_giornalieri", "cavour_max_mandati",
+        "referral_abilitato", "referral_giorni_dopo_rogito",
+        "incentivo_referral", "template_referral_richiesta",
+        "paolo_risponde_sempre"
+      ];
+      if (!allowedKeys.includes(key)) {
+        return res.status(400).json({ error: "key non modificabile da UI" });
+      }
+      await pool.query(
+        `INSERT INTO system_config (key, value, updated_at)
+         VALUES ($1, $2, NOW())
+         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
+        [key, String(value ?? "")]
+      );
+      res.json({ ok: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ==================== HOME OGGI (PWA mobile-first) ====================
+  // Endpoint unico per la nuova homepage. Aggrega in una chiamata tutto cio'
+  // che serve per le 4 sezioni: Decisioni / Opportunita / Oggi / Recap.
+  app.get("/api/home/oggi", async (_req, res) => {
+    try {
+      const now = new Date();
+      const inizioOggi = new Date(now); inizioOggi.setHours(0, 0, 0, 0);
+      const fineOggi = new Date(now); fineOggi.setHours(23, 59, 59, 999);
+      const inizioIeri = new Date(inizioOggi); inizioIeri.setDate(inizioIeri.getDate() - 1);
+      const ventiquattroreFa = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+      const [
+        bozzeCrmPending,
+        dripPending,
+        outreachApproval,
+        pluricondivisi,
+        matchClienti,
+        leadCaldi,
+        appuntamentiOggi,
+        tasksIlan,
+        recapIeri,
+      ] = await Promise.all([
+        // 1) Bozze CRM pending (system_config.paolo_bozze_pending)
+        pool.query(
+          `SELECT value FROM system_config WHERE key='paolo_bozze_pending' LIMIT 1`
+        ).then(r => {
+          try {
+            const arr = JSON.parse(r.rows[0]?.value || "[]");
+            return arr.filter((b: any) => b.stato === "in_attesa_ilan").slice(0, 5);
+          } catch { return []; }
+        }).catch(() => []),
+
+        // 2) Drip post-appuntamento in attesa ok
+        pool.query(
+          `SELECT value FROM system_config WHERE key='paolo_azioni_programmate' LIMIT 1`
+        ).then(r => {
+          try {
+            const arr = JSON.parse(r.rows[0]?.value || "[]");
+            return arr.filter((a: any) => a.stato === "in_attesa_ilan").slice(0, 5);
+          } catch { return []; }
+        }).catch(() => []),
+
+        // 3) Outreach approvazione esplicita
+        pool.query(
+          `SELECT id, destinatario_nome, destinatario_telefono, tipo, motivo_approvazione, created_at
+           FROM casafari_outreach
+           WHERE stato='proposto' AND richiede_approvazione=true
+           ORDER BY created_at ASC LIMIT 8`
+        ).then(r => r.rows).catch(() => []),
+
+        // 4) Pluricondivisi TOP 3 nuovi
+        pool.query(
+          `SELECT short_id, indirizzo, zona, mq, prezzo, num_agenzie, score_priorita,
+                  giorni_sul_mercato, lista_agenzie
+           FROM immobili_pluricondivisi
+           WHERE attivo=true AND stato='proposto'
+           ORDER BY score_priorita DESC LIMIT 3`
+        ).then(r => r.rows).catch(() => []),
+
+        // 5) Match mercato clienti ultime 24h
+        pool.query(
+          `SELECT cliente_id, indirizzo, prezzo, mq, advertiser, telefono, zona, listing_url, alerted_at
+           FROM match_mercato_log
+           WHERE alerted_at >= $1
+           ORDER BY alerted_at DESC LIMIT 10`,
+          [ventiquattroreFa.toISOString()]
+        ).then(r => r.rows).catch(() => []),
+
+        // 6) Lead caldi 24h
+        pool.query(
+          `SELECT id, nome, cognome, telefono, stato, score, info_chiave, ultimo_inbound
+           FROM leads
+           WHERE stato IN ('qualificato','caldo')
+             AND ultimo_inbound >= $1
+           ORDER BY ultimo_inbound DESC LIMIT 5`,
+          [ventiquattroreFa.toISOString()]
+        ).then(r => r.rows).catch(() => []),
+
+        // 7) Appuntamenti oggi
+        pool.query(
+          `SELECT id, data_ora, luogo, tipo, note, cliente_id, lead_id, completato, confermato
+           FROM appuntamenti
+           WHERE data_ora >= $1 AND data_ora <= $2
+           ORDER BY data_ora ASC`,
+          [inizioOggi.toISOString(), fineOggi.toISOString()]
+        ).then(r => r.rows).catch(() => []),
+
+        // 8) Tasks_ilan attivi dovuti oggi (entro 12h)
+        pool.query(
+          `SELECT short_id, tipo, descrizione, nome_riferimento, telefono,
+                  scheduled_at, priorita, origine
+           FROM tasks_ilan
+           WHERE stato='attivo' AND scheduled_at <= $1
+           ORDER BY priorita ASC, scheduled_at ASC LIMIT 10`,
+          [new Date(now.getTime() + 12 * 60 * 60 * 1000).toISOString()]
+        ).then(r => r.rows).catch(() => []),
+
+        // 9) Recap ieri
+        Promise.all([
+          pool.query(
+            `SELECT COUNT(*)::int AS n FROM casafari_outreach
+             WHERE stato='inviato' AND inviato_at >= $1 AND inviato_at < $2`,
+            [inizioIeri.toISOString(), inizioOggi.toISOString()]
+          ).then(r => r.rows[0]?.n || 0).catch(() => 0),
+          pool.query(
+            `SELECT COUNT(*)::int AS n,
+              COUNT(*) FILTER (WHERE risposta_classificazione LIKE 'positiv%')::int AS pos
+             FROM casafari_outreach
+             WHERE risposta_ricevuta_at >= $1 AND risposta_ricevuta_at < $2`,
+            [inizioIeri.toISOString(), inizioOggi.toISOString()]
+          ).then(r => ({ n: r.rows[0]?.n || 0, pos: r.rows[0]?.pos || 0 })).catch(() => ({ n: 0, pos: 0 })),
+          pool.query(
+            `SELECT COUNT(*)::int AS n FROM leads
+             WHERE created_at >= $1 AND created_at < $2`,
+            [inizioIeri.toISOString(), inizioOggi.toISOString()]
+          ).then(r => r.rows[0]?.n || 0).catch(() => 0),
+        ]).then(([inviati, risposte, leadNuovi]) => ({
+          outreach_ieri: inviati,
+          risposte_ieri: risposte.n,
+          risposte_positive_ieri: risposte.pos,
+          lead_ieri: leadNuovi,
+        })),
+      ]);
+
+      // Check pausa Paolo
+      let pausaUntil: string | null = null;
+      try {
+        const pr = await pool.query(
+          `SELECT value FROM system_config WHERE key='paolo_pausa_until' LIMIT 1`
+        );
+        const v = pr.rows[0]?.value;
+        if (v && new Date(v) > now) pausaUntil = v;
+      } catch {}
+
+      res.json({
+        ora: now.toISOString(),
+        pausa_until: pausaUntil,
+        decisioni: {
+          bozze_crm: bozzeCrmPending,
+          drip: dripPending,
+          outreach_approval: outreachApproval,
+          tasks_ilan: tasksIlan,
+        },
+        opportunita: {
+          pluricondivisi,
+          match_clienti: matchClienti,
+          lead_caldi: leadCaldi,
+        },
+        oggi: {
+          appuntamenti: appuntamentiOggi,
+        },
+        recap: recapIeri,
+      });
+    } catch (err: any) {
+      console.error("[home/oggi] error:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // ==================== DASHBOARD ====================
   app.get("/api/dashboard/stats", async (req, res) => {
     try {
