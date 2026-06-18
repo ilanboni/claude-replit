@@ -1328,10 +1328,16 @@ Scrivi ORA il messaggio finito, solo il testo, senza preamboli né commenti.`;
 
         // 3) Outreach approvazione esplicita
         pool.query(
-          `SELECT id, destinatario_nome, destinatario_telefono, tipo, motivo_approvazione, created_at
-           FROM casafari_outreach
-           WHERE stato='proposto' AND richiede_approvazione=true
-           ORDER BY created_at ASC LIMIT 8`
+          `SELECT o.id, o.destinatario_nome, o.destinatario_telefono, o.tipo,
+                  o.motivo_approvazione, o.created_at, o.testo_proposto,
+                  COALESCE(t.indirizzo, e.indirizzo)        AS indirizzo,
+                  COALESCE(t.zona, e.zona)                  AS zona,
+                  COALESCE(t.url_casafari, e.url_annuncio)  AS listing_url
+           FROM casafari_outreach o
+           LEFT JOIN casafari_target_immobili t ON t.id = o.target_immobile_id
+           LEFT JOIN immobili_esterni e        ON e.id = o.immobile_esterno_id
+           WHERE o.stato='proposto' AND o.richiede_approvazione=true
+           ORDER BY o.created_at ASC LIMIT 8`
         ).then(r => r.rows).catch(() => []),
 
         // 4) Pluricondivisi TOP 3 nuovi

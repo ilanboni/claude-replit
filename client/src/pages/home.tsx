@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { fmtTel } from "@/lib/format";
 import {
   Flame, Target, Calendar, BarChart3,
   Phone, MessageCircle, ChevronRight, Clock,
@@ -24,7 +25,7 @@ type HomeOggi = {
   decisioni: {
     bozze_crm: Array<{ id: string; nome: string; telefono: string; body_in: string; bozza: string }>;
     drip: Array<{ id: string; nome_lead: string; messaggio: string; origine: string }>;
-    outreach_approval: Array<{ id: string; destinatario_nome: string; destinatario_telefono: string; tipo: string; motivo_approvazione: string }>;
+    outreach_approval: Array<{ id: string; destinatario_nome: string; destinatario_telefono: string; tipo: string; motivo_approvazione: string; testo_proposto?: string; indirizzo?: string; zona?: string; listing_url?: string }>;
     tasks_ilan: Array<{ short_id: string; descrizione: string; nome_riferimento: string; telefono: string; priorita: number }>;
   };
   opportunita: {
@@ -199,8 +200,23 @@ function SectionDecisioni({ data }: { data: HomeOggi["decisioni"] }) {
         {data.outreach_approval.map(o => (
           <Card key={o.id} className="p-3" data-testid={`outreach-${o.id}`}>
             <div className="text-xs font-mono text-muted-foreground">{o.tipo}</div>
-            <div className="text-sm mt-0.5">{o.destinatario_nome} (+{o.destinatario_telefono})</div>
-            <div className="text-[11px] text-muted-foreground mt-1">Motivo: {o.motivo_approvazione || "—"}</div>
+            <div className="text-sm mt-0.5 font-medium">
+              {o.listing_url ? (
+                <a href={o.listing_url} target="_blank" rel="noopener" className="text-primary underline inline-flex items-center gap-1">
+                  {o.indirizzo || o.destinatario_nome || "Immobile"}<ExternalLink className="w-3 h-3" />
+                </a>
+              ) : (o.indirizzo || o.destinatario_nome || "Immobile")}
+              {o.zona ? <span className="text-muted-foreground font-normal"> · {o.zona}</span> : null}
+            </div>
+            {o.destinatario_telefono && (
+              <div className="text-xs text-muted-foreground mt-0.5">{fmtTel(o.destinatario_telefono)}</div>
+            )}
+            {o.testo_proposto && (
+              <div className="text-sm mt-1 line-clamp-3 text-foreground/80">{o.testo_proposto}</div>
+            )}
+            {o.motivo_approvazione && (
+              <div className="text-[11px] text-muted-foreground mt-1">Nota: {o.motivo_approvazione}</div>
+            )}
             <div className="mt-2 flex gap-1.5">
               <button onClick={() => callAction(`/api/decisione/outreach/${o.id}`, { action: "approva" }, "Outreach approvato")}
                 className="inline-flex items-center gap-1 text-xs bg-emerald-500/15 active:bg-emerald-500/25 rounded-md px-3 py-1.5">
