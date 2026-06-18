@@ -4070,7 +4070,8 @@ ${analysis.areeSensibili.length > 0 ? analysis.areeSensibili.map(a => `• ${a}`
   const PLURI_TIPI_ATTIVITA = ["visura_richiesta","visura_eseguita","ricerca_linkedin","ricerca_paginebianche","ricerca_google","ricerca_facebook","contatto_whatsapp","contatto_linkedin_dm","contatto_email","contatto_citofono","chiamata_telefonica","appuntamento_fissato","nota_libera","altro"];
 
   // Dettaglio pluricondiviso + storico attività
-  app.get("/api/pluricondivisi/:id", async (req, res) => {
+  // NB: path con /scheda per non collidere con la rotta esistente /api/pluricondivisi/:short_id
+  app.get("/api/pluricondivisi/:id/scheda", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const imm = await pool.query(

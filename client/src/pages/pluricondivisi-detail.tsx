@@ -54,7 +54,7 @@ function waDigits(t: any): string { return String(t || "").replace(/\D/g, ""); }
 export default function PluricondivisoDetail() {
   const { id } = useParams();
   const { toast } = useToast();
-  const key = `/api/pluricondivisi/${id}`;
+  const key = `/api/pluricondivisi/${id}/scheda`;
   const { data, isLoading } = useQuery<Detail>({ queryKey: [key] });
   const [tipo, setTipo] = useState("");
   const [descr, setDescr] = useState("");
