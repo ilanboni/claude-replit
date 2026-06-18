@@ -1283,7 +1283,14 @@ function TabMatchAcquisizione({ clienteId }: { clienteId: number }) {
   const fmt = (v: any) => { const n = Math.round(Number(v) || 0); return n >= 1000 ? "€" + Math.round(n / 1000) + "k" : (n ? "€" + n : "n/d"); };
   if (isLoading) return <Card className="p-4 text-sm text-muted-foreground mb-4">Calcolo immobili compatibili…</Card>;
   const matches = data?.matches || [];
-  if (matches.length === 0) return null;
+  if (matches.length === 0) {
+    return (
+      <Card className="p-4 mb-4">
+        <div className="text-sm font-semibold mb-1">🎯 Immobili da acquisire per questo cliente</div>
+        <div className="text-sm text-muted-foreground">Nessun immobile compatibile (punteggio ≥ 40) al momento. Controlla che il cliente abbia una <b>richiesta attiva</b> (zona, budget, mq) oppure attendi nuovi annunci.</div>
+      </Card>
+    );
+  }
   return (
     <Card className="p-4 mb-4">
       <div className="text-sm font-semibold mb-2">🎯 Immobili da acquisire per questo cliente ({matches.length})</div>
