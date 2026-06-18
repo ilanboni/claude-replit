@@ -4094,7 +4094,16 @@ ${analysis.areeSensibili.length > 0 ? analysis.areeSensibili.map(a => `• ${a}`
         const c = await pool.query(`SELECT id, nome, cognome, telefono FROM clienti WHERE id=$1`, [row.cliente_target_id]);
         cliente = c.rows[0] || null;
       }
-      res.json({ ...row, cliente, attivita: att.rows, stati_disponibili: PLURI_STATI, tipi_attivita: PLURI_TIPI_ATTIVITA });
+      // Link annunci: usa listing_urls; se vuoto, ripiega sul link Casafari del target con stesso indirizzo
+      let urls = Array.isArray(row.listing_urls) ? row.listing_urls.filter(Boolean) : [];
+      if (urls.length === 0 && row.indirizzo) {
+        const cf = await pool.query(
+          `SELECT url_casafari FROM casafari_target_immobili
+           WHERE url_casafari IS NOT NULL AND lower(indirizzo)=lower($1) LIMIT 3`, [row.indirizzo]
+        );
+        urls = cf.rows.map((r: any) => r.url_casafari).filter(Boolean);
+      }
+      res.json({ ...row, listing_urls: urls, cliente, attivita: att.rows, stati_disponibili: PLURI_STATI, tipi_attivita: PLURI_TIPI_ATTIVITA });
     } catch (error: any) {
       console.error("[pluricondivisi/detail] error:", error);
       res.status(500).json({ error: error.message });
