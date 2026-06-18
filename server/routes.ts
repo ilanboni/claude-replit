@@ -1343,7 +1343,7 @@ Scrivi ORA il messaggio finito, solo il testo, senza preamboli né commenti.`;
 
         // 4) Pluricondivisi TOP 3 nuovi
         pool.query(
-          `SELECT short_id, indirizzo, zona, mq, prezzo, num_agenzie, score_priorita,
+          `SELECT id, short_id, indirizzo, zona, mq, prezzo, num_agenzie, score_priorita,
                   giorni_sul_mercato, lista_agenzie
            FROM immobili_pluricondivisi
            WHERE attivo=true AND stato='proposto'
@@ -4061,6 +4061,82 @@ ${analysis.areeSensibili.length > 0 ? analysis.areeSensibili.map(a => `• ${a}`
     } catch (error) {
       console.error("Delete attivita immobile esterno error:", error);
       res.status(500).json({ error: "Errore nell'eliminazione dell'attività" });
+    }
+  });
+
+  // ==================== PLURICONDIVISI — scheda di lavorazione acquisizione ====================
+  // Stati e tipi attività whitelisted (allineati alla state machine del backend Python).
+  const PLURI_STATI = ["da_lavorare","visura_richiesta","visura_fatta","ricerca_contatti","contatti_trovati","contattato","risposta_ricevuta","appuntamento_fissato","mandato_acquisito","perso","pausa","rifiuto_cortese"];
+  const PLURI_TIPI_ATTIVITA = ["visura_richiesta","visura_eseguita","ricerca_linkedin","ricerca_paginebianche","ricerca_google","ricerca_facebook","contatto_whatsapp","contatto_linkedin_dm","contatto_email","contatto_citofono","chiamata_telefonica","appuntamento_fissato","nota_libera","altro"];
+
+  // Dettaglio pluricondiviso + storico attività
+  app.get("/api/pluricondivisi/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const imm = await pool.query(
+        `SELECT id, short_id, indirizzo, civico, zona, comune, mq, locali, camere, bagni, piano,
+                prezzo, prezzo_mq, num_agenzie, lista_agenzie, listing_urls, titolo, descrizione,
+                proprietario_nome, proprietario_cognome, proprietario_telefono, proprietario_email,
+                proprietario_note, mandato_status, mandato_status_updated_at, cliente_target_id,
+                giorni_sul_mercato
+         FROM immobili_pluricondivisi WHERE id=$1 LIMIT 1`, [id]
+      );
+      if (!imm.rows.length) return res.status(404).json({ error: "Pluricondiviso non trovato" });
+      const row = imm.rows[0];
+      const att = await pool.query(
+        `SELECT id, tipo, descrizione, esito, eseguita_at, eseguita_da, prossima_azione, prossima_azione_at
+         FROM casafari_activity_log WHERE pluricondiviso_id=$1
+         ORDER BY eseguita_at DESC NULLS LAST, id DESC LIMIT 100`, [id]
+      );
+      let cliente = null;
+      if (row.cliente_target_id) {
+        const c = await pool.query(`SELECT id, nome, cognome, telefono FROM clienti WHERE id=$1`, [row.cliente_target_id]);
+        cliente = c.rows[0] || null;
+      }
+      res.json({ ...row, cliente, attivita: att.rows, stati_disponibili: PLURI_STATI, tipi_attivita: PLURI_TIPI_ATTIVITA });
+    } catch (error: any) {
+      console.error("[pluricondivisi/detail] error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Aggiungi attività di lavorazione
+  app.post("/api/pluricondivisi/:id/attivita", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { tipo, descrizione, esito, prossima_azione, prossima_azione_at, cliente_target_id } = req.body || {};
+      if (!PLURI_TIPI_ATTIVITA.includes(tipo)) {
+        return res.status(400).json({ error: `tipo non valido. Ammessi: ${PLURI_TIPI_ATTIVITA.join(", ")}` });
+      }
+      const ins = await pool.query(
+        `INSERT INTO casafari_activity_log
+           (tipo, descrizione, esito, pluricondiviso_id, cliente_target_id, prossima_azione, prossima_azione_at, eseguita_at, eseguita_da)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),'ilan_pwa') RETURNING id`,
+        [tipo, descrizione || null, esito || null, id, cliente_target_id || null, prossima_azione || null, prossima_azione_at || null]
+      );
+      res.status(201).json({ ok: true, id: ins.rows[0].id });
+    } catch (error: any) {
+      console.error("[pluricondivisi/attivita] error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Avanza lo stato mandato
+  app.post("/api/pluricondivisi/:id/stato", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { stato } = req.body || {};
+      if (!PLURI_STATI.includes(stato)) {
+        return res.status(400).json({ error: `stato non valido. Ammessi: ${PLURI_STATI.join(", ")}` });
+      }
+      await pool.query(
+        `UPDATE immobili_pluricondivisi SET mandato_status=$1, mandato_status_updated_at=NOW() WHERE id=$2`,
+        [stato, id]
+      );
+      res.json({ ok: true, stato });
+    } catch (error: any) {
+      console.error("[pluricondivisi/stato] error:", error);
+      res.status(500).json({ error: error.message });
     }
   });
 

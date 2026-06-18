@@ -145,7 +145,7 @@ function PluriCard({ p }: { p: Pluri }) {
             <Badge variant="outline" className="text-[10px]">{p.num_agenzie} agenzie</Badge>
             {p.score_priorita >= 60 && <span className="text-[10px] text-orange-500">🔥 priorità</span>}
           </div>
-          <div className="text-sm font-medium mt-0.5 line-clamp-1">{p.indirizzo}</div>
+          <Link href={`/pluricondivisi/${p.id}`} className="text-sm font-medium mt-0.5 line-clamp-1 text-primary hover:underline block">{p.indirizzo}</Link>
           <div className="text-xs text-muted-foreground">
             {p.zona && `${p.zona} • `}
             {p.mq && `${p.mq}mq • `}

@@ -29,7 +29,7 @@ type HomeOggi = {
     tasks_ilan: Array<{ short_id: string; descrizione: string; nome_riferimento: string; telefono: string; priorita: number; cliente_id?: number | null; lead_id?: number | null; immobile_id?: number | null; immobile_esterno_id?: number | null; pluricondiviso_id?: number | null }>;
   };
   opportunita: {
-    pluricondivisi: Array<{ short_id: string; indirizzo: string; zona: string; mq: number; prezzo: number; num_agenzie: number; giorni_sul_mercato: number; lista_agenzie: Array<{ nome: string }> }>;
+    pluricondivisi: Array<{ id: number; short_id: string; indirizzo: string; zona: string; mq: number; prezzo: number; num_agenzie: number; giorni_sul_mercato: number; lista_agenzie: Array<{ nome: string }> }>;
     match_clienti: Array<{ cliente_id: number; indirizzo: string; prezzo: number; mq: number; advertiser: string; telefono: string; zona: string; listing_url: string }>;
     lead_caldi: Array<{ id: number; nome: string; cognome: string; telefono: string; score: number; info_chiave: string }>;
   };
@@ -272,15 +272,15 @@ function SectionOpportunita({ data }: { data: HomeOggi["opportunita"] }) {
       <div className="space-y-2">
         {data.pluricondivisi.map(p => (
           <Card key={p.short_id} className="p-3" data-testid={`pluri-${p.short_id}`}>
-            <div className="flex items-start gap-2">
+            <Link href={`/pluricondivisi/${p.id}`} className="flex items-start gap-2 group">
               <Building2 className="w-4 h-4 mt-0.5 text-orange-400 shrink-0" />
               <div className="flex-1 min-w-0">
                 <div className="text-xs font-mono text-muted-foreground">{p.short_id}</div>
-                <div className="text-sm font-medium">{p.indirizzo} <span className="text-muted-foreground font-normal">({p.zona})</span></div>
+                <div className="text-sm font-medium group-active:text-primary">{p.indirizzo} <span className="text-muted-foreground font-normal">({p.zona})</span></div>
                 <div className="text-xs text-muted-foreground">{p.mq}mq — {fmtMoney(p.prezzo)} — <strong>{p.num_agenzie} agenzie</strong>{p.giorni_sul_mercato ? ` — fermo ${p.giorni_sul_mercato}gg` : ""}</div>
-                <div className="text-[10px] mt-1 text-muted-foreground">Fai visura, poi Telegram: <code>proprietario {p.short_id} Nome Cognome +393…</code></div>
+                <div className="text-[11px] mt-1 text-primary inline-flex items-center gap-0.5">Apri scheda di lavorazione <ChevronRight className="w-3 h-3" /></div>
               </div>
-            </div>
+            </Link>
           </Card>
         ))}
         {data.match_clienti.map((m, i) => (
