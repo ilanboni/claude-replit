@@ -4220,6 +4220,33 @@ ${analysis.areeSensibili.length > 0 ? analysis.areeSensibili.map(a => `• ${a}`
     }
   });
 
+  // Stato pipeline per immobile in Acquisizione (privato) — parità con i pluricondivisi
+  app.get("/api/acquisizione/:id/stato", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const r = await pool.query(`SELECT mandato_status FROM immobili_esterni WHERE id=$1 LIMIT 1`, [id]);
+      if (!r.rows.length) return res.status(404).json({ error: "Immobile non trovato" });
+      res.json({ mandato_status: r.rows[0].mandato_status || "da_lavorare", stati_disponibili: PLURI_STATI });
+    } catch (e: any) {
+      console.error("[acquisizione/stato GET] error:", e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+  app.post("/api/acquisizione/:id/stato", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { stato } = req.body || {};
+      if (!PLURI_STATI.includes(stato)) {
+        return res.status(400).json({ error: `stato non valido. Ammessi: ${PLURI_STATI.join(", ")}` });
+      }
+      await pool.query(`UPDATE immobili_esterni SET mandato_status=$1 WHERE id=$2`, [stato, id]);
+      res.json({ ok: true, stato });
+    } catch (e: any) {
+      console.error("[acquisizione/stato POST] error:", e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   // Generate personalized acquisition message with automatic mirroring
   // Automatically uses short format (max 400 chars) for Idealista listings
   app.post("/api/acquisizione/:id/generate-message", async (req, res) => {

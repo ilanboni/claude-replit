@@ -996,6 +996,8 @@ function TabDettagli({ immobile }: { immobile: ImmobileEsterno }) {
           </CardContent>
         </Card>
 
+        <StatoLavorazioneAcq immobileId={immobile.id} />
+
         <PubblicatoDaSection immobileId={immobile.id} immobile={immobile} />
 
         {immobile.note && (
@@ -1010,6 +1012,43 @@ function TabDettagli({ immobile }: { immobile: ImmobileEsterno }) {
         )}
       </div>
     </div>
+  );
+}
+
+function StatoLavorazioneAcq({ immobileId }: { immobileId: number }) {
+  const { toast } = useToast();
+  const { data } = useQuery<{ mandato_status: string; stati_disponibili: string[] }>({
+    queryKey: ["/api/acquisizione", immobileId, "stato"],
+    queryFn: async () => {
+      const res = await fetch(`/api/acquisizione/${immobileId}/stato`);
+      if (!res.ok) throw new Error("fail");
+      return res.json();
+    },
+  });
+  const setStato = useMutation({
+    mutationFn: async (s: string) => apiRequest("POST", `/api/acquisizione/${immobileId}/stato`, { stato: s }),
+    onSuccess: () => { toast({ title: "Stato aggiornato" }); queryClient.invalidateQueries({ queryKey: ["/api/acquisizione", immobileId, "stato"] }); },
+    onError: (e: any) => toast({ title: "Errore", description: e?.message, variant: "destructive" }),
+  });
+  const LABEL: Record<string, string> = {
+    da_lavorare: "Da lavorare", visura_richiesta: "Visura richiesta", visura_fatta: "Visura fatta",
+    ricerca_contatti: "Ricerca contatti", contatti_trovati: "Contatti trovati", contattato: "Contattato",
+    risposta_ricevuta: "Risposta ricevuta", appuntamento_fissato: "Appuntamento fissato",
+    mandato_acquisito: "Mandato acquisito", perso: "Perso", pausa: "In pausa", rifiuto_cortese: "Rifiuto cortese",
+  };
+  if (!data) return null;
+  return (
+    <Card>
+      <CardHeader><CardTitle className="text-base">Stato lavorazione (pipeline)</CardTitle></CardHeader>
+      <CardContent>
+        <Select value={data.mandato_status} onValueChange={(v) => setStato.mutate(v)}>
+          <SelectTrigger className="max-w-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {data.stati_disponibili.map((s) => <SelectItem key={s} value={s}>{LABEL[s] || s}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </CardContent>
+    </Card>
   );
 }
 
