@@ -4171,7 +4171,7 @@ ${analysis.areeSensibili.length > 0 ? analysis.areeSensibili.map(a => `• ${a}`
            ) as score
            from cli c cross join imm
          ) t where score>=40 and fonte in ('privato','pluricondiviso')
-         order by score desc limit 60`,
+         order by (fonte='pluricondiviso') desc, score desc limit 60`,
         [cid]
       );
       const best = new Map<string, any>();
@@ -4196,7 +4196,7 @@ ${analysis.areeSensibili.length > 0 ? analysis.areeSensibili.map(a => `• ${a}`
         const linkId = String(r.link_id);
         const gia_lavorato = isPluri ? actPluri.has(linkId) : sentExt.has(linkId);
         return {
-          fonte: r.fonte, indirizzo: r.indirizzo, zona: r.zona, mq: r.mq, prezzo: r.prezzo,
+          fonte: r.fonte, indirizzo: r.indirizzo, zona: (r.zona && r.zona !== "Mappa") ? r.zona : null, mq: r.mq, prezzo: r.prezzo,
           num_agenzie: r.num_agenzie, score: r.score, url: r.url,
           stato: r.stato || (isPluri ? "da_lavorare" : null),
           href: isPluri ? `/pluricondivisi/${r.link_id}` : `/acquisizione/${r.link_id}`,
