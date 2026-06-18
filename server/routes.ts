@@ -4141,6 +4141,76 @@ ${analysis.areeSensibili.length > 0 ? analysis.areeSensibili.map(a => `• ${a}`
     }
   });
 
+  // Match acquisizione LIVE per un cliente: privati + pluricondivisi compatibili,
+  // con punteggio, stato pipeline e flag "già lavorato" (outreach/attività esistenti).
+  app.get("/api/clienti/:id/match-acquisizione", async (req, res) => {
+    try {
+      const cid = parseInt(req.params.id);
+      const match = await pool.query(
+        `with cli as (
+           select r.zona, r.budget_massimo, r.mq_minimi, r.camere_minime
+           from richieste r where r.cliente_id=$1 and r.attiva=true
+         ),
+         imm as (
+           select 'pluricondiviso'::text fonte, ('PL'||id) imm_id, id::bigint link_id, indirizzo, zona, mq, camere,
+                  prezzo::numeric prezzo, num_agenzie, mandato_status as stato, (listing_urls->>0) as url
+           from immobili_pluricondivisi where attivo=true
+           union all
+           select case when coalesce(multi_agenzia,false) or coalesce(num_agenzie,0)>=2 then 'pluricondiviso'
+                       when lower(coalesce(tipo_fonte,'')) in ('privato','p') then 'privato' else 'agenzia' end,
+                  ('IE'||id), id::bigint, indirizzo, zona, mq, camere, prezzo::numeric, coalesce(num_agenzie,1),
+                  stato_contatto, url_annuncio
+           from immobili_esterni where attivo=true
+         )
+         select * from (
+           select imm.*, (
+             (case when c.budget_massimo is not null and imm.prezzo is not null then (case when imm.prezzo<=c.budget_massimo then 30 when imm.prezzo<=c.budget_massimo*1.1 then 15 else 0 end) else 0 end)
+           + (case when c.mq_minimi is not null and imm.mq is not null and imm.mq>=c.mq_minimi then 20 else 0 end)
+           + (case when c.zona is not null and exists (select 1 from unnest(string_to_array(lower(c.zona),',')) tok where length(btrim(tok))>2 and (lower(coalesce(imm.zona,'')) like '%'||btrim(tok)||'%' or lower(coalesce(imm.indirizzo,'')) like '%'||btrim(tok)||'%')) then 25 else 0 end)
+           + (case when c.camere_minime is not null and imm.camere is not null and imm.camere>=c.camere_minime then 15 else 0 end)
+           ) as score
+           from cli c cross join imm
+         ) t where score>=40 and fonte in ('privato','pluricondiviso')
+         order by score desc limit 60`,
+        [cid]
+      );
+      const best = new Map<string, any>();
+      for (const r of match.rows) { const k = r.imm_id; if (!best.has(k) || r.score > best.get(k).score) best.set(k, r); }
+      const rows = [...best.values()];
+
+      const out = await pool.query(
+        `select immobile_esterno_id, stato from casafari_outreach where cliente_id=$1 and immobile_esterno_id is not null`, [cid]
+      );
+      const sentExt = new Map<string, string>();
+      for (const o of out.rows) sentExt.set(String(o.immobile_esterno_id), o.stato);
+
+      const act = await pool.query(
+        `select pluricondiviso_id, count(*)::int n from casafari_activity_log
+         where cliente_target_id=$1 and pluricondiviso_id is not null group by pluricondiviso_id`, [cid]
+      );
+      const actPluri = new Map<string, number>();
+      for (const a of act.rows) actPluri.set(String(a.pluricondiviso_id), a.n);
+
+      const matches = rows.map((r: any) => {
+        const isPluri = r.fonte === "pluricondiviso";
+        const linkId = String(r.link_id);
+        const gia_lavorato = isPluri ? actPluri.has(linkId) : sentExt.has(linkId);
+        return {
+          fonte: r.fonte, indirizzo: r.indirizzo, zona: r.zona, mq: r.mq, prezzo: r.prezzo,
+          num_agenzie: r.num_agenzie, score: r.score, url: r.url,
+          stato: r.stato || (isPluri ? "da_lavorare" : null),
+          href: isPluri ? `/pluricondivisi/${r.link_id}` : `/acquisizione/${r.link_id}`,
+          gia_lavorato, n_attivita: isPluri ? (actPluri.get(linkId) || 0) : 0,
+          outreach_stato: !isPluri ? (sentExt.get(linkId) || null) : null,
+        };
+      });
+      res.json({ matches });
+    } catch (e: any) {
+      console.error("[clienti/match-acquisizione] error:", e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   // Generate personalized acquisition message with automatic mirroring
   // Automatically uses short format (max 400 chars) for Idealista listings
   app.post("/api/acquisizione/:id/generate-message", async (req, res) => {

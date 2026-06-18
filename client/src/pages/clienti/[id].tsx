@@ -1275,6 +1275,45 @@ function TabAttivita({ clienteId, cliente }: { clienteId: number; cliente?: Clie
   );
 }
 
+function TabMatchAcquisizione({ clienteId }: { clienteId: number }) {
+  const { data, isLoading } = useQuery<{ matches: Array<{ fonte: string; indirizzo: string; zona: string | null; mq: number | null; prezzo: any; num_agenzie: number | null; score: number; url: string | null; stato: string | null; href: string; gia_lavorato: boolean; n_attivita: number; outreach_stato: string | null }> }>({
+    queryKey: [`/api/clienti/${clienteId}/match-acquisizione`],
+    enabled: clienteId > 0,
+  });
+  const fmt = (v: any) => { const n = Math.round(Number(v) || 0); return n >= 1000 ? "€" + Math.round(n / 1000) + "k" : (n ? "€" + n : "n/d"); };
+  if (isLoading) return <Card className="p-4 text-sm text-muted-foreground mb-4">Calcolo immobili compatibili…</Card>;
+  const matches = data?.matches || [];
+  if (matches.length === 0) return null;
+  return (
+    <Card className="p-4 mb-4">
+      <div className="text-sm font-semibold mb-2">🎯 Immobili da acquisire per questo cliente ({matches.length})</div>
+      <div className="space-y-2">
+        {matches.map((m, i) => (
+          <div key={i} className="border rounded-lg p-2.5">
+            <div className="flex items-start justify-between gap-2">
+              <Link href={m.href} className="text-sm font-medium text-primary hover:underline">
+                {m.indirizzo}{m.zona ? <span className="text-muted-foreground font-normal"> · {m.zona}</span> : null} ›
+              </Link>
+              <Badge variant="outline" className="shrink-0">{m.score}</Badge>
+            </div>
+            <div className="text-xs text-muted-foreground mt-0.5">
+              {fmt(m.prezzo)} · {m.mq || "?"}mq · {m.fonte === "pluricondiviso" ? `${m.num_agenzie || "?"} agenzie` : "privato"}
+            </div>
+            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+              {m.gia_lavorato
+                ? <Badge className="bg-emerald-600 text-[10px]">{m.fonte === "pluricondiviso" ? `in lavorazione (${m.n_attivita} att.)` : `già contattato${m.outreach_stato ? ` (${m.outreach_stato})` : ""}`}</Badge>
+                : <Badge variant="secondary" className="text-[10px]">da lavorare</Badge>}
+              {m.stato && m.fonte === "pluricondiviso" && m.stato !== "da_lavorare" && <Badge variant="outline" className="text-[10px]">{m.stato}</Badge>}
+              <Link href={m.href} className="text-xs text-primary underline ml-auto">Lavora ›</Link>
+              {m.url && <a href={m.url} target="_blank" rel="noopener" className="text-xs text-muted-foreground">annuncio ↗</a>}
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 function TabMatching({ clienteId }: { clienteId: number }) {
   const { toast } = useToast();
   
@@ -1931,6 +1970,7 @@ export default function ClienteDetailPage() {
           <TabAttivita clienteId={clienteId} cliente={cliente} />
         </TabsContent>
         <TabsContent value="matching" className="mt-6">
+          <TabMatchAcquisizione clienteId={clienteId} />
           <TabMatching clienteId={clienteId} />
         </TabsContent>
         <TabsContent value="timeline" className="mt-6">
