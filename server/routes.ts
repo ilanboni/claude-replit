@@ -1330,6 +1330,7 @@ Scrivi ORA il messaggio finito, solo il testo, senza preamboli né commenti.`;
         pool.query(
           `SELECT o.id, o.destinatario_nome, o.destinatario_telefono, o.tipo,
                   o.motivo_approvazione, o.created_at, o.testo_proposto,
+                  o.immobile_esterno_id, o.target_immobile_id,
                   COALESCE(t.indirizzo, e.indirizzo)        AS indirizzo,
                   COALESCE(t.zona, e.zona)                  AS zona,
                   COALESCE(t.url_casafari, e.url_annuncio)  AS listing_url
@@ -1380,7 +1381,8 @@ Scrivi ORA il messaggio finito, solo il testo, senza preamboli né commenti.`;
         // 8) Tasks_ilan attivi dovuti oggi (entro 12h)
         pool.query(
           `SELECT short_id, tipo, descrizione, nome_riferimento, telefono,
-                  scheduled_at, priorita, origine
+                  scheduled_at, priorita, origine,
+                  cliente_id, lead_id, immobile_id, immobile_esterno_id, pluricondiviso_id
            FROM tasks_ilan
            WHERE stato='attivo' AND scheduled_at <= $1
            ORDER BY priorita ASC, scheduled_at ASC LIMIT 10`,

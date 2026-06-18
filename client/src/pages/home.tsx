@@ -25,8 +25,8 @@ type HomeOggi = {
   decisioni: {
     bozze_crm: Array<{ id: string; nome: string; telefono: string; body_in: string; bozza: string }>;
     drip: Array<{ id: string; nome_lead: string; messaggio: string; origine: string }>;
-    outreach_approval: Array<{ id: string; destinatario_nome: string; destinatario_telefono: string; tipo: string; motivo_approvazione: string; testo_proposto?: string; indirizzo?: string; zona?: string; listing_url?: string }>;
-    tasks_ilan: Array<{ short_id: string; descrizione: string; nome_riferimento: string; telefono: string; priorita: number }>;
+    outreach_approval: Array<{ id: string; destinatario_nome: string; destinatario_telefono: string; tipo: string; motivo_approvazione: string; testo_proposto?: string; indirizzo?: string; zona?: string; listing_url?: string; immobile_esterno_id?: number | null; target_immobile_id?: string | null }>;
+    tasks_ilan: Array<{ short_id: string; descrizione: string; nome_riferimento: string; telefono: string; priorita: number; cliente_id?: number | null; lead_id?: number | null; immobile_id?: number | null; immobile_esterno_id?: number | null; pluricondiviso_id?: number | null }>;
   };
   opportunita: {
     pluricondivisi: Array<{ short_id: string; indirizzo: string; zona: string; mq: number; prezzo: number; num_agenzie: number; giorni_sul_mercato: number; lista_agenzie: Array<{ nome: string }> }>;
@@ -38,6 +38,15 @@ type HomeOggi = {
   };
   recap: { outreach_ieri: number; risposte_ieri: number; risposte_positive_ieri: number; lead_ieri: number };
 };
+
+/** Scheda di destinazione per una card task, in base agli id disponibili. */
+function taskHref(t: { cliente_id?: number | null; immobile_esterno_id?: number | null; pluricondiviso_id?: number | null; immobile_id?: number | null }): string | null {
+  if (t.cliente_id) return `/clienti/${t.cliente_id}`;
+  if (t.immobile_esterno_id) return `/acquisizione/${t.immobile_esterno_id}`;
+  if (t.pluricondiviso_id) return `/pluricondivisi/${t.pluricondiviso_id}`;
+  if (t.immobile_id) return `/immobili/${t.immobile_id}`;
+  return null;
+}
 
 export default function Home() {
   const { data, isLoading } = useQuery<HomeOggi>({
@@ -134,8 +143,20 @@ function SectionDecisioni({ data }: { data: HomeOggi["decisioni"] }) {
             <div className="flex items-start gap-2">
               <span className="text-base shrink-0">{t.priorita <= 2 ? "🔴" : "🟡"}</span>
               <div className="flex-1 min-w-0">
-                <div className="text-xs font-mono text-muted-foreground">{t.short_id}</div>
-                <div className="text-sm leading-snug line-clamp-2">{t.descrizione}</div>
+                {taskHref(t) ? (
+                  <Link href={taskHref(t)!} className="block group">
+                    <div className="text-xs font-mono text-muted-foreground">{t.short_id}</div>
+                    <div className="text-sm leading-snug line-clamp-2 group-active:text-primary">
+                      {t.descrizione}
+                      <ChevronRight className="inline w-3.5 h-3.5 ml-0.5 align-text-bottom text-muted-foreground" />
+                    </div>
+                  </Link>
+                ) : (
+                  <>
+                    <div className="text-xs font-mono text-muted-foreground">{t.short_id}</div>
+                    <div className="text-sm leading-snug line-clamp-2">{t.descrizione}</div>
+                  </>
+                )}
                 <div className="mt-2 flex gap-1.5 flex-wrap">
                   {t.telefono && (
                     <a href={`tel:${t.telefono}`} className="inline-flex items-center gap-1 text-xs bg-primary/10 active:bg-primary/20 rounded-md px-2 py-1">
@@ -201,13 +222,18 @@ function SectionDecisioni({ data }: { data: HomeOggi["decisioni"] }) {
           <Card key={o.id} className="p-3" data-testid={`outreach-${o.id}`}>
             <div className="text-xs font-mono text-muted-foreground">{o.tipo}</div>
             <div className="text-sm mt-0.5 font-medium">
-              {o.listing_url ? (
-                <a href={o.listing_url} target="_blank" rel="noopener" className="text-primary underline inline-flex items-center gap-1">
-                  {o.indirizzo || o.destinatario_nome || "Immobile"}<ExternalLink className="w-3 h-3" />
-                </a>
+              {o.immobile_esterno_id ? (
+                <Link href={`/acquisizione/${o.immobile_esterno_id}`} className="text-primary underline inline-flex items-center gap-1">
+                  {o.indirizzo || o.destinatario_nome || "Immobile"}<ChevronRight className="w-3.5 h-3.5" />
+                </Link>
               ) : (o.indirizzo || o.destinatario_nome || "Immobile")}
               {o.zona ? <span className="text-muted-foreground font-normal"> · {o.zona}</span> : null}
             </div>
+            {o.listing_url && (
+              <a href={o.listing_url} target="_blank" rel="noopener" className="text-xs text-muted-foreground inline-flex items-center gap-1 mt-0.5">
+                <ExternalLink className="w-3 h-3" />Vedi annuncio
+              </a>
+            )}
             {o.destinatario_telefono && (
               <div className="text-xs text-muted-foreground mt-0.5">{fmtTel(o.destinatario_telefono)}</div>
             )}
