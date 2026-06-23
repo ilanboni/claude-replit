@@ -13,9 +13,11 @@ import {
   Bot,
   Phone,
   ClipboardList,
+  ListChecks,
   TrendingUp,
   Inbox,
   Kanban,
+  Terminal,
 } from "lucide-react";
 import {
   Sidebar,
@@ -30,24 +32,52 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar";
 
-const menuItems = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Clienti", url: "/clienti", icon: Users },
-  { title: "Immobili", url: "/immobili", icon: Building2 },
-  { title: "Richieste", url: "/richieste", icon: FileText },
-  { title: "Comunicazioni", url: "/comunicazioni", icon: MessageSquare },
-  { title: "Appuntamenti", url: "/appuntamenti", icon: Calendar },
-  { title: "Conferma Appuntamenti", url: "/conferma-appuntamenti", icon: CalendarCheck },
-  { title: "Attività", url: "/attivita", icon: ClipboardList },
-  { title: "Matching", url: "/matching", icon: Sparkles },
-  { title: "Acquisizione", url: "/acquisizione", icon: Search },
-  { title: "Mercato", url: "/mercato", icon: TrendingUp },
-  { title: "Bot WhatsApp", url: "/bot", icon: Bot },
-  { title: "WhatsApp Chat", url: "/whatsapp", icon: Phone },
-  { title: "Bozze in attesa", url: "/bozze", icon: Inbox },
-  { title: "Pipeline Privati", url: "/pipeline-privati", icon: Inbox },
-  { title: "Analytics Outreach", url: "/analytics-outreach", icon: Inbox },
-  { title: "Operativo Cavour", url: "/operativo", icon: Sparkles },
+const groups = [
+  {
+    label: "Oggi",
+    items: [
+      { title: "Oggi", url: "/", icon: LayoutDashboard },
+      { title: "Promemoria", url: "/promemoria", icon: ListChecks },
+      { title: "Appuntamenti", url: "/appuntamenti", icon: Calendar },
+    ],
+  },
+  {
+    label: "Clienti",
+    items: [
+      { title: "Clienti", url: "/clienti", icon: Users },
+      { title: "Richieste", url: "/richieste", icon: FileText },
+      { title: "Matching", url: "/matching", icon: Sparkles },
+    ],
+  },
+  {
+    label: "Acquisizione",
+    items: [
+      { title: "Pluricondivisi", url: "/pluricondivisi", icon: Building2 },
+      { title: "Acquisizione", url: "/acquisizione", icon: Search },
+      { title: "Mercato", url: "/mercato", icon: TrendingUp },
+      { title: "Pipeline privati", url: "/pipeline-privati", icon: Kanban },
+    ],
+  },
+  {
+    label: "Messaggi",
+    items: [
+      { title: "Bozze in attesa", url: "/bozze", icon: Inbox },
+      { title: "WhatsApp", url: "/whatsapp", icon: Phone },
+      { title: "Bot WhatsApp", url: "/bot", icon: Bot },
+      { title: "Comunicazioni", url: "/comunicazioni", icon: MessageSquare },
+    ],
+  },
+  {
+    label: "Altro",
+    items: [
+      { title: "Immobili", url: "/immobili", icon: Building2 },
+      { title: "Attività", url: "/attivita", icon: ClipboardList },
+      { title: "Conferma appuntamenti", url: "/conferma-appuntamenti", icon: CalendarCheck },
+      { title: "Analytics", url: "/analytics-outreach", icon: TrendingUp },
+      { title: "Operativo", url: "/operativo", icon: Sparkles },
+      { title: "Comandi", url: "/comandi", icon: Terminal },
+    ],
+  },
 ];
 
 export function AppSidebar() {
@@ -61,38 +91,41 @@ export function AppSidebar() {
             <Building2 className="h-6 w-6" />
           </div>
           <div>
-            <h1 className="text-lg font-semibold">ImmoGest</h1>
+            <h1 className="text-lg font-semibold">Cavour</h1>
             <p className="text-xs text-muted-foreground">CRM Immobiliare</p>
           </div>
         </div>
       </SidebarHeader>
 
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Menu Principale</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {menuItems.map((item) => {
-                const isActive = location === item.url || 
-                  (item.url !== "/" && location.startsWith(item.url));
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton 
-                      asChild 
-                      isActive={isActive}
-                      data-testid={`link-${item.title.toLowerCase()}`}
-                    >
-                      <Link href={item.url}>
-                        <item.icon className="h-4 w-4" />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {groups.map((group) => (
+          <SidebarGroup key={group.label}>
+            <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {group.items.map((item) => {
+                  const isActive =
+                    location === item.url ||
+                    (item.url !== "/" && location.startsWith(item.url));
+                  return (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={isActive}
+                        data-testid={`link-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+                      >
+                        <Link href={item.url}>
+                          <item.icon className="h-4 w-4" />
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
       </SidebarContent>
 
       <SidebarFooter className="p-4">

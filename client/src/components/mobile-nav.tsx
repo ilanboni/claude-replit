@@ -1,18 +1,19 @@
 import { Link, useLocation } from "wouter";
-import { Home, Users, Building2, Activity, Settings } from "lucide-react";
+import { Home, ListChecks, Users, Building2, Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
  * Bottom navigation per mobile (visibile solo < md breakpoint).
- * 5 tab principali: Home (Oggi), Clienti, Immobili, Attività, Settings.
- * Posizionata in fondo con safe-area-inset per iPhone con notch.
+ * 5 tab: Oggi · Da fare · Clienti · Immobili · Altro.
+ * Ogni tab è l'ingresso di una categoria (match copre le pagine collegate),
+ * così tutto resta raggiungibile dal telefono.
  */
 const NAV_ITEMS = [
-  { href: "/", label: "Oggi", icon: Home, match: (path: string) => path === "/" },
-  { href: "/clienti", label: "Clienti", icon: Users, match: (path: string) => path.startsWith("/clienti") || path.startsWith("/richieste") || path.startsWith("/matching") },
-  { href: "/immobili", label: "Immobili", icon: Building2, match: (path: string) => path.startsWith("/immobili") || path.startsWith("/acquisizione") || path.startsWith("/mercato") || path.startsWith("/bozze") || path.startsWith("/pipeline-privati") || path.startsWith("/pluricondivisi") },
-  { href: "/attivita", label: "Attività", icon: Activity, match: (path: string) => path.startsWith("/attivita") || path.startsWith("/comunicazioni") || path.startsWith("/appuntamenti") || path.startsWith("/whatsapp") || path.startsWith("/analytics") },
-  { href: "/impostazioni-pwa", label: "Settings", icon: Settings, match: (path: string) => path.startsWith("/impostazioni") || path.startsWith("/bot") },
+  { href: "/", label: "Oggi", icon: Home, match: (p: string) => p === "/" },
+  { href: "/promemoria", label: "Da fare", icon: ListChecks, match: (p: string) => p.startsWith("/promemoria") },
+  { href: "/clienti", label: "Clienti", icon: Users, match: (p: string) => p.startsWith("/clienti") || p.startsWith("/richieste") || p.startsWith("/matching") || p.startsWith("/appuntamenti") },
+  { href: "/immobili", label: "Immobili", icon: Building2, match: (p: string) => p.startsWith("/immobili") || p.startsWith("/acquisizione") || p.startsWith("/mercato") || p.startsWith("/pluricondivisi") || p.startsWith("/bozze") || p.startsWith("/pipeline-privati") },
+  { href: "/impostazioni-pwa", label: "Altro", icon: Menu, match: (p: string) => p.startsWith("/impostazioni") || p.startsWith("/bot") || p.startsWith("/whatsapp") || p.startsWith("/comunicazioni") || p.startsWith("/attivita") || p.startsWith("/analytics") || p.startsWith("/operativo") || p.startsWith("/comandi") },
 ];
 
 export function MobileNav() {
@@ -38,7 +39,7 @@ export function MobileNav() {
                     ? "text-primary"
                     : "text-muted-foreground hover:text-foreground active:text-primary"
                 )}
-                data-testid={`nav-${item.label.toLowerCase()}`}
+                data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
               >
                 <Icon className={cn("w-5 h-5", active && "stroke-[2.5]")} aria-hidden />
                 <span>{item.label}</span>

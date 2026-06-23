@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,13 +10,12 @@ import {
   Flame, Target, Calendar, BarChart3,
   Phone, MessageCircle, ChevronRight, Clock,
   AlertTriangle, ExternalLink, Building2,
-  Check, X, CalendarPlus,
+  Check, X, CalendarPlus, ListChecks, Mail,
 } from "lucide-react";
 
 /**
- * Home "OGGI" — sostituisce la dashboard analytics come homepage.
- * Mostra cosa devi decidere/fare adesso, in sezioni rapide con bottoni di azione.
- *
+ * Home "OGGI" — schermata di lavoro del giorno, in 4 blocchi nell'ordine di priorità:
+ *   1) Appuntamenti di oggi   2) Cose da fare   3) Messaggi da gestire   4) Clienti caldi & opportunità
  * Dati: GET /api/home/oggi (endpoint unico, query parallele backend).
  */
 type HomeOggi = {
@@ -39,7 +38,6 @@ type HomeOggi = {
   recap: { outreach_ieri: number; risposte_ieri: number; risposte_positive_ieri: number; lead_ieri: number };
 };
 
-/** Scheda di destinazione per una card task, in base agli id disponibili. */
 function taskHref(t: { cliente_id?: number | null; immobile_esterno_id?: number | null; pluricondiviso_id?: number | null; immobile_id?: number | null }): string | null {
   if (t.cliente_id) return `/clienti/${t.cliente_id}`;
   if (t.immobile_esterno_id) return `/acquisizione/${t.immobile_esterno_id}`;
@@ -47,6 +45,8 @@ function taskHref(t: { cliente_id?: number | null; immobile_esterno_id?: number 
   if (t.immobile_id) return `/immobili/${t.immobile_id}`;
   return null;
 }
+
+const refresh = () => queryClient.invalidateQueries({ queryKey: ["/api/home/oggi"] });
 
 export default function Home() {
   const { data, isLoading } = useQuery<HomeOggi>({
@@ -56,26 +56,25 @@ export default function Home() {
   });
 
   return (
-    <div className="px-4 py-4 md:px-6 md:py-6 max-w-3xl mx-auto space-y-5">
+    <div className="px-4 py-4 md:px-6 md:py-6 max-w-3xl mx-auto space-y-6">
       <Header pausaUntil={data?.pausa_until} />
 
       {isLoading && (
-        <Card className="p-4 text-sm text-muted-foreground text-center bg-muted/20">
-          Carico…
-        </Card>
+        <Card className="p-4 text-sm text-muted-foreground text-center bg-muted/20">Carico…</Card>
       )}
 
       {!isLoading && data && (
         <>
-          <SectionDecisioni data={data.decisioni} />
-          <SectionOpportunita data={data.opportunita} />
-          <SectionOggi data={data.oggi} />
+          <SectionAppuntamenti data={data.oggi} />
+          <SectionCoseDaFare tasks={data.decisioni.tasks_ilan} />
+          <SectionMessaggi data={data.decisioni} />
+          <SectionClientiCaldi data={data.opportunita} />
           <SectionRecap recap={data.recap} />
         </>
       )}
 
       <p className="text-xs text-muted-foreground text-center pt-2">
-        Aggiornato in tempo reale ogni minuto. Le sezioni vuote non vengono mostrate.
+        Aggiornato ogni minuto · le sezioni vuote restano chiuse.
       </p>
     </div>
   );
@@ -89,13 +88,10 @@ function Header({ pausaUntil }: { pausaUntil?: string | null }) {
     return "Buonasera";
   })();
   const oggi = new Date().toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" });
-
   return (
     <div className="flex items-start justify-between gap-3">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight" data-testid="home-title">
-          {oraSaluto}
-        </h1>
+        <h1 className="text-2xl font-semibold tracking-tight" data-testid="home-title">{oraSaluto}</h1>
         <p className="text-sm text-muted-foreground capitalize">{oggi}</p>
         {pausaUntil && (
           <p className="text-xs text-amber-500 mt-1">
@@ -105,40 +101,66 @@ function Header({ pausaUntil }: { pausaUntil?: string | null }) {
       </div>
       <Link href="/impostazioni">
         <Button size="sm" variant="outline" className="gap-1.5 shrink-0">
-          <Clock className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">Pausa Paolo</span>
+          <Clock className="w-3.5 h-3.5" /><span className="hidden sm:inline">Pausa Paolo</span>
         </Button>
       </Link>
     </div>
   );
 }
 
-/* ─────────── Sezione: Decisioni oggi ─────────── */
-
-function SectionDecisioni({ data }: { data: HomeOggi["decisioni"] }) {
-  const { toast } = useToast();
-  const tot = data.bozze_crm.length + data.drip.length + data.outreach_approval.length + data.tasks_ilan.length;
-
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ["/api/home/oggi"] });
-
-  const callAction = async (url: string, body: any, okMsg: string) => {
-    try {
-      const r = await apiRequest("POST", url, body);
-      await r.json();
-      toast({ title: okMsg });
-      refresh();
-    } catch (e: any) {
-      toast({ title: "Errore", description: e?.message, variant: "destructive" });
-    }
-  };
-
-  if (tot === 0) {
-    return <SectionShell icon={Flame} title="Decisioni oggi" emptyText="Nessuna decisione in attesa." />;
+async function callAction(url: string, body: any, okMsg: string, toast: any) {
+  try {
+    const r = await apiRequest("POST", url, body);
+    await r.json();
+    toast({ title: okMsg });
+    refresh();
+  } catch (e: any) {
+    toast({ title: "Errore", description: e?.message, variant: "destructive" });
   }
+}
+
+/* ─────────── 1) Appuntamenti di oggi ─────────── */
+function SectionAppuntamenti({ data }: { data: HomeOggi["oggi"] }) {
+  const app = data.appuntamenti;
+  if (!app.length) return <SectionShell icon={Calendar} title="Appuntamenti di oggi" emptyText="Nessun appuntamento in agenda." />;
   return (
-    <SectionShell icon={Flame} title="Decisioni oggi" badge={tot}>
+    <SectionShell icon={Calendar} title="Appuntamenti di oggi" badge={app.length}>
       <div className="space-y-2">
-        {data.tasks_ilan.map(t => (
+        {app.map(a => {
+          const ora = new Date(a.data_ora).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+          return (
+            <Card key={a.id} className={`p-3 ${a.completato ? "opacity-50" : ""}`} data-testid={`app-${a.id}`}>
+              <div className="flex items-start gap-3">
+                <div className="text-base font-mono font-semibold tabular-nums shrink-0">{ora}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium">{a.luogo || a.tipo || "Appuntamento"}</div>
+                  {a.note && <div className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{a.note}</div>}
+                  <div className="text-[11px] mt-1">
+                    {a.completato ? <span className="text-emerald-500">✓ Completato</span> : <span className="text-muted-foreground">{a.tipo}</span>}
+                    {a.cliente_id && (
+                      <Link href={`/clienti/${a.cliente_id}`} className="ml-2 text-primary inline-flex items-center gap-0.5">
+                        Briefing cliente <ChevronRight className="w-3 h-3" />
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+    </SectionShell>
+  );
+}
+
+/* ─────────── 2) Cose da fare (promemoria) ─────────── */
+function SectionCoseDaFare({ tasks }: { tasks: HomeOggi["decisioni"]["tasks_ilan"] }) {
+  const { toast } = useToast();
+  if (!tasks.length) return <SectionShell icon={ListChecks} title="Cose da fare" emptyText="Niente da fare. 🎉" />;
+  return (
+    <SectionShell icon={ListChecks} title="Cose da fare" badge={tasks.length}>
+      <div className="space-y-2">
+        {tasks.map(t => (
           <Card key={t.short_id} className="p-3" data-testid={`task-${t.short_id}`}>
             <div className="flex items-start gap-2">
               <span className="text-base shrink-0">{t.priorita <= 2 ? "🔴" : "🟡"}</span>
@@ -146,112 +168,22 @@ function SectionDecisioni({ data }: { data: HomeOggi["decisioni"] }) {
                 {taskHref(t) ? (
                   <Link href={taskHref(t)!} className="block group">
                     <div className="text-xs font-mono text-muted-foreground">{t.short_id}</div>
-                    <div className="text-sm leading-snug line-clamp-2 group-active:text-primary">
-                      {t.descrizione}
-                      <ChevronRight className="inline w-3.5 h-3.5 ml-0.5 align-text-bottom text-muted-foreground" />
-                    </div>
+                    <div className="text-sm leading-snug group-active:text-primary">{t.descrizione}<ChevronRight className="inline w-3.5 h-3.5 ml-0.5 align-text-bottom text-muted-foreground" /></div>
                   </Link>
                 ) : (
                   <>
                     <div className="text-xs font-mono text-muted-foreground">{t.short_id}</div>
-                    <div className="text-sm leading-snug line-clamp-2">{t.descrizione}</div>
+                    <div className="text-sm leading-snug">{t.descrizione}</div>
                   </>
                 )}
                 <div className="mt-2 flex gap-1.5 flex-wrap">
-                  {t.telefono && (
-                    <a href={`tel:${t.telefono}`} className="inline-flex items-center gap-1 text-xs bg-primary/10 active:bg-primary/20 rounded-md px-2 py-1">
-                      <Phone className="w-3 h-3" />{t.telefono}
-                    </a>
-                  )}
-                  {t.telefono && (
-                    <a href={`https://wa.me/${t.telefono.replace(/\D/g, "")}`} target="_blank" rel="noopener" className="inline-flex items-center gap-1 text-xs bg-green-500/10 active:bg-green-500/20 rounded-md px-2 py-1">
-                      <MessageCircle className="w-3 h-3" />WA
-                    </a>
-                  )}
-                  <button onClick={() => callAction(`/api/decisione/task/${t.short_id}`, { action: "fatto" }, "Fatto ✓")}
-                    className="inline-flex items-center gap-1 text-xs bg-emerald-500/15 active:bg-emerald-500/25 rounded-md px-2 py-1">
-                    <Check className="w-3 h-3" />Fatto
-                  </button>
-                  <button onClick={() => callAction(`/api/decisione/task/${t.short_id}`, { action: "rinvia", rinvia_giorni: 3 }, "Rinviato +3gg")}
-                    className="inline-flex items-center gap-1 text-xs bg-amber-500/15 active:bg-amber-500/25 rounded-md px-2 py-1">
-                    <CalendarPlus className="w-3 h-3" />+3gg
-                  </button>
-                  <button onClick={() => callAction(`/api/decisione/task/${t.short_id}`, { action: "scarta" }, "Scartato")}
-                    className="inline-flex items-center gap-1 text-xs bg-red-500/15 active:bg-red-500/25 rounded-md px-2 py-1">
-                    <X className="w-3 h-3" />Scarta
-                  </button>
+                  {t.telefono && <a href={`tel:${t.telefono}`} className="inline-flex items-center gap-1 text-xs bg-primary/10 active:bg-primary/20 rounded-md px-2 py-1"><Phone className="w-3 h-3" />{t.telefono}</a>}
+                  {t.telefono && <a href={`https://wa.me/${t.telefono.replace(/\D/g, "")}`} target="_blank" rel="noopener" className="inline-flex items-center gap-1 text-xs bg-green-500/10 active:bg-green-500/20 rounded-md px-2 py-1"><MessageCircle className="w-3 h-3" />WA</a>}
+                  <button onClick={() => callAction(`/api/decisione/task/${t.short_id}`, { action: "fatto" }, "Fatto ✓", toast)} className="inline-flex items-center gap-1 text-xs bg-emerald-500/15 active:bg-emerald-500/25 rounded-md px-2 py-1"><Check className="w-3 h-3" />Fatto</button>
+                  <button onClick={() => callAction(`/api/decisione/task/${t.short_id}`, { action: "rinvia", rinvia_giorni: 3 }, "Rinviato +3gg", toast)} className="inline-flex items-center gap-1 text-xs bg-amber-500/15 active:bg-amber-500/25 rounded-md px-2 py-1"><CalendarPlus className="w-3 h-3" />+3gg</button>
+                  <button onClick={() => callAction(`/api/decisione/task/${t.short_id}`, { action: "scarta" }, "Scartato", toast)} className="inline-flex items-center gap-1 text-xs bg-red-500/15 active:bg-red-500/25 rounded-md px-2 py-1"><X className="w-3 h-3" />Scarta</button>
                 </div>
               </div>
-            </div>
-          </Card>
-        ))}
-        {data.bozze_crm.map(b => (
-          <Card key={b.id} className="p-3" data-testid={`bozza-${b.id}`}>
-            <div className="text-xs font-mono text-muted-foreground">CRM {b.id} — {b.nome}</div>
-            <div className="text-xs text-muted-foreground italic mt-1 line-clamp-1">"{b.body_in}"</div>
-            <div className="text-sm mt-1.5 line-clamp-3">{b.bozza}</div>
-            <div className="mt-2 flex gap-1.5">
-              <button onClick={() => callAction(`/api/decisione/bozza-crm/${b.id}`, { action: "ok" }, "Bozza approvata, in coda invio")}
-                className="inline-flex items-center gap-1 text-xs bg-emerald-500/15 active:bg-emerald-500/25 rounded-md px-3 py-1.5">
-                <Check className="w-3 h-3" />Approva
-              </button>
-              <button onClick={() => callAction(`/api/decisione/bozza-crm/${b.id}`, { action: "scarta" }, "Bozza scartata")}
-                className="inline-flex items-center gap-1 text-xs bg-red-500/15 active:bg-red-500/25 rounded-md px-3 py-1.5">
-                <X className="w-3 h-3" />Scarta
-              </button>
-            </div>
-          </Card>
-        ))}
-        {data.drip.map(d => (
-          <Card key={d.id} className="p-3" data-testid={`drip-${d.id}`}>
-            <div className="text-xs font-mono text-muted-foreground">DRIP {d.id} — {d.nome_lead} ({d.origine})</div>
-            <div className="text-sm mt-1 line-clamp-3">{d.messaggio}</div>
-            <div className="mt-2 flex gap-1.5">
-              <button onClick={() => callAction(`/api/decisione/drip/${d.id}`, { action: "manda" }, "Drip in coda invio")}
-                className="inline-flex items-center gap-1 text-xs bg-emerald-500/15 active:bg-emerald-500/25 rounded-md px-3 py-1.5">
-                <Check className="w-3 h-3" />Manda
-              </button>
-              <button onClick={() => callAction(`/api/decisione/drip/${d.id}`, { action: "scarta" }, "Drip scartato")}
-                className="inline-flex items-center gap-1 text-xs bg-red-500/15 active:bg-red-500/25 rounded-md px-3 py-1.5">
-                <X className="w-3 h-3" />Scarta
-              </button>
-            </div>
-          </Card>
-        ))}
-        {data.outreach_approval.map(o => (
-          <Card key={o.id} className="p-3" data-testid={`outreach-${o.id}`}>
-            <div className="text-xs font-mono text-muted-foreground">{o.tipo}</div>
-            <div className="text-sm mt-0.5 font-medium">
-              {o.immobile_esterno_id ? (
-                <Link href={`/acquisizione/${o.immobile_esterno_id}`} className="text-primary underline inline-flex items-center gap-1">
-                  {o.indirizzo || o.destinatario_nome || "Immobile"}<ChevronRight className="w-3.5 h-3.5" />
-                </Link>
-              ) : (o.indirizzo || o.destinatario_nome || "Immobile")}
-              {o.zona ? <span className="text-muted-foreground font-normal"> · {o.zona}</span> : null}
-            </div>
-            {o.listing_url && (
-              <a href={o.listing_url} target="_blank" rel="noopener" className="text-xs text-muted-foreground inline-flex items-center gap-1 mt-0.5">
-                <ExternalLink className="w-3 h-3" />Vedi annuncio
-              </a>
-            )}
-            {o.destinatario_telefono && (
-              <div className="text-xs text-muted-foreground mt-0.5">{fmtTel(o.destinatario_telefono)}</div>
-            )}
-            {o.testo_proposto && (
-              <div className="text-sm mt-1 line-clamp-3 text-foreground/80">{o.testo_proposto}</div>
-            )}
-            {o.motivo_approvazione && (
-              <div className="text-[11px] text-muted-foreground mt-1">Nota: {o.motivo_approvazione}</div>
-            )}
-            <div className="mt-2 flex gap-1.5">
-              <button onClick={() => callAction(`/api/decisione/outreach/${o.id}`, { action: "approva" }, "Outreach approvato")}
-                className="inline-flex items-center gap-1 text-xs bg-emerald-500/15 active:bg-emerald-500/25 rounded-md px-3 py-1.5">
-                <Check className="w-3 h-3" />Approva
-              </button>
-              <button onClick={() => callAction(`/api/decisione/outreach/${o.id}`, { action: "scarta" }, "Outreach scartato")}
-                className="inline-flex items-center gap-1 text-xs bg-red-500/15 active:bg-red-500/25 rounded-md px-3 py-1.5">
-                <X className="w-3 h-3" />Scarta
-              </button>
             </div>
           </Card>
         ))}
@@ -260,27 +192,76 @@ function SectionDecisioni({ data }: { data: HomeOggi["decisioni"] }) {
   );
 }
 
-/* ─────────── Sezione: Opportunità ─────────── */
-
-function SectionOpportunita({ data }: { data: HomeOggi["opportunita"] }) {
-  const tot = data.pluricondivisi.length + data.match_clienti.length + data.lead_caldi.length;
-  if (tot === 0) {
-    return <SectionShell icon={Target} title="Opportunità" emptyText="Nessuna opportunità nuova oggi." />;
-  }
+/* ─────────── 3) Messaggi da gestire (bozze + drip + outreach) ─────────── */
+function SectionMessaggi({ data }: { data: HomeOggi["decisioni"] }) {
+  const { toast } = useToast();
+  const tot = data.bozze_crm.length + data.drip.length + data.outreach_approval.length;
+  if (!tot) return <SectionShell icon={Mail} title="Messaggi da gestire" emptyText="Nessun messaggio in attesa di risposta." />;
   return (
-    <SectionShell icon={Target} title="Opportunità" badge={tot}>
+    <SectionShell icon={Mail} title="Messaggi da gestire" badge={tot}>
       <div className="space-y-2">
-        {data.pluricondivisi.map(p => (
-          <Card key={p.short_id} className="p-3" data-testid={`pluri-${p.short_id}`}>
-            <Link href={`/pluricondivisi/${p.id}`} className="flex items-start gap-2 group">
-              <Building2 className="w-4 h-4 mt-0.5 text-orange-400 shrink-0" />
+        {data.bozze_crm.map(b => (
+          <Card key={b.id} className="p-3" data-testid={`bozza-${b.id}`}>
+            <div className="text-xs font-mono text-muted-foreground">{b.nome}</div>
+            <div className="text-xs text-muted-foreground italic mt-1 line-clamp-1">Lui: "{b.body_in}"</div>
+            <div className="text-sm mt-1.5 line-clamp-3">Bozza: {b.bozza}</div>
+            <div className="mt-2 flex gap-1.5">
+              <button onClick={() => callAction(`/api/decisione/bozza-crm/${b.id}`, { action: "ok" }, "Approvata, in invio", toast)} className="inline-flex items-center gap-1 text-xs bg-emerald-500/15 active:bg-emerald-500/25 rounded-md px-3 py-1.5"><Check className="w-3 h-3" />Invia</button>
+              <button onClick={() => callAction(`/api/decisione/bozza-crm/${b.id}`, { action: "scarta" }, "Scartata", toast)} className="inline-flex items-center gap-1 text-xs bg-red-500/15 active:bg-red-500/25 rounded-md px-3 py-1.5"><X className="w-3 h-3" />Scarta</button>
+            </div>
+          </Card>
+        ))}
+        {data.drip.map(d => (
+          <Card key={d.id} className="p-3" data-testid={`drip-${d.id}`}>
+            <div className="text-xs font-mono text-muted-foreground">{d.nome_lead} ({d.origine})</div>
+            <div className="text-sm mt-1 line-clamp-3">{d.messaggio}</div>
+            <div className="mt-2 flex gap-1.5">
+              <button onClick={() => callAction(`/api/decisione/drip/${d.id}`, { action: "manda" }, "In invio", toast)} className="inline-flex items-center gap-1 text-xs bg-emerald-500/15 active:bg-emerald-500/25 rounded-md px-3 py-1.5"><Check className="w-3 h-3" />Manda</button>
+              <button onClick={() => callAction(`/api/decisione/drip/${d.id}`, { action: "scarta" }, "Scartato", toast)} className="inline-flex items-center gap-1 text-xs bg-red-500/15 active:bg-red-500/25 rounded-md px-3 py-1.5"><X className="w-3 h-3" />Scarta</button>
+            </div>
+          </Card>
+        ))}
+        {data.outreach_approval.map(o => (
+          <Card key={o.id} className="p-3" data-testid={`outreach-${o.id}`}>
+            <div className="text-xs font-mono text-muted-foreground">{o.tipo}</div>
+            <div className="text-sm mt-0.5 font-medium">
+              {o.immobile_esterno_id ? (
+                <Link href={`/acquisizione/${o.immobile_esterno_id}`} className="text-primary underline inline-flex items-center gap-1">{o.indirizzo || o.destinatario_nome || "Immobile"}<ChevronRight className="w-3.5 h-3.5" /></Link>
+              ) : (o.indirizzo || o.destinatario_nome || "Immobile")}
+              {o.zona ? <span className="text-muted-foreground font-normal"> · {o.zona}</span> : null}
+            </div>
+            {o.listing_url && <a href={o.listing_url} target="_blank" rel="noopener" className="text-xs text-muted-foreground inline-flex items-center gap-1 mt-0.5"><ExternalLink className="w-3 h-3" />Vedi annuncio</a>}
+            {o.destinatario_telefono && <div className="text-xs text-muted-foreground mt-0.5">{fmtTel(o.destinatario_telefono)}</div>}
+            {o.testo_proposto && <div className="text-sm mt-1 line-clamp-3 text-foreground/80">{o.testo_proposto}</div>}
+            {o.motivo_approvazione && <div className="text-[11px] text-muted-foreground mt-1">Nota: {o.motivo_approvazione}</div>}
+            <div className="mt-2 flex gap-1.5">
+              <button onClick={() => callAction(`/api/decisione/outreach/${o.id}`, { action: "approva" }, "Approvato", toast)} className="inline-flex items-center gap-1 text-xs bg-emerald-500/15 active:bg-emerald-500/25 rounded-md px-3 py-1.5"><Check className="w-3 h-3" />Approva</button>
+              <button onClick={() => callAction(`/api/decisione/outreach/${o.id}`, { action: "scarta" }, "Scartato", toast)} className="inline-flex items-center gap-1 text-xs bg-red-500/15 active:bg-red-500/25 rounded-md px-3 py-1.5"><X className="w-3 h-3" />Scarta</button>
+            </div>
+          </Card>
+        ))}
+      </div>
+    </SectionShell>
+  );
+}
+
+/* ─────────── 4) Clienti caldi & opportunità ─────────── */
+function SectionClientiCaldi({ data }: { data: HomeOggi["opportunita"] }) {
+  const tot = data.lead_caldi.length + data.match_clienti.length + data.pluricondivisi.length;
+  if (!tot) return <SectionShell icon={Flame} title="Clienti caldi & opportunità" emptyText="Nessuna opportunità nuova oggi." />;
+  return (
+    <SectionShell icon={Flame} title="Clienti caldi & opportunità" badge={tot}>
+      <div className="space-y-2">
+        {data.lead_caldi.map(l => (
+          <Card key={l.id} className="p-3" data-testid={`lead-${l.id}`}>
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 mt-0.5 text-amber-400 shrink-0" />
               <div className="flex-1 min-w-0">
-                <div className="text-xs font-mono text-muted-foreground">{p.short_id}</div>
-                <div className="text-sm font-medium group-active:text-primary">{p.indirizzo} <span className="text-muted-foreground font-normal">({p.zona})</span></div>
-                <div className="text-xs text-muted-foreground">{p.mq}mq — {fmtMoney(p.prezzo)} — <strong>{p.num_agenzie} agenzie</strong>{p.giorni_sul_mercato ? ` — fermo ${p.giorni_sul_mercato}gg` : ""}</div>
-                <div className="text-[11px] mt-1 text-primary inline-flex items-center gap-0.5">Apri scheda di lavorazione <ChevronRight className="w-3 h-3" /></div>
+                <div className="text-sm font-medium">{l.nome} {l.cognome} <Badge variant="secondary" className="ml-1">score {l.score}</Badge></div>
+                <div className="text-xs text-muted-foreground line-clamp-2">{l.info_chiave || "—"}</div>
+                {l.telefono && <a href={`https://wa.me/${l.telefono.replace(/\D/g, "")}`} target="_blank" rel="noopener" className="inline-flex items-center gap-1 text-xs bg-green-500/10 rounded-md px-2 py-1 mt-1.5"><MessageCircle className="w-3 h-3" />WhatsApp</a>}
               </div>
-            </Link>
+            </div>
           </Card>
         ))}
         {data.match_clienti.map((m, i) => (
@@ -293,20 +274,16 @@ function SectionOpportunita({ data }: { data: HomeOggi["opportunita"] }) {
             </div>
           </Card>
         ))}
-        {data.lead_caldi.map(l => (
-          <Card key={l.id} className="p-3" data-testid={`lead-${l.id}`}>
-            <div className="flex items-start gap-2">
-              <AlertTriangle className="w-4 h-4 mt-0.5 text-amber-400 shrink-0" />
+        {data.pluricondivisi.map(p => (
+          <Card key={p.short_id} className="p-3" data-testid={`pluri-${p.short_id}`}>
+            <Link href={`/pluricondivisi/${p.id}`} className="flex items-start gap-2 group">
+              <Building2 className="w-4 h-4 mt-0.5 text-orange-400 shrink-0" />
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium">{l.nome} {l.cognome} <Badge variant="secondary" className="ml-1">score {l.score}</Badge></div>
-                <div className="text-xs text-muted-foreground line-clamp-2">{l.info_chiave || "—"}</div>
-                {l.telefono && (
-                  <a href={`https://wa.me/${l.telefono.replace(/\D/g, "")}`} target="_blank" rel="noopener" className="inline-flex items-center gap-1 text-xs bg-green-500/10 rounded-md px-2 py-1 mt-1.5">
-                    <MessageCircle className="w-3 h-3" />WhatsApp
-                  </a>
-                )}
+                <div className="text-sm font-medium group-active:text-primary">{p.indirizzo} <span className="text-muted-foreground font-normal">({p.zona})</span></div>
+                <div className="text-xs text-muted-foreground">{p.mq}mq — {fmtMoney(p.prezzo)} — <strong>{p.num_agenzie} agenzie</strong>{p.giorni_sul_mercato ? ` — fermo ${p.giorni_sul_mercato}gg` : ""}</div>
+                <div className="text-[11px] mt-1 text-primary inline-flex items-center gap-0.5">Apri scheda di lavorazione <ChevronRight className="w-3 h-3" /></div>
               </div>
-            </div>
+            </Link>
           </Card>
         ))}
       </div>
@@ -314,54 +291,18 @@ function SectionOpportunita({ data }: { data: HomeOggi["opportunita"] }) {
   );
 }
 
-/* ─────────── Sezione: Oggi ─────────── */
-
-function SectionOggi({ data }: { data: HomeOggi["oggi"] }) {
-  const app = data.appuntamenti;
-  if (app.length === 0) {
-    return <SectionShell icon={Calendar} title="Oggi" emptyText="Nessun appuntamento in agenda." />;
-  }
-  return (
-    <SectionShell icon={Calendar} title="Oggi" badge={app.length}>
-      <div className="space-y-2">
-        {app.map(a => {
-          const dt = new Date(a.data_ora);
-          const ora = dt.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
-          return (
-            <Card key={a.id} className={`p-3 ${a.completato ? "opacity-50" : ""}`} data-testid={`app-${a.id}`}>
-              <div className="flex items-start gap-3">
-                <div className="text-sm font-mono font-semibold tabular-nums shrink-0">{ora}</div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium">{a.luogo || "—"}</div>
-                  {a.note && <div className="text-xs text-muted-foreground line-clamp-2">{a.note}</div>}
-                  <div className="text-[10px] text-muted-foreground mt-1">
-                    {a.completato ? "✓ Completato" : a.tipo}
-                    {a.cliente_id && <Link href={`/clienti/${a.cliente_id}`} className="ml-2 underline">Vedi scheda</Link>}
-                  </div>
-                </div>
-              </div>
-            </Card>
-          );
-        })}
-      </div>
-    </SectionShell>
-  );
-}
-
-/* ─────────── Sezione: Recap ieri ─────────── */
-
+/* ─────────── Recap ieri (in fondo, compatto) ─────────── */
 function SectionRecap({ recap }: { recap: HomeOggi["recap"] }) {
   return (
     <SectionShell icon={BarChart3} title="Recap ieri">
       <div className="grid grid-cols-3 gap-2">
-        <RecapTile label="Outreach inviati" value={recap.outreach_ieri} />
+        <RecapTile label="Outreach" value={recap.outreach_ieri} />
         <RecapTile label="Risposte" value={`${recap.risposte_ieri}${recap.risposte_positive_ieri > 0 ? ` (${recap.risposte_positive_ieri}+)` : ""}`} />
         <RecapTile label="Lead nuovi" value={recap.lead_ieri} />
       </div>
     </SectionShell>
   );
 }
-
 function RecapTile({ label, value }: { label: string; value: any }) {
   return (
     <div className="bg-muted/40 rounded-lg p-3 text-center">
@@ -371,8 +312,7 @@ function RecapTile({ label, value }: { label: string; value: any }) {
   );
 }
 
-/* ─────────── Section shell condiviso ─────────── */
-
+/* ─────────── Section shell ─────────── */
 interface SectionShellProps {
   icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
   title: string;
@@ -380,21 +320,16 @@ interface SectionShellProps {
   emptyText?: string;
   children?: React.ReactNode;
 }
-
 function SectionShell({ icon: Icon, title, badge, emptyText, children }: SectionShellProps) {
   return (
     <section className="space-y-2" data-testid={`section-${title.toLowerCase().replace(/\s+/g, "-")}`}>
       <header className="flex items-center gap-2 px-1">
         <Icon className="w-4 h-4 text-muted-foreground" aria-hidden />
         <h2 className="text-sm font-semibold tracking-tight">{title}</h2>
-        {badge !== undefined && badge > 0 && (
-          <Badge variant="secondary" className="ml-1">{badge}</Badge>
-        )}
+        {badge !== undefined && badge > 0 && <Badge variant="secondary" className="ml-1">{badge}</Badge>}
       </header>
       {children ?? (
-        <Card className="p-4 text-sm text-muted-foreground text-center bg-muted/20">
-          {emptyText || "—"}
-        </Card>
+        <Card className="p-4 text-sm text-muted-foreground text-center bg-muted/20">{emptyText || "—"}</Card>
       )}
     </section>
   );
