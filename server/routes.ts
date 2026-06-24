@@ -4271,6 +4271,47 @@ ${analysis.areeSensibili.length > 0 ? analysis.areeSensibili.map(a => `• ${a}`
     }
   });
 
+  // Punti per la MAPPA acquisizione: multiagenzia (giallo) + privati (verde), con coordinate.
+  app.get("/api/mappa/acquisizione", async (_req, res) => {
+    try {
+      const pluri = await pool.query(
+        `select p.id, p.indirizzo, p.zona, p.prezzo, p.num_agenzie, p.lista_agenzie, p.listing_urls,
+                p.latitudine as lat, p.longitudine as lng, p.stato,
+                nullif(trim(c.nome || ' ' || coalesce(c.cognome,'')), '') as cliente_nome
+         from immobili_pluricondivisi p
+         left join clienti c on c.id = p.cliente_target_id
+         where p.attivo = true and p.latitudine is not null and p.longitudine is not null
+         limit 600`
+      );
+      const privati = await pool.query(
+        `select id, indirizzo, zona, prezzo, url_annuncio, contatto_nome, contatto_telefono,
+                latitudine as lat, longitudine as lng
+         from immobili_esterni
+         where attivo = true and latitudine is not null and longitudine is not null
+           and coalesce(multi_agenzia, false) = false
+         limit 600`
+      );
+      const points = [
+        ...pluri.rows.map((r: any) => ({
+          tipo: "multiagenzia", id: r.id, lat: Number(r.lat), lng: Number(r.lng),
+          indirizzo: r.indirizzo, zona: r.zona, prezzo: r.prezzo, num_agenzie: r.num_agenzie,
+          agenzie: r.lista_agenzie, urls: r.listing_urls, cliente_nome: r.cliente_nome, stato: r.stato,
+          href: `/pluricondivisi/${r.id}`,
+        })),
+        ...privati.rows.map((r: any) => ({
+          tipo: "privato", id: r.id, lat: Number(r.lat), lng: Number(r.lng),
+          indirizzo: r.indirizzo, zona: r.zona, prezzo: r.prezzo, url: r.url_annuncio,
+          contatto_nome: r.contatto_nome, contatto_telefono: r.contatto_telefono,
+          href: `/acquisizione/${r.id}`,
+        })),
+      ];
+      res.json({ points });
+    } catch (e: any) {
+      console.error("[mappa/acquisizione] error:", e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   // Stato pipeline per immobile in Acquisizione (privato) — parità con i pluricondivisi
   app.get("/api/acquisizione/:id/stato", async (req, res) => {
     try {

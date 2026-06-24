@@ -12,7 +12,7 @@ const NAV_ITEMS = [
   { href: "/", label: "Oggi", icon: Home, match: (p: string) => p === "/" },
   { href: "/promemoria", label: "Da fare", icon: ListChecks, match: (p: string) => p.startsWith("/promemoria") },
   { href: "/clienti", label: "Clienti", icon: Users, match: (p: string) => p.startsWith("/clienti") || p.startsWith("/richieste") || p.startsWith("/matching") || p.startsWith("/appuntamenti") },
-  { href: "/immobili", label: "Immobili", icon: Building2, match: (p: string) => p.startsWith("/immobili") || p.startsWith("/acquisizione") || p.startsWith("/mercato") || p.startsWith("/pluricondivisi") || p.startsWith("/bozze") || p.startsWith("/pipeline-privati") },
+  { href: "/immobili", label: "Immobili", icon: Building2, match: (p: string) => p.startsWith("/immobili") || p.startsWith("/acquisizione") || p.startsWith("/mercato") || p.startsWith("/pluricondivisi") || p.startsWith("/mappa") || p.startsWith("/bozze") || p.startsWith("/pipeline-privati") },
   { href: "/impostazioni-pwa", label: "Altro", icon: Menu, match: (p: string) => p.startsWith("/impostazioni") || p.startsWith("/bot") || p.startsWith("/whatsapp") || p.startsWith("/comunicazioni") || p.startsWith("/attivita") || p.startsWith("/analytics") || p.startsWith("/operativo") || p.startsWith("/comandi") },
 ];
 

@@ -9,6 +9,7 @@ import {
   CalendarCheck,
   Sparkles,
   Search,
+  MapPin,
   Settings,
   Bot,
   Phone,
@@ -53,6 +54,7 @@ const groups = [
     label: "Acquisizione",
     items: [
       { title: "Pluricondivisi", url: "/pluricondivisi", icon: Building2 },
+      { title: "Mappa", url: "/mappa", icon: MapPin },
       { title: "Acquisizione", url: "/acquisizione", icon: Search },
       { title: "Mercato", url: "/mercato", icon: TrendingUp },
       { title: "Pipeline privati", url: "/pipeline-privati", icon: Kanban },

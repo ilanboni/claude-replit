@@ -11,6 +11,7 @@ import Dashboard from "@/pages/dashboard";
 import Home from "@/pages/home";
 import Pluricondivisi from "@/pages/pluricondivisi";
 import PluricondivisoDetailPage from "@/pages/pluricondivisi-detail";
+import Mappa from "@/pages/mappa";
 import ImpostazioniPWA from "@/pages/impostazioni-pwa";
 import Promemoria from "@/pages/promemoria";
 import Comandi from "@/pages/comandi";
@@ -50,6 +51,7 @@ function Router() {
       {/* Nuove pagine PWA mobile-first */}
       <Route path="/pluricondivisi" component={Pluricondivisi} />
       <Route path="/pluricondivisi/:id" component={PluricondivisoDetailPage} />
+      <Route path="/mappa" component={Mappa} />
       <Route path="/impostazioni-pwa" component={ImpostazioniPWA} />
       <Route path="/promemoria" component={Promemoria} />
       <Route path="/comandi" component={Comandi} />
