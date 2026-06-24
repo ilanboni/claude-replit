@@ -1182,20 +1182,22 @@ Scrivi ORA il messaggio finito, solo il testo, senza preamboli né commenti.`;
   app.get("/api/pluricondivisi", async (req, res) => {
     try {
       const stato = (req.query.stato as string) || "all"; // all | proposto | proprietario_trovato | bozza_pronta | contattato | chiuso | scartato
-      let q = `SELECT id, short_id, indirizzo, zona, mq, locali, prezzo, num_agenzie,
-                      lista_agenzie, score_priorita, giorni_sul_mercato, stato,
-                      proprietario_nome, proprietario_cognome, proprietario_telefono,
-                      contattato_at, esito_finale, primo_visto, briefing_inviato_at
-               FROM immobili_pluricondivisi
-               WHERE attivo = true`;
+      let q = `SELECT p.id, p.short_id, p.indirizzo, p.zona, p.mq, p.locali, p.prezzo, p.num_agenzie,
+                      p.lista_agenzie, p.score_priorita, p.giorni_sul_mercato, p.stato,
+                      p.proprietario_nome, p.proprietario_cognome, p.proprietario_telefono,
+                      p.contattato_at, p.esito_finale, p.primo_visto, p.briefing_inviato_at,
+                      p.cliente_target_id, NULLIF(TRIM(c.nome || ' ' || COALESCE(c.cognome,'')), '') AS cliente_nome
+               FROM immobili_pluricondivisi p
+               LEFT JOIN clienti c ON c.id = p.cliente_target_id
+               WHERE p.attivo = true`;
       const params: any[] = [];
       if (stato !== "all" && stato !== "aperti") {
         params.push(stato);
-        q += ` AND stato = $${params.length}`;
+        q += ` AND p.stato = $${params.length}`;
       } else if (stato === "aperti") {
-        q += ` AND stato NOT IN ('chiuso','scartato')`;
+        q += ` AND p.stato NOT IN ('chiuso','scartato')`;
       }
-      q += ` ORDER BY score_priorita DESC, primo_visto DESC LIMIT 200`;
+      q += ` ORDER BY p.score_priorita DESC, p.primo_visto DESC LIMIT 200`;
       const r = await pool.query(q, params);
       res.json(r.rows);
     } catch (err: any) {
