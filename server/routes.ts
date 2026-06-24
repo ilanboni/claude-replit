@@ -4164,13 +4164,15 @@ ${analysis.areeSensibili.length > 0 ? analysis.areeSensibili.map(a => `• ${a}`
          ),
          imm as (
            select 'pluricondiviso'::text fonte, ('PL'||id) imm_id, id::bigint link_id, indirizzo, zona, mq, camere,
-                  prezzo::numeric prezzo, num_agenzie, mandato_status as stato, (listing_urls->>0) as url
+                  prezzo::numeric prezzo, num_agenzie, mandato_status as stato, (listing_urls->>0) as url,
+                  latitudine, longitudine
            from immobili_pluricondivisi where attivo=true
            union all
            select case when coalesce(multi_agenzia,false) or coalesce(num_agenzie,0)>=2 then 'pluricondiviso'
                        when lower(coalesce(tipo_fonte,'')) in ('privato','p') then 'privato' else 'agenzia' end,
                   ('IE'||id), id::bigint, indirizzo, zona, mq, camere, prezzo::numeric, coalesce(num_agenzie,1),
-                  stato_contatto, url_annuncio
+                  stato_contatto, url_annuncio,
+                  latitudine, longitudine
            from immobili_esterni where attivo=true
          )
          select * from (
@@ -4209,6 +4211,8 @@ ${analysis.areeSensibili.length > 0 ? analysis.areeSensibili.map(a => `• ${a}`
         return {
           fonte: r.fonte, indirizzo: r.indirizzo, zona: (r.zona && r.zona !== "Mappa") ? r.zona : null, mq: r.mq, prezzo: r.prezzo,
           num_agenzie: r.num_agenzie, score: r.score, url: r.url,
+          lat: r.latitudine != null ? Number(r.latitudine) : null,
+          lng: r.longitudine != null ? Number(r.longitudine) : null,
           stato: r.stato || (isPluri ? "da_lavorare" : null),
           href: isPluri ? `/pluricondivisi/${r.link_id}` : `/acquisizione/${r.link_id}`,
           gia_lavorato, n_attivita: isPluri ? (actPluri.get(linkId) || 0) : 0,

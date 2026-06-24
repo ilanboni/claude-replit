@@ -66,6 +66,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { ClienteForm } from "./cliente-form";
+import { MatchMap } from "@/components/match-map";
 import { RichiestaForm } from "../richieste/richiesta-form";
 import type { Cliente, Richiesta, Immobile, ImmobileEsterno, Comunicazione, Appuntamento, AttivitaCliente } from "@shared/schema";
 
@@ -1294,6 +1295,7 @@ function TabMatchAcquisizione({ clienteId }: { clienteId: number }) {
   return (
     <Card className="p-4 mb-4">
       <div className="text-sm font-semibold mb-2">🎯 Immobili da acquisire per questo cliente ({matches.length})</div>
+      <MatchMap points={matches as any} />
       <div className="space-y-2">
         {matches.map((m, i) => (
           <div key={i} className="border rounded-lg p-2.5">
