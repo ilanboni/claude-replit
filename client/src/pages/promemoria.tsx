@@ -93,10 +93,7 @@ export default function Promemoria() {
                     {new Date(t.scheduled_at).toLocaleDateString("it-IT", { day: "numeric", month: "short" })}
                   </span>
                 </div>
-                <div className="text-sm mt-1">{t.descrizione}</div>
-                {t.origine_dettaglio && (
-                  <div className="text-[10px] text-muted-foreground mt-0.5">↳ {t.origine_dettaglio}</div>
-                )}
+                <div className="text-sm mt-1 line-clamp-1">{t.descrizione}</div>
                 {stato === "attivo" && (
                   <div className="mt-2 flex gap-1.5 flex-wrap">
                     {t.telefono && (

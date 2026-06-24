@@ -25,7 +25,7 @@ type HomeOggi = {
     bozze_crm: Array<{ id: string; nome: string; telefono: string; body_in: string; bozza: string }>;
     drip: Array<{ id: string; nome_lead: string; messaggio: string; origine: string }>;
     outreach_approval: Array<{ id: string; destinatario_nome: string; destinatario_telefono: string; tipo: string; motivo_approvazione: string; testo_proposto?: string; indirizzo?: string; zona?: string; listing_url?: string; immobile_esterno_id?: number | null; target_immobile_id?: string | null }>;
-    tasks_ilan: Array<{ short_id: string; descrizione: string; nome_riferimento: string; telefono: string; priorita: number; cliente_id?: number | null; lead_id?: number | null; immobile_id?: number | null; immobile_esterno_id?: number | null; pluricondiviso_id?: number | null }>;
+    tasks_ilan: Array<{ short_id: string; tipo: string; descrizione: string; nome_riferimento: string; telefono: string; priorita: number; cliente_id?: number | null; lead_id?: number | null; immobile_id?: number | null; immobile_esterno_id?: number | null; pluricondiviso_id?: number | null }>;
   };
   opportunita: {
     pluricondivisi: Array<{ id: number; short_id: string; indirizzo: string; zona: string; mq: number; prezzo: number; num_agenzie: number; giorni_sul_mercato: number; lista_agenzie: Array<{ nome: string }> }>;
@@ -44,6 +44,21 @@ function taskHref(t: { cliente_id?: number | null; immobile_esterno_id?: number 
   if (t.pluricondiviso_id) return `/pluricondivisi/${t.pluricondiviso_id}`;
   if (t.immobile_id) return `/immobili/${t.immobile_id}`;
   return null;
+}
+
+const TIPO_LABEL: Record<string, string> = {
+  proponi_immobili: "Proponi immobili",
+  richiama: "Richiama",
+  ricerca_cliente: "Ricerca acquisizione",
+  risposta_proprietario: "Rispondi al proprietario",
+};
+/** Titolo breve e umano per una card: per i tipi "rumorosi" usa tipo+nome, altrimenti accorcia la descrizione. */
+function taskTitolo(t: { tipo?: string; nome_riferimento?: string | null; descrizione?: string }): string {
+  const lab = t.tipo ? TIPO_LABEL[t.tipo] : undefined;
+  const nome = (t.nome_riferimento || "").trim();
+  if (lab) return nome ? `${lab} · ${nome}` : lab;
+  const d = (t.descrizione || "").replace(/\s+/g, " ").trim();
+  return d.length > 64 ? d.slice(0, 62).trim() + "…" : d;
 }
 
 const refresh = () => queryClient.invalidateQueries({ queryKey: ["/api/home/oggi"] });
@@ -134,7 +149,7 @@ function SectionAppuntamenti({ data }: { data: HomeOggi["oggi"] }) {
                 <div className="text-base font-mono font-semibold tabular-nums shrink-0">{ora}</div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium">{a.luogo || a.tipo || "Appuntamento"}</div>
-                  {a.note && <div className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{a.note}</div>}
+                  {a.note && <div className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{a.note}</div>}
                   <div className="text-[11px] mt-1">
                     {a.completato ? <span className="text-emerald-500">✓ Completato</span> : <span className="text-muted-foreground">{a.tipo}</span>}
                     {a.cliente_id && (
@@ -160,33 +175,26 @@ function SectionCoseDaFare({ tasks }: { tasks: HomeOggi["decisioni"]["tasks_ilan
   return (
     <SectionShell icon={ListChecks} title="Cose da fare" badge={tasks.length}>
       <div className="space-y-2">
-        {tasks.map(t => (
-          <Card key={t.short_id} className="p-3" data-testid={`task-${t.short_id}`}>
-            <div className="flex items-start gap-2">
-              <span className="text-base shrink-0">{t.priorita <= 2 ? "🔴" : "🟡"}</span>
-              <div className="flex-1 min-w-0">
-                {taskHref(t) ? (
-                  <Link href={taskHref(t)!} className="block group">
-                    <div className="text-xs font-mono text-muted-foreground">{t.short_id}</div>
-                    <div className="text-sm leading-snug group-active:text-primary">{t.descrizione}<ChevronRight className="inline w-3.5 h-3.5 ml-0.5 align-text-bottom text-muted-foreground" /></div>
-                  </Link>
+        {tasks.map(t => {
+          const href = taskHref(t);
+          const titolo = taskTitolo(t);
+          return (
+            <Card key={t.short_id} className="px-4 py-3.5" data-testid={`task-${t.short_id}`}>
+              <div className="flex items-center gap-3">
+                <span className={`w-2 h-2 rounded-full shrink-0 ${t.priorita <= 2 ? "bg-red-500" : "bg-amber-400"}`} />
+                {href ? (
+                  <Link href={href} className="flex-1 min-w-0 text-[15px] font-medium truncate active:text-primary">{titolo}</Link>
                 ) : (
-                  <>
-                    <div className="text-xs font-mono text-muted-foreground">{t.short_id}</div>
-                    <div className="text-sm leading-snug">{t.descrizione}</div>
-                  </>
+                  <span className="flex-1 min-w-0 text-[15px] font-medium truncate">{titolo}</span>
                 )}
-                <div className="mt-2 flex gap-1.5 flex-wrap">
-                  {t.telefono && <a href={`tel:${t.telefono}`} className="inline-flex items-center gap-1 text-xs bg-primary/10 active:bg-primary/20 rounded-md px-2 py-1"><Phone className="w-3 h-3" />{t.telefono}</a>}
-                  {t.telefono && <a href={`https://wa.me/${t.telefono.replace(/\D/g, "")}`} target="_blank" rel="noopener" className="inline-flex items-center gap-1 text-xs bg-green-500/10 active:bg-green-500/20 rounded-md px-2 py-1"><MessageCircle className="w-3 h-3" />WA</a>}
-                  <button onClick={() => callAction(`/api/decisione/task/${t.short_id}`, { action: "fatto" }, "Fatto ✓", toast)} className="inline-flex items-center gap-1 text-xs bg-emerald-500/15 active:bg-emerald-500/25 rounded-md px-2 py-1"><Check className="w-3 h-3" />Fatto</button>
-                  <button onClick={() => callAction(`/api/decisione/task/${t.short_id}`, { action: "rinvia", rinvia_giorni: 3 }, "Rinviato +3gg", toast)} className="inline-flex items-center gap-1 text-xs bg-amber-500/15 active:bg-amber-500/25 rounded-md px-2 py-1"><CalendarPlus className="w-3 h-3" />+3gg</button>
-                  <button onClick={() => callAction(`/api/decisione/task/${t.short_id}`, { action: "scarta" }, "Scartato", toast)} className="inline-flex items-center gap-1 text-xs bg-red-500/15 active:bg-red-500/25 rounded-md px-2 py-1"><X className="w-3 h-3" />Scarta</button>
-                </div>
+                <button onClick={() => callAction(`/api/decisione/task/${t.short_id}`, { action: "fatto" }, "Fatto ✓", toast)}
+                  className="shrink-0 inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 active:opacity-60 px-2 py-1.5">
+                  <Check className="w-4 h-4" /><span className="hidden sm:inline">Fatto</span>
+                </button>
               </div>
-            </div>
-          </Card>
-        ))}
+            </Card>
+          );
+        })}
       </div>
     </SectionShell>
   );
@@ -204,7 +212,7 @@ function SectionMessaggi({ data }: { data: HomeOggi["decisioni"] }) {
           <Card key={b.id} className="p-3" data-testid={`bozza-${b.id}`}>
             <div className="text-xs font-mono text-muted-foreground">{b.nome}</div>
             <div className="text-xs text-muted-foreground italic mt-1 line-clamp-1">Lui: "{b.body_in}"</div>
-            <div className="text-sm mt-1.5 line-clamp-3">Bozza: {b.bozza}</div>
+            <div className="text-sm mt-1.5 line-clamp-1">Bozza: {b.bozza}</div>
             <div className="mt-2 flex gap-1.5">
               <button onClick={() => callAction(`/api/decisione/bozza-crm/${b.id}`, { action: "ok" }, "Approvata, in invio", toast)} className="inline-flex items-center gap-1 text-xs bg-emerald-500/15 active:bg-emerald-500/25 rounded-md px-3 py-1.5"><Check className="w-3 h-3" />Invia</button>
               <button onClick={() => callAction(`/api/decisione/bozza-crm/${b.id}`, { action: "scarta" }, "Scartata", toast)} className="inline-flex items-center gap-1 text-xs bg-red-500/15 active:bg-red-500/25 rounded-md px-3 py-1.5"><X className="w-3 h-3" />Scarta</button>
@@ -214,7 +222,7 @@ function SectionMessaggi({ data }: { data: HomeOggi["decisioni"] }) {
         {data.drip.map(d => (
           <Card key={d.id} className="p-3" data-testid={`drip-${d.id}`}>
             <div className="text-xs font-mono text-muted-foreground">{d.nome_lead} ({d.origine})</div>
-            <div className="text-sm mt-1 line-clamp-3">{d.messaggio}</div>
+            <div className="text-sm mt-1 line-clamp-1">{d.messaggio}</div>
             <div className="mt-2 flex gap-1.5">
               <button onClick={() => callAction(`/api/decisione/drip/${d.id}`, { action: "manda" }, "In invio", toast)} className="inline-flex items-center gap-1 text-xs bg-emerald-500/15 active:bg-emerald-500/25 rounded-md px-3 py-1.5"><Check className="w-3 h-3" />Manda</button>
               <button onClick={() => callAction(`/api/decisione/drip/${d.id}`, { action: "scarta" }, "Scartato", toast)} className="inline-flex items-center gap-1 text-xs bg-red-500/15 active:bg-red-500/25 rounded-md px-3 py-1.5"><X className="w-3 h-3" />Scarta</button>
@@ -232,7 +240,7 @@ function SectionMessaggi({ data }: { data: HomeOggi["decisioni"] }) {
             </div>
             {o.listing_url && <a href={o.listing_url} target="_blank" rel="noopener" className="text-xs text-muted-foreground inline-flex items-center gap-1 mt-0.5"><ExternalLink className="w-3 h-3" />Vedi annuncio</a>}
             {o.destinatario_telefono && <div className="text-xs text-muted-foreground mt-0.5">{fmtTel(o.destinatario_telefono)}</div>}
-            {o.testo_proposto && <div className="text-sm mt-1 line-clamp-3 text-foreground/80">{o.testo_proposto}</div>}
+            {o.testo_proposto && <div className="text-sm mt-1 line-clamp-1 text-foreground/80">{o.testo_proposto}</div>}
             {o.motivo_approvazione && <div className="text-[11px] text-muted-foreground mt-1">Nota: {o.motivo_approvazione}</div>}
             <div className="mt-2 flex gap-1.5">
               <button onClick={() => callAction(`/api/decisione/outreach/${o.id}`, { action: "approva" }, "Approvato", toast)} className="inline-flex items-center gap-1 text-xs bg-emerald-500/15 active:bg-emerald-500/25 rounded-md px-3 py-1.5"><Check className="w-3 h-3" />Approva</button>
@@ -258,7 +266,7 @@ function SectionClientiCaldi({ data }: { data: HomeOggi["opportunita"] }) {
               <AlertTriangle className="w-4 h-4 mt-0.5 text-amber-400 shrink-0" />
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium">{l.nome} {l.cognome} <Badge variant="secondary" className="ml-1">score {l.score}</Badge></div>
-                <div className="text-xs text-muted-foreground line-clamp-2">{l.info_chiave || "—"}</div>
+                <div className="text-xs text-muted-foreground line-clamp-1">{l.info_chiave || "—"}</div>
                 {l.telefono && <a href={`https://wa.me/${l.telefono.replace(/\D/g, "")}`} target="_blank" rel="noopener" className="inline-flex items-center gap-1 text-xs bg-green-500/10 rounded-md px-2 py-1 mt-1.5"><MessageCircle className="w-3 h-3" />WhatsApp</a>}
               </div>
             </div>
