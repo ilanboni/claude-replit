@@ -56,6 +56,9 @@ export default function PluricondivisoDetail() {
   const { toast } = useToast();
   const key = `/api/pluricondivisi/${id}/scheda`;
   const { data, isLoading } = useQuery<Detail>({ queryKey: [key] });
+  const { data: interessati } = useQuery<{ clienti: any[] }>({
+    queryKey: [`/api/pluricondivisi/${id}/clienti-interessati`],
+  });
   const [tipo, setTipo] = useState("");
   const [descr, setDescr] = useState("");
 
@@ -141,6 +144,38 @@ export default function PluricondivisoDetail() {
           </div>
         )}
       </Card>
+
+      {interessati && interessati.clienti && interessati.clienti.length > 0 && (
+        <Card className="p-4 border-primary/40">
+          <div className="text-sm font-semibold mb-1">🎯 Potrebbe interessare a…</div>
+          <div className="text-xs text-muted-foreground mb-2">Clienti con ricerca attiva che combacia. La tua leva per il mandato: «ho già chi lo comprerebbe».</div>
+          <div className="space-y-2">
+            {interessati.clienti.map((c: any) => {
+              const wa = waDigits(c.telefono);
+              return (
+                <div key={c.cliente_id} className="flex items-center justify-between gap-2 border-b border-muted-foreground/10 pb-2 last:border-0 last:pb-0">
+                  <div className="min-w-0">
+                    <Link href={`/clienti/${c.cliente_id}`} className="text-sm font-medium text-primary hover:underline">{c.nome} {c.cognome}</Link>
+                    <div className="text-[11px] text-muted-foreground">
+                      {c.budget_massimo ? `budget ${fmtMoney(c.budget_massimo)}` : ""}
+                      {c.richiesta_zona ? ` · ${c.richiesta_zona}` : ""}
+                      {c.mq_minimi ? ` · ${c.mq_minimi}mq+` : ""}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <Badge variant="outline" className="text-[10px]">match {c.score}</Badge>
+                    {wa && (
+                      <a href={`https://wa.me/${wa}`} target="_blank" rel="noopener" className="inline-flex items-center gap-1 bg-green-500/10 rounded-md px-2 py-1 text-xs">
+                        <MessageCircle className="w-3 h-3" />WA
+                      </a>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
 
       <Card className="p-4">
         <div className="text-sm font-semibold mb-2">Stato lavorazione</div>

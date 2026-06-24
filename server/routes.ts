@@ -4220,6 +4220,55 @@ ${analysis.areeSensibili.length > 0 ? analysis.areeSensibili.map(a => `• ${a}`
     }
   });
 
+  // "Potrebbe interessare a..." — clienti con ricerca attiva che combacia con un pluricondiviso.
+  // Leva per il mandato: "ho gia' chi lo comprerebbe".
+  app.get("/api/pluricondivisi/:id/clienti-interessati", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const q = await pool.query(
+        `with imm as (
+           select zona, prezzo::numeric prezzo, mq, camere, indirizzo
+           from immobili_pluricondivisi where id=$1
+         )
+         select * from (
+           select c.id as cliente_id, c.nome, c.cognome, c.telefono,
+                  r.budget_massimo::numeric as budget_massimo, r.zona as richiesta_zona,
+                  r.mq_minimi, r.camere_minime,
+             ( (case when r.budget_massimo is not null and imm.prezzo is not null then (case when imm.prezzo<=r.budget_massimo then 30 when imm.prezzo<=r.budget_massimo*1.1 then 15 else 0 end) else 0 end)
+             + (case when r.mq_minimi is not null and imm.mq is not null and imm.mq>=r.mq_minimi then 20 else 0 end)
+             + (case when r.zona is not null and exists (select 1 from unnest(string_to_array(lower(r.zona),',')) tok where length(btrim(tok))>2 and (lower(coalesce(imm.zona,'')) like '%'||btrim(tok)||'%' or lower(coalesce(imm.indirizzo,'')) like '%'||btrim(tok)||'%')) then 25 else 0 end)
+             + (case when r.camere_minime is not null and imm.camere is not null and imm.camere>=r.camere_minime then 15 else 0 end)
+             ) as score
+           from richieste r
+           join clienti c on c.id=r.cliente_id
+           cross join imm
+           where r.attiva=true
+         ) t where score>=40
+         order by score desc limit 20`,
+        [id]
+      );
+      res.json({ clienti: q.rows });
+    } catch (e: any) {
+      console.error("[pluricondivisi/clienti-interessati] error:", e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Sposta un pluricondiviso lungo la pipeline (campo `stato`) — usato dal kanban.
+  app.post("/api/pluricondivisi/:id/stato-lista", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const stato = String(req.body?.stato || "").trim();
+      const validi = ["proposto", "proprietario_trovato", "bozza_pronta", "contattato", "chiuso", "scartato"];
+      if (!validi.includes(stato)) return res.status(400).json({ error: "stato non valido" });
+      await pool.query(`UPDATE immobili_pluricondivisi SET stato=$1, updated_at=NOW() WHERE id=$2`, [stato, id]);
+      res.json({ ok: true });
+    } catch (e: any) {
+      console.error("[pluricondivisi/stato-lista] error:", e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   // Stato pipeline per immobile in Acquisizione (privato) — parità con i pluricondivisi
   app.get("/api/acquisizione/:id/stato", async (req, res) => {
     try {
