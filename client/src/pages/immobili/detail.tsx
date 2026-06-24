@@ -152,9 +152,11 @@ function PropertyHeader({ immobile }: { immobile: Immobile }) {
 
           <div className="flex flex-col items-end gap-2">
             <p className="text-3xl font-bold" data-testid="text-property-price">
-              {immobile.prezzo
-                ? `€${Number(immobile.prezzo).toLocaleString("it-IT")}`
-                : "Prezzo N/D"}
+              {immobile.tipoContratto === "locazione" && immobile.canoneMensile
+                ? `€${Number(immobile.canoneMensile).toLocaleString("it-IT")}/mese`
+                : immobile.prezzo
+                  ? `€${Number(immobile.prezzo).toLocaleString("it-IT")}`
+                  : "Prezzo N/D"}
             </p>
             {immobile.mq && immobile.prezzo && (
               <p className="text-sm text-muted-foreground">

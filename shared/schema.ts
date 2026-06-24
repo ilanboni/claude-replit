@@ -87,6 +87,8 @@ export const immobili = pgTable("immobili", {
   citta: text("citta"),
   mq: integer("mq"),
   prezzo: decimal("prezzo", { precision: 12, scale: 2 }),
+  tipoContratto: text("tipo_contratto"), // vendita | locazione
+  canoneMensile: decimal("canone_mensile", { precision: 12, scale: 2 }), // affitto mensile (per le locazioni)
   piano: integer("piano"),
   pianiEdificio: integer("piani_edificio"),
   statoVendita: text("stato_vendita").default("disponibile"), // disponibile, in_trattativa, venduto, ritirato

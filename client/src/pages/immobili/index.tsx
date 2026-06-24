@@ -124,9 +124,11 @@ function ImmobileCard({ immobile, onEdit, onDelete }: {
 
         <div className="mt-3">
           <p className="text-2xl font-bold" data-testid={`text-property-price-${immobile.id}`}>
-            {immobile.prezzo 
-              ? `€${Number(immobile.prezzo).toLocaleString('it-IT')}` 
-              : "Prezzo N/D"}
+            {immobile.tipoContratto === 'locazione' && immobile.canoneMensile
+              ? `€${Number(immobile.canoneMensile).toLocaleString('it-IT')}/mese`
+              : immobile.prezzo
+                ? `€${Number(immobile.prezzo).toLocaleString('it-IT')}`
+                : "Prezzo N/D"}
           </p>
         </div>
 
