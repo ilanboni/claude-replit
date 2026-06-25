@@ -100,15 +100,20 @@ export default function PluricondivisoDetail() {
           {data.locali ? <span>{data.locali} locali</span> : null}
           <span className="text-red-600 font-medium">{data.num_agenzie || "?"} agenzie</span>
         </div>
-        {urls.length > 0 && (
-          <div className="mt-2 flex flex-col gap-1">
-            {urls.map((u: string, i: number) => (
-              <a key={i} href={u} target="_blank" rel="noopener" className="text-xs text-primary inline-flex items-center gap-1">
-                <ExternalLink className="w-3 h-3" />Annuncio {i + 1}
-              </a>
-            ))}
-          </div>
-        )}
+        {(() => {
+          const listings = Array.isArray(data.listings) && data.listings.length
+            ? data.listings
+            : urls.map((u: string) => ({ url: u, agenzia: null }));
+          return listings.length > 0 ? (
+            <div className="mt-2 flex flex-col gap-1">
+              {listings.map((l: any, i: number) => (
+                <a key={i} href={l.url} target="_blank" rel="noopener" className="text-xs text-primary inline-flex items-center gap-1">
+                  <ExternalLink className="w-3 h-3" />{l.agenzia || "Privato"}
+                </a>
+              ))}
+            </div>
+          ) : null;
+        })()}
       </Card>
 
       <Card className="p-4">

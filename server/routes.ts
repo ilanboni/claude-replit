@@ -4105,7 +4105,21 @@ ${analysis.areeSensibili.length > 0 ? analysis.areeSensibili.map(a => `• ${a}`
         );
         urls = cf.rows.map((r: any) => r.url_casafari).filter(Boolean);
       }
-      res.json({ ...row, listing_urls: urls, cliente, attivita: att.rows, stati_disponibili: PLURI_STATI, tipi_attivita: PLURI_TIPI_ATTIVITA });
+      // Per ogni annuncio recupera il nome agenzia dai fingerprints (agenzia null = privato)
+      let listings = urls.map((u: string) => ({ url: u, agenzia: null as string | null }));
+      if (urls.length > 0) {
+        try {
+          const fps = await pool.query(
+            `SELECT listing_url, agency_name FROM listing_fingerprints WHERE listing_url = ANY($1)`, [urls]
+          );
+          const byUrl = new Map<string, string | null>();
+          for (const f of fps.rows) byUrl.set(f.listing_url, (f.agency_name && String(f.agency_name).trim()) || null);
+          listings = urls.map((u: string) => ({ url: u, agenzia: byUrl.get(u) ?? null }));
+        } catch (e) {
+          console.error("[pluricondivisi/detail] fingerprints lookup:", e);
+        }
+      }
+      res.json({ ...row, listing_urls: urls, listings, cliente, attivita: att.rows, stati_disponibili: PLURI_STATI, tipi_attivita: PLURI_TIPI_ATTIVITA });
     } catch (error: any) {
       console.error("[pluricondivisi/detail] error:", error);
       res.status(500).json({ error: error.message });
