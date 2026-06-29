@@ -26,28 +26,32 @@ const execAsync = promisify(exec);
 const MIN_MATCHING_SCORE = 30;
 
 // Helper function to generate matching for a single richiesta against all immobili and mercato opportunities
-async function generateMatchingForRichiesta(richiestaId: number): Promise<{immobiliMatches: number, mercatoMatches: number}> {
+async function generateMatchingForRichiesta(richiestaId: number): Promise<{immobiliMatches: number, esterniMatches: number, mercatoMatches: number}> {
   const richiesta = await storage.getRichiesta(richiestaId);
-  if (!richiesta || !richiesta.attiva) return { immobiliMatches: 0, mercatoMatches: 0 };
-  
-  const [allImmobili, allOpportunita, existingMatches, existingMercatoMatches] = await Promise.all([
+  if (!richiesta || !richiesta.attiva) return { immobiliMatches: 0, esterniMatches: 0, mercatoMatches: 0 };
+
+  const [allImmobili, allEsterni, allOpportunita, existingMatches, existingMercatoMatches] = await Promise.all([
     storage.getImmobili(),
+    storage.getImmobiliEsterni(),
     storage.getOpportunitaMercato(),
     storage.getMatching(richiestaId),
     storage.getMatchingOpportunitaByRichiesta(richiestaId),
   ]);
-  
+
   const activeImmobili = allImmobili.filter(i => i.attivo);
+  const activeEsterni = allEsterni.filter(e => e.attivo !== false);
   const activeOpportunita = allOpportunita.filter(o => o.stato !== "scartato");
-  
+
   // Track existing matches to avoid duplicates
   const existingImmobiliIds = new Set(existingMatches.map(m => m.immobileId));
+  const existingEsterniIds = new Set(existingMatches.map(m => m.immobileEsternoId).filter(Boolean));
   const existingOpportunitaIds = new Set(existingMercatoMatches.map(m => m.opportunitaId));
-  
+
   let immobiliMatches = 0;
+  let esterniMatches = 0;
   let mercatoMatches = 0;
-  
-  // Match against immobili
+
+  // Match against immobili (portafoglio interno = "Mio")
   for (const immobile of activeImmobili) {
     if (existingImmobiliIds.has(immobile.id)) continue;
     const score = calculateMatchScore(richiesta, immobile);
@@ -60,7 +64,22 @@ async function generateMatchingForRichiesta(richiestaId: number): Promise<{immob
       immobiliMatches++;
     }
   }
-  
+
+  // Match against immobili esterni (portali/acquisizione = Privato / Pluricondiviso / Monocondiviso)
+  // Riusa la stessa funzione di punteggio: gli immobili esterni hanno gli stessi campi (zona, prezzo, mq, ecc.)
+  for (const esterno of activeEsterni) {
+    if (existingEsterniIds.has(esterno.id)) continue;
+    const score = calculateMatchScore(richiesta, esterno as any);
+    if (score >= MIN_MATCHING_SCORE) {
+      await storage.createMatching({
+        richiestaId: richiesta.id,
+        immobileEsternoId: esterno.id,
+        punteggio: score,
+      } as any);
+      esterniMatches++;
+    }
+  }
+
   // Match against mercato opportunities
   for (const opp of activeOpportunita) {
     if (existingOpportunitaIds.has(opp.id)) continue;
@@ -74,9 +93,9 @@ async function generateMatchingForRichiesta(richiestaId: number): Promise<{immob
       mercatoMatches++;
     }
   }
-  
-  console.log(`[Auto-Matching] Richiesta ${richiestaId}: ${immobiliMatches} immobili, ${mercatoMatches} mercato`);
-  return { immobiliMatches, mercatoMatches };
+
+  console.log(`[Auto-Matching] Richiesta ${richiestaId}: ${immobiliMatches} immobili, ${esterniMatches} esterni, ${mercatoMatches} mercato`);
+  return { immobiliMatches, esterniMatches, mercatoMatches };
 }
 
 // Helper function to generate matching for a new immobile against all richieste
@@ -2651,18 +2670,20 @@ ${analysis.areeSensibili.length > 0 ? analysis.areeSensibili.map(a => `• ${a}`
       richieste = richieste.filter(r => r && r.attiva);
       
       const immobili = (await storage.getImmobili()).filter(i => i.attivo);
-      
+      const esterni = (await storage.getImmobiliEsterni()).filter(e => e.attivo !== false);
+
       const newMatches = [];
-      
+
       for (const richiesta of richieste) {
         if (!richiesta) continue;
-        
+
         // Delete existing matches for this request
         await storage.deleteMatchingByRichiesta(richiesta.id);
-        
+
+        // Portafoglio interno ("Mio")
         for (const immobile of immobili) {
           const punteggio = calculateMatchScore(richiesta, immobile);
-          
+
           // Only create matches with score >= 30
           if (punteggio >= 30) {
             const match = await storage.createMatching({
@@ -2671,6 +2692,20 @@ ${analysis.areeSensibili.length > 0 ? analysis.areeSensibili.map(a => `• ${a}`
               punteggio,
               proposto: false,
             });
+            newMatches.push(match);
+          }
+        }
+
+        // Immobili esterni (portali/acquisizione: Privato / Pluricondiviso / Monocondiviso)
+        for (const esterno of esterni) {
+          const punteggio = calculateMatchScore(richiesta, esterno as any);
+          if (punteggio >= 30) {
+            const match = await storage.createMatching({
+              richiestaId: richiesta.id,
+              immobileEsternoId: esterno.id,
+              punteggio,
+              proposto: false,
+            } as any);
             newMatches.push(match);
           }
         }
